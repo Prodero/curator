@@ -19,7 +19,7 @@ async function fixture(t) {
   await packageFixture(path.join(home,'package'));
   await write('package/dist/cli.js', '// packaged fixture');
   await write('package/dist/hosts/runtime.js', '// runtime switching support');
-  await write('checkout/package.json', JSON.stringify({ name: '@prodero/cli', scripts: { 'mcp:dev': 'node --import tsx scripts/mcp-dev.ts' } }));
+  await write('checkout/package.json', JSON.stringify({ name: '@prodero/curator', scripts: { 'mcp:dev': 'node --import tsx scripts/mcp-dev.ts' } }));
   for (const file of ['src/cli.ts', 'scripts/mcp-dev.ts', 'scripts/mcp-dev-launcher.mjs', 'node_modules/tsx/package.json']) await write('checkout/' + file, '{}');
   await write('bin/npm-cli.js', '// npm fixture');
   await fs.symlink('npm-cli.js', path.join(home, 'bin/npm'));
@@ -261,3 +261,19 @@ test('Codex manual dev with a native env child table migrates atomically and res
   await machineIntegrations('uninstall','codex',f.options);
   assert.equal(await bytes(f.config('codex')),original);
 });
+
+for (const host of ['codex', 'claude']) {
+  test(`${host}: legacy package and checkout names remain usable during package rename`, async t => {
+    const f = await fixture(t);
+    const metadata = JSON.parse(await bytes(path.join(f.packageRoot, 'package.json')));
+    metadata.name = '@prodero/cli';
+    await fs.writeFile(path.join(f.packageRoot, 'package.json'), JSON.stringify(metadata));
+    const checkout = JSON.parse(await bytes(path.join(f.checkout, 'package.json')));
+    checkout.name = '@prodero/cli';
+    await fs.writeFile(path.join(f.checkout, 'package.json'), JSON.stringify(checkout));
+    await f.install(host);
+    await switchRuntime(host, 'dev', { ...f.options, checkout: f.checkout });
+    await switchRuntime(host, 'package', f.options);
+    assert.equal((await f.status(host)).hosts[0].runtimeMode, 'package');
+  });
+}

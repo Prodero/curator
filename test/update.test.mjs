@@ -43,7 +43,7 @@ test("update checks report installed, available, current, unavailable, and inval
   const newer = await releaseFixture();
   assert.deepEqual(await checkForUpdate(newer.source, "0.1.0"), {
     current: "0.1.0", latest: "0.2.0", available: true, source: "local-manifest", status: "update-available",
-    installedSchemaVersion: 8, availableSchemaVersion: 8, manualUpdateCommand: "npm install --global @prodero/cli@latest", developmentOnly: true,
+    installedSchemaVersion: 8, availableSchemaVersion: 8, manualUpdateCommand: "npm install --global @prodero/curator@latest", developmentOnly: true,
   });
   const current = await releaseFixture({ version: "0.1.0", release: { ...(await newer.source.latest()), version: "0.1.0", releaseId: "release-current" } });
   assert.equal((await checkForUpdate(current.source, "0.1.0")).status, "current");

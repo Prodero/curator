@@ -1,5 +1,5 @@
 {
-  "name": "@prodero/cli",
+  "name": "@prodero/curator",
   "version": "0.1.0",
   "description": "Local-first project intelligence and memory for coding agents.",
   "type": "module",

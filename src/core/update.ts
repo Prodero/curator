@@ -27,7 +27,7 @@ export interface ReleaseSource {
   latest(signal?: AbortSignal): Promise<unknown | null>;
   stage(release: ReleaseMetadata, signal?: AbortSignal): Promise<StagedRelease>;
 }
-export const MANUAL_UPDATE_COMMAND = "npm install --global @prodero/cli@latest";
+export const MANUAL_UPDATE_COMMAND = "npm install --global @prodero/curator@latest";
 export interface UpdateCheck {
   manualUpdateCommand?: string; developmentOnly?: boolean;
   current: string; latest: string | null; available: boolean; source: string;
@@ -180,7 +180,7 @@ export class NpmReleaseSource implements ReleaseSource {
   constructor(private readonly request: typeof fetch = fetch) {}
   async latest(signal?: AbortSignal): Promise<unknown | null> {
     try {
-      const response = await this.request("https://registry.npmjs.org/@prodero%2fcli/latest", { signal, redirect: "error" });
+      const response = await this.request("https://registry.npmjs.org/@prodero%2fcurator/latest", { signal, redirect: "error" });
       if (response.status === 404) return null;
       if (!response.ok) throw new Error("Registry unavailable");
       return await response.json();

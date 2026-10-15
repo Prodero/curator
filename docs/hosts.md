@@ -28,7 +28,7 @@ prodero runtime package --host codex
 
 Use `--host claude` in Claude Code. A host is always required; the command never guesses the current agent or switches all agents. Callers must select the intended host explicitly. `--workspace PATH` checks that workspace for overrides; otherwise the current directory is checked. Workspace Prodero overrides are reported for review, never rewritten silently.
 
-The installed package must include the public MCP entrypoint and runtime switching support, even before enabling dev mode. Upgrade the package first if it predates this feature. For an existing managed installation, the package target is read from its receipt. Use `--package-root /absolute/installed/@prodero/cli` if the installed package or Node location changed, or when migrating manual dev from a source-checkout CLI. Dev mode requires a Prodero checkout, its development dependencies and an npm JavaScript executable resolvable on the managed launch PATH. Registration invokes the verified absolute public package executable `bin/prodero` with `mcp --dev`. This executable captures host launch context before loading development code or running builds. The checkout loader receives that context in process; builds use checkout-scoped child processes. Paths containing spaces are supported; shell expressions are never evaluated.
+The installed package must include the public MCP entrypoint and runtime switching support, even before enabling dev mode. Upgrade the package first if it predates this feature. For an existing managed installation, the package target is read from its receipt. Use `--package-root /absolute/installed/@prodero/curator` if the installed package or Node location changed, or when migrating manual dev from a source-checkout CLI. Dev mode requires a Prodero checkout, its development dependencies and an npm JavaScript executable resolvable on the managed launch PATH. Registration invokes the verified absolute public package executable `bin/prodero` with `mcp --dev`. This executable captures host launch context before loading development code or running builds. The checkout loader receives that context in process; builds use checkout-scoped child processes. Paths containing spaces are supported; shell expressions are never evaluated.
 
 For a manual `prodero-dev` setup, first run the desired command with `--dry-run` and review the migration. Apply with `--adopt-dev` to replace only that host's old registration with managed `prodero`. The command preserves private originals and the global launcher. Codex migration accepts a standalone `[mcp_servers.prodero-dev]` table with an optional adjacent `[mcp_servers.prodero-dev.env]` child table. Original settings, including the old environment, remain in private restoration backups. Unusual TOML forms require manual review. Claude migration removes the exact JSON `mcpServers.prodero-dev` entry. Existing canonical `prodero` ownership conflicts are never adopted or overridden by this flag.
 
@@ -118,7 +118,7 @@ prodero status
 prodero status --root /absolute/path/to/project
 prodero check-update
 prodero update
-npm install --global @prodero/cli@latest
+npm install --global @prodero/curator@latest
 prodero install
 ```
 
@@ -130,3 +130,5 @@ Use `PRODERO_RELEASE_SOURCE=none` to disable network version checks. Version che
 
 
 For project-history questions without starting a session, use `prodero recall "why was this designed this way?" --root /absolute/project`, or ask the connected agent.
+
+The npm package is now `@prodero/curator`; the command remains `prodero`. Existing project data and host receipts keep their paths and formats. Legacy `@prodero/cli` package/checkouts remain recognized when selecting an existing runtime. If the installed package path changes, explicitly select the new installation with `--package-root` as described above; no host setting or project data is silently migrated.

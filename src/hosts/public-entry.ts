@@ -17,7 +17,7 @@ export async function verifyPublicEntry(entry: Entry): Promise<string> {
   let metadata;
   try { metadata = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8')); }
   catch { fail('HOST_RUNTIME_MISSING', 'Cannot read the installed Prodero package.'); }
-  if (metadata.name !== '@prodero/cli' || metadata.bin?.prodero !== './bin/prodero' || executable !== path.join(root, 'bin/prodero')) fail('HOST_RUNTIME_UNSUPPORTED', 'The package does not expose the supported public Prodero executable.');
+  if (!['@prodero/curator', '@prodero/cli'].includes(metadata.name ?? '') || metadata.bin?.prodero !== './bin/prodero' || executable !== path.join(root, 'bin/prodero')) fail('HOST_RUNTIME_UNSUPPORTED', 'The package does not expose the supported public Prodero executable.');
   if (await fs.stat(path.join(root, 'src/cli.ts')).catch(() => null)) fail('HOST_UNPACKAGED_RUNTIME', 'Use an installed Prodero package for the public executable, not a source checkout.');
   await fs.access(executable, fs.constants.X_OK).catch(() => fail('HOST_RUNTIME_MISSING', 'Public Prodero executable is not executable.'));
   if (!(await fs.stat(executable)).isFile() || !(await fs.readFile(executable, 'utf8')).startsWith('#!/usr/bin/env node\n')) fail('HOST_RUNTIME_UNSUPPORTED', 'Unsupported public Prodero executable.');

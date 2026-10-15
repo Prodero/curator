@@ -35,7 +35,7 @@ async function developmentEntry(host: 'codex' | 'claude', checkout: string, env:
   if (!path.isAbsolute(checkout)) fail('HOST_UNSUPPORTED_PATH', '--checkout must be an absolute Prodero repository path.');
   const root = await fs.realpath(checkout).catch(() => fail('HOST_RUNTIME_MISSING', 'Development checkout does not exist.'));
   const metadata = await readPackage(root);
-  if (metadata.name !== '@prodero/cli' || !metadata.scripts?.['mcp:dev']) fail('HOST_RUNTIME_MISSING', 'Select a Prodero checkout with an mcp:dev script.');
+  if (!['@prodero/curator', '@prodero/cli'].includes(metadata.name ?? '') || !metadata.scripts?.['mcp:dev']) fail('HOST_RUNTIME_MISSING', 'Select a Prodero checkout with an mcp:dev script.');
   for (const relative of ['src/cli.ts', 'scripts/mcp-dev.ts', 'scripts/mcp-dev-launcher.mjs', 'node_modules/tsx/package.json']) {
     if (!(await fs.stat(path.join(root, relative)).catch(() => null))?.isFile()) fail('HOST_RUNTIME_MISSING', 'Development source or dependencies are missing. Install checkout dependencies first.');
   }

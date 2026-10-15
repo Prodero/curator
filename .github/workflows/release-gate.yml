@@ -10,7 +10,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         node: ['22.14.0', '22.x']
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

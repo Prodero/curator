@@ -25,7 +25,7 @@ Curator relies on the agent following its runtime instructions to prepare tasks,
 Requires **Node.js 22.14+ in the 22.x line**, npm and Git. See [compatibility](docs/COMPATIBILITY.md) for verified platforms.
 
 ```sh
-npm install --global @prodero/cli@0.1.0
+npm install --global @prodero/curator@0.1.0
 prodero install
 ```
 

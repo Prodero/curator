@@ -35,8 +35,8 @@ test('MCP roots reject absent, ambiguous, invalid and missing; explicit argument
 test('npm updates are read-only, honest offline/unpublished and dev staging requires opt-in',async()=>{
  assert.equal(configuredReleaseSource({PRODERO_LOCAL_RELEASE_CHECKOUT:'/not-used',PRODERO_RELEASE_MANIFEST:'/not-used'}).id,'npm');
  assert.equal(configuredReleaseSource({PRODERO_RELEASE_SOURCE:'none'}).id,'unconfigured');
- const source=new NpmReleaseSource(async()=>new Response(JSON.stringify({version:'0.2.0'})));
- const check=await checkForUpdate(source);assert.equal(check.available,true);assert.equal(check.latest,'0.2.0');assert.equal(check.manualUpdateCommand,'npm install --global @prodero/cli@latest');assert.equal(check.availableSchemaVersion,null);
+ const source=new NpmReleaseSource(async url=>{assert.equal(url,'https://registry.npmjs.org/@prodero%2fcurator/latest');return new Response(JSON.stringify({version:'0.2.0'}));});
+ const check=await checkForUpdate(source);assert.equal(check.available,true);assert.equal(check.latest,'0.2.0');assert.equal(check.manualUpdateCommand,'npm install --global @prodero/curator@latest');assert.equal(check.availableSchemaVersion,null);
  source.stage=()=>{throw new Error('must never stage');};assert.equal((await installLatest(source)).status,'manual-update');
  for(const [response,status] of [[()=>new Response('',{status:404}),'unavailable'],[()=>{throw new Error('private transport diagnostic');},'unavailable'],[()=>new Response('{"version":"invalid credential"}'),'invalid']]){
   const result=await checkForUpdate(new NpmReleaseSource(response));assert.equal(result.status,status);assert.equal(result.latest,null);assert.doesNotMatch(JSON.stringify(result),/private transport|invalid credential/);assert.ok(result.error);

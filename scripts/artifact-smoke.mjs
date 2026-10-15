@@ -6,7 +6,7 @@ import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 import {execFileSync} from 'node:child_process';
 const [prefix,project,tarball]=process.argv.slice(2);
-const pkg=path.join(prefix,'lib/node_modules/@prodero/cli');
+const pkg=path.join(prefix,'lib/node_modules/@prodero/curator');
 const require=createRequire(path.join(pkg,'package.json'));
 const {Client}=await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/index.js')).href);
 const {StdioClientTransport}=await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/stdio.js')).href);

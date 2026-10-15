@@ -75,7 +75,7 @@ export async function inspect(host:HostAdapter,options:ReturnType<typeof environ
 export async function machineIntegrations(action:'status'|'install'|'uninstall',selection:string|undefined,options:MachineOptions={}){
  if(selection&&!['all','codex','claude','cursor'].includes(selection))fail('HOST_UNKNOWN','Unknown host. Choose codex or claude, or use --all.');
  const ctx=environment(options);
- if(action==='install'&&!options.entryPoint&&await fs.stat(path.resolve(path.dirname(ctx.entryPoint),'../src/cli.ts')).catch(()=>null))fail('HOST_UNPACKAGED_RUNTIME','Install @prodero/cli from npm or a release tarball before configuring hosts. Development checkout launchers are not registered.');
+ if(action==='install'&&!options.entryPoint&&await fs.stat(path.resolve(path.dirname(ctx.entryPoint),'../src/cli.ts')).catch(()=>null))fail('HOST_UNPACKAGED_RUNTIME','Install @prodero/curator from npm or a release tarball before configuring hosts. Development checkout launchers are not registered.');
  const hosts=await adapters(ctx.home,ctx.env,selection);const results:HostStatus[]=[];
  for(const host of hosts){if(selection&&selection!=='all'&&selection!==host.id)continue;
   let base:HostStatus={id:host.id,name:host.name,support:host.support,detected:await host.detect(),mcpConfigured:false,launcherInstalled:false,state:'not-configured',message:''};

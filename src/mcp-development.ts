@@ -43,7 +43,7 @@ export async function startDevelopmentRuntime(localStdio: LocalStdioContext, opt
   let metadata;
   try { metadata = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8')); }
   catch { fail('HOST_RUNTIME_MISSING', 'Cannot read development runtime metadata.'); }
-  if (metadata.name !== '@prodero/cli') fail('HOST_RUNTIME_MISSING', 'Development runtime must be a Prodero checkout.');
+  if (!['@prodero/curator', '@prodero/cli'].includes(metadata.name ?? '')) fail('HOST_RUNTIME_MISSING', 'Development runtime must be a Prodero checkout.');
   const npmCli = await resolveNpmCli(process.env);
   const entry = path.join(root, 'scripts/mcp-dev-launcher.mjs');
   const { startDevelopmentServer } = await import(pathToFileURL(entry).href);
