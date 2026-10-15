@@ -1,0 +1,432 @@
+/* Exact legacy values: keep Prodero visually stable. Variants remap these semantic shades. */
+:root {
+  --text-primary: #f8f8f5;
+  --surface: #0b0d0c;
+  --accent-effect: rgba(186,255,101,.10);
+  --surface-2: #151816;
+  --surface-3: #090b0a;
+  --accent-effect-2: rgba(197,255,118,.35);
+  --accent-effect-3: rgba(202,255,132,.04);
+  --accent: #c6ff76;
+  --accent-effect-4: rgba(198,255,118,.55);
+  --text-secondary: #9ca49c;
+  --text-secondary-2: #a9b0aa;
+  --text-secondary-3: #aeb6ae;
+  --accent-effect-5: rgba(198,255,118,.9);
+  --text-muted: #778078;
+  --text-secondary-4: #aab0ab;
+  --text-primary-2: #eef1ec;
+  --on-accent: #10130f;
+  --accent-effect-6: rgba(198,255,118,.18);
+  --text-muted-2: #707970;
+  --text-secondary-5: #a6aea6;
+  --accent-effect-7: rgba(198,255,118,.3);
+  --border: rgba(255,255,255,.12);
+  --text-muted-3: #879087;
+  --surface-overlay: rgba(10,12,11,.72);
+  --border-2: rgba(255,255,255,.08);
+  --surface-overlay-2: rgba(4,6,5,.55);
+  --text-muted-4: #7e877f;
+  --text-muted-5: #687168;
+  --text-muted-6: #6f786f;
+  --text-primary-3: #cbd0cb;
+  --success-effect: rgba(74,222,128,.28);
+  --success-effect-2: rgba(22,101,52,.08);
+  --surface-highlight: rgba(255,255,255,.035);
+  --text-secondary-6: #b8c1b6;
+  --accent-effect-8: rgba(198,255,118,.16);
+  --accent-effect-9: rgba(198,255,118,.055);
+  --text-primary-4: #c7d3bf;
+  --text-secondary-7: #aab5a4;
+  --warning-effect: rgba(255,190,92,.2);
+  --warning-effect-2: rgba(255,190,92,.05);
+  --warning: #d7c39e;
+  --accent-effect-10: rgba(198,255,118,.12);
+  --accent-effect-11: rgba(198,255,118,.035);
+  --text-secondary-8: #9faa9c;
+  --text-primary-5: #c6d4bd;
+  --text-muted-7: #727d72;
+  --text-muted-8: #899187;
+  --accent-effect-12: rgba(198,255,118,.45);
+  --accent-effect-13: rgba(198,255,118,.28);
+  --surface-4: #141714;
+  --text-primary-6: #dfe3dd;
+  --border-3: rgba(255,255,255,.25);
+  --on-accent-2: #12160f;
+  --text-muted-9: #747c75;
+  --text-muted-10: #555e56;
+  --text-muted-11: #8c958c;
+  --border-4: rgba(255,255,255,.065);
+  --text-muted-12: #8a938a;
+  --accent-effect-14: rgba(198,255,118,.045);
+  --text-secondary-9: #a8b2a5;
+  --text-secondary-10: #bbc3b8;
+  --text-muted-13: #7f897f;
+  --accent-effect-15: rgba(198,255,118,.35);
+  --surface-5: #0b0e0c;
+  --text-muted-14: #727b73;
+  --text-primary-7: #dce2da;
+  --accent-effect-16: rgba(198,255,118,.1);
+  --warning-2: #efce75;
+  --accent-effect-17: rgba(239,206,117,.1);
+  --accent-effect-18: rgba(198,255,118,.14);
+  --surface-6: #090c0a;
+  --text-secondary-11: #8f988f;
+  --text-secondary-12: #b9c1b8;
+  --text-primary-8: #dbe1d9;
+  --accent-effect-19: rgba(198,255,118,.08);
+  --text-secondary-13: #a9bd98;
+  --text-primary-9: #d2d8d0;
+  --text-muted-15: #6e776f;
+  --text-muted-16: #788179;
+  --surface-7: #0f1310;
+  --text-secondary-14: #aeb7ad;
+  --text-secondary-15: #aab4a6;
+  --text-secondary-16: #8f998e;
+  --text-muted-17: #73806f;
+  --text-muted-18: #737d73;
+  --text-muted-19: #697269;
+  --warning-effect-3: rgba(255,190,92,.045);
+  --text-secondary-17: #baad91;
+  --border-5: rgba(255,255,255,.055);
+  --text-secondary-18: #949d93;
+  --info-effect: rgba(109,196,255,.1);
+  --info-effect-2: rgba(109,196,255,.35);
+  --info: #8fd2ff;
+  --info-effect-3: rgba(109,196,255,.5);
+  --warning-effect-4: rgba(255,183,77,.1);
+  --surface-8: #191713;
+  --warning-effect-5: rgba(255,190,92,.4);
+  --warning-3: #ffc36d;
+  --warning-effect-6: rgba(255,183,77,.55);
+  --warning-effect-7: rgba(255,190,92,.15);
+  --warning-effect-8: rgba(255,190,92,.035);
+  --warning-effect-9: rgba(255,183,77,.45);
+  --text-primary-10: #e9e2d7;
+  --text-muted-20: #8f8a80;
+  --border-6: rgba(255,255,255,.1);
+  --text-muted-21: #798578;
+  --border-strong: #394238;
+  --surface-9: #101610;
+  --text-primary-11: #edf3e9;
+  --text-primary-12: #e0e6dd;
+  --text-secondary-19: #9aa595;
+  --text-secondary-20: #8b9688;
+  --text-muted-22: #8e958a;
+  --border-7: #ffffff30;
+  --surface-10: #171b25;
+  --text-primary-13: #eef0f6;
+  --warning-4: #d6ac67;
+  --warning-effect-10: #d6ac6712;
+  --local-indicator: inherit;
+  --versioned-indicator: inherit;
+  --focus-ring: #c6ff76;
+  --control-shadow: none;
+}
+
+/* Shared variant roles keep all existing surfaces in the same palette. */
+:root:where([data-prodero-theme]:not([data-prodero-theme="prodero"])) {
+  color-scheme: dark;
+  --palette-surface: #11151c;
+  --palette-primary: #f1f4f8;
+  --palette-secondary: #bbc4d0;
+  --palette-muted: #a0adbd;
+  --palette-border: #485568;
+  --palette-on-accent: #10121a;
+  --palette-info: #85caff;
+  --palette-warning: #f4c47b;
+  --palette-success: #88dfab;
+  --palette-error: #ffaaaa;
+  --palette-accent: #c6ff76;
+  --local-indicator: var(--palette-success);
+  --versioned-indicator: var(--palette-info);
+  --focus-ring: var(--palette-accent);
+  --control-shadow: 0 0 12px color-mix(in srgb, var(--palette-accent) 12%, transparent);
+  --text-primary: var(--palette-primary);
+  --surface: var(--palette-surface);
+  --accent-effect: color-mix(in srgb, var(--palette-accent) 10%, transparent);
+  --surface-2: var(--palette-surface);
+  --surface-3: var(--palette-surface);
+  --accent-effect-2: color-mix(in srgb, var(--palette-accent) 35%, transparent);
+  --accent-effect-3: color-mix(in srgb, var(--palette-accent) 4%, transparent);
+  --accent: var(--palette-accent);
+  --accent-effect-4: color-mix(in srgb, var(--palette-accent) 55%, transparent);
+  --text-secondary: var(--palette-secondary);
+  --text-secondary-2: var(--palette-secondary);
+  --text-secondary-3: var(--palette-secondary);
+  --accent-effect-5: color-mix(in srgb, var(--palette-accent) 90%, transparent);
+  --text-muted: var(--palette-muted);
+  --text-secondary-4: var(--palette-secondary);
+  --text-primary-2: var(--palette-primary);
+  --on-accent: var(--palette-on-accent);
+  --accent-effect-6: color-mix(in srgb, var(--palette-accent) 18%, transparent);
+  --text-muted-2: var(--palette-muted);
+  --text-secondary-5: var(--palette-secondary);
+  --accent-effect-7: color-mix(in srgb, var(--palette-accent) 30%, transparent);
+  --border: color-mix(in srgb, var(--palette-primary) 16%, transparent);
+  --text-muted-3: var(--palette-muted);
+  --surface-overlay: color-mix(in srgb, var(--palette-surface) 94%, transparent);
+  --border-2: color-mix(in srgb, var(--palette-primary) 16%, transparent);
+  --surface-overlay-2: color-mix(in srgb, var(--palette-surface) 94%, transparent);
+  --text-muted-4: var(--palette-muted);
+  --text-muted-5: var(--palette-muted);
+  --text-muted-6: var(--palette-muted);
+  --text-primary-3: var(--palette-primary);
+  --success-effect: color-mix(in srgb, var(--palette-success) 28%, transparent);
+  --success-effect-2: color-mix(in srgb, var(--palette-success) 8%, transparent);
+  --surface-highlight: color-mix(in srgb, var(--palette-primary) 4%, transparent);
+  --text-secondary-6: var(--palette-secondary);
+  --accent-effect-8: color-mix(in srgb, var(--palette-accent) 16%, transparent);
+  --accent-effect-9: color-mix(in srgb, var(--palette-accent) 5.5%, transparent);
+  --text-primary-4: var(--palette-primary);
+  --text-secondary-7: var(--palette-secondary);
+  --warning-effect: color-mix(in srgb, var(--palette-warning) 20%, transparent);
+  --warning-effect-2: color-mix(in srgb, var(--palette-warning) 5%, transparent);
+  --warning: var(--palette-warning);
+  --accent-effect-10: color-mix(in srgb, var(--palette-accent) 12%, transparent);
+  --accent-effect-11: color-mix(in srgb, var(--palette-accent) 3.5%, transparent);
+  --text-secondary-8: var(--palette-secondary);
+  --text-primary-5: var(--palette-primary);
+  --text-muted-7: var(--palette-muted);
+  --text-muted-8: var(--palette-muted);
+  --accent-effect-12: color-mix(in srgb, var(--palette-accent) 45%, transparent);
+  --accent-effect-13: color-mix(in srgb, var(--palette-accent) 28%, transparent);
+  --surface-4: var(--palette-surface);
+  --text-primary-6: var(--palette-primary);
+  --border-3: color-mix(in srgb, var(--palette-primary) 16%, transparent);
+  --on-accent-2: var(--palette-on-accent);
+  --text-muted-9: var(--palette-muted);
+  --text-muted-10: var(--palette-muted);
+  --text-muted-11: var(--palette-muted);
+  --border-4: color-mix(in srgb, var(--palette-primary) 16%, transparent);
+  --text-muted-12: var(--palette-muted);
+  --accent-effect-14: color-mix(in srgb, var(--palette-accent) 4.5%, transparent);
+  --text-secondary-9: var(--palette-secondary);
+  --text-secondary-10: var(--palette-secondary);
+  --text-muted-13: var(--palette-muted);
+  --accent-effect-15: color-mix(in srgb, var(--palette-accent) 35%, transparent);
+  --surface-5: var(--palette-surface);
+  --text-muted-14: var(--palette-muted);
+  --text-primary-7: var(--palette-primary);
+  --accent-effect-16: color-mix(in srgb, var(--palette-accent) 10%, transparent);
+  --warning-2: var(--palette-warning);
+  --accent-effect-17: color-mix(in srgb, var(--palette-warning) 10%, transparent);
+  --accent-effect-18: color-mix(in srgb, var(--palette-accent) 14%, transparent);
+  --surface-6: var(--palette-surface);
+  --text-secondary-11: var(--palette-secondary);
+  --text-secondary-12: var(--palette-secondary);
+  --text-primary-8: var(--palette-primary);
+  --accent-effect-19: color-mix(in srgb, var(--palette-accent) 8%, transparent);
+  --text-secondary-13: var(--palette-secondary);
+  --text-primary-9: var(--palette-primary);
+  --text-muted-15: var(--palette-muted);
+  --text-muted-16: var(--palette-muted);
+  --surface-7: var(--palette-surface);
+  --text-secondary-14: var(--palette-secondary);
+  --text-secondary-15: var(--palette-secondary);
+  --text-secondary-16: var(--palette-secondary);
+  --text-muted-17: var(--palette-muted);
+  --text-muted-18: var(--palette-muted);
+  --text-muted-19: var(--palette-muted);
+  --warning-effect-3: color-mix(in srgb, var(--palette-warning) 4.5%, transparent);
+  --text-secondary-17: var(--palette-secondary);
+  --border-5: color-mix(in srgb, var(--palette-primary) 16%, transparent);
+  --text-secondary-18: var(--palette-secondary);
+  --info-effect: color-mix(in srgb, var(--palette-info) 10%, transparent);
+  --info-effect-2: color-mix(in srgb, var(--palette-info) 35%, transparent);
+  --info: var(--palette-info);
+  --info-effect-3: color-mix(in srgb, var(--palette-info) 50%, transparent);
+  --warning-effect-4: color-mix(in srgb, var(--palette-warning) 10%, transparent);
+  --surface-8: var(--palette-surface);
+  --warning-effect-5: color-mix(in srgb, var(--palette-warning) 40%, transparent);
+  --warning-3: var(--palette-warning);
+  --warning-effect-6: color-mix(in srgb, var(--palette-warning) 55%, transparent);
+  --warning-effect-7: color-mix(in srgb, var(--palette-warning) 15%, transparent);
+  --warning-effect-8: color-mix(in srgb, var(--palette-warning) 3.5%, transparent);
+  --warning-effect-9: color-mix(in srgb, var(--palette-warning) 45%, transparent);
+  --text-primary-10: var(--palette-primary);
+  --text-muted-20: var(--palette-muted);
+  --border-6: color-mix(in srgb, var(--palette-primary) 16%, transparent);
+  --text-muted-21: var(--palette-muted);
+  --border-strong: var(--palette-border);
+  --surface-9: var(--palette-surface);
+  --text-primary-11: var(--palette-primary);
+  --text-primary-12: var(--palette-primary);
+  --text-secondary-19: var(--palette-secondary);
+  --text-secondary-20: var(--palette-secondary);
+  --text-muted-22: var(--palette-muted);
+  --border-7: color-mix(in srgb, var(--palette-primary) 16%, transparent);
+  --surface-10: var(--palette-surface);
+  --text-primary-13: var(--palette-primary);
+  --warning-4: var(--palette-warning);
+  --warning-effect-10: color-mix(in srgb, var(--palette-warning) 7.05882%, transparent);
+}
+
+:root[data-prodero-theme="light"] {
+  color-scheme: light;
+  --palette-surface: #f7f9fc;
+  --palette-primary: #172333;
+  --palette-secondary: #3e5064;
+  --palette-muted: #526173;
+  --palette-border: #8694a5;
+  --palette-accent: #3e6516;
+  --palette-on-accent: #ffffff;
+  --palette-info: #155d98;
+  --palette-warning: #795000;
+  --palette-success: #24623d;
+  --palette-error: #a32638;
+  --control-shadow: none;
+}
+/* Shared fallback surfaces; neon atmospheres below provide their own hierarchy. */
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) .shell { background: var(--palette-surface); }
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) .panel { background: color-mix(in srgb, var(--palette-surface) 96%, var(--palette-primary)); }
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) .context-content,
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) input,
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) textarea,
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) select { background: var(--palette-surface); }
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) button { color: var(--palette-primary); background: var(--palette-surface); border-color: var(--palette-border); }
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) button.primary { background: var(--palette-accent); color: var(--palette-on-accent); border-color: var(--palette-accent); box-shadow: var(--control-shadow); }
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) :is(button, input, select, textarea):hover:not(:disabled) { border-color: var(--palette-accent); }
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) input { accent-color: var(--palette-accent); }
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) [role="alert"] { color: var(--palette-error); }
+[data-knowledge-layer="local"] { color: var(--local-indicator); }
+[data-knowledge-layer="versioned"] { color: var(--versioned-indicator); }
+:is(button, summary, input, select, textarea):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+
+/* The picker lives outside #app so render cycles never replace a draft or its focus. */
+#theme-settings { background: var(--surface); padding: 8px 28px; border-bottom: 1px solid var(--border); font-size: 11px; }
+.theme-picker > summary { cursor: pointer; width: fit-content; margin-left: auto; color: var(--text-secondary); padding: 4px; }
+.theme-picker > summary span { margin-left: 8px; color: var(--accent); }
+.theme-picker fieldset { margin: 10px 0 4px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.theme-picker legend { color: var(--text-primary); padding: 0 6px; }
+.theme-options { display: grid; grid-template-columns: repeat(auto-fit,minmax(132px,1fr)); gap: 8px; }
+.theme-options label { position: relative; display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); }
+.theme-options label:has(:checked) { border-color: var(--accent); background: var(--accent-effect-19); }
+.theme-options input { margin: 0; accent-color: var(--accent); }
+.theme-swatch { flex: none; width: 24px; height: 24px; border-radius: 6px; background: var(--swatch-base); border: 1px solid var(--swatch); box-shadow: inset 0 -5px var(--swatch); }
+.theme-picker p { color: var(--text-secondary); margin: 12px 0 0; line-height: 1.5; }
+@media(max-width:580px) { #theme-settings { padding: 8px 18px; } }
+
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) .knowledge-tags { opacity: 1; }
+:root[data-prodero-theme]:not([data-prodero-theme="prodero"]) ::placeholder { color: var(--palette-muted); opacity: 1; }
+
+/* Neon atmospheres. These overrides never match Prodero or Light.
+   Reading surfaces stay solid; ambient light belongs to the shell and edges. */
+:root[data-prodero-theme="dark-neon"] {
+  --palette-page: #020304;
+  --palette-surface: #080a0d;
+  --palette-elevated: #101419;
+  --palette-tinted: #141b22;
+  --palette-border-subtle: #28313b;
+  --palette-border: #596b7c;
+  --palette-primary: #f5f8fc;
+  --palette-secondary: #c0cbd5;
+  --palette-muted: #9daebb;
+  --palette-accent: #b6efff;
+  --palette-accent-secondary: #83b6d9;
+  --palette-selected: #16242d;
+  --palette-hover: #192128;
+  --palette-focus: #d0f5ff;
+  --palette-glow: #9bdfff16;
+  --palette-gradient: linear-gradient(155deg, #080b0e 0%, #020304 70%);
+}
+:root[data-prodero-theme="pink-neon"] {
+  --palette-page: #090307;
+  --palette-surface: #11070e;
+  --palette-elevated: #1b0c17;
+  --palette-tinted: #260f20;
+  --palette-border-subtle: #422139;
+  --palette-border: #85516e;
+  --palette-primary: #fff3fa;
+  --palette-secondary: #d8bdce;
+  --palette-muted: #b79bac;
+  --palette-accent: #ff63c5;
+  --palette-accent-secondary: #e487ff;
+  --palette-selected: #351329;
+  --palette-hover: #2b1023;
+  --palette-focus: #ffa6e1;
+  --palette-glow: #ff39b325;
+  --palette-gradient: radial-gradient(ellipse at 92% 0%, #d52d9d16, transparent 55%), linear-gradient(150deg, #200a19, #090307 72%);
+  --palette-success: #91dfb5;
+  --palette-warning: #ffca8f;
+  --palette-error: #ff9db0;
+}
+:root[data-prodero-theme="blue-neon"] {
+  --palette-page: #020710;
+  --palette-surface: #050d1b;
+  --palette-elevated: #09162b;
+  --palette-tinted: #0d1e36;
+  --palette-border-subtle: #193654;
+  --palette-border: #3e759f;
+  --palette-primary: #eff8ff;
+  --palette-secondary: #b9d0e7;
+  --palette-muted: #98b0c9;
+  --palette-accent: #55c9ff;
+  --palette-accent-secondary: #7c9cff;
+  --palette-selected: #0c2c48;
+  --palette-hover: #0d233b;
+  --palette-focus: #9ae9ff;
+  --palette-glow: #278cff26;
+  --palette-gradient: radial-gradient(ellipse at 85% 0%, #258bff18, transparent 58%), linear-gradient(145deg, #091c36, #020710 74%);
+  --palette-success: #7dddc5;
+  --palette-warning: #f3ca85;
+  --palette-error: #ffa7ae;
+}
+:root[data-prodero-theme="purple-neon"] {
+  --palette-page: #07030e;
+  --palette-surface: #0d0718;
+  --palette-elevated: #170d27;
+  --palette-tinted: #201137;
+  --palette-border-subtle: #33214e;
+  --palette-border: #725799;
+  --palette-primary: #f8f2ff;
+  --palette-secondary: #ccbfe2;
+  --palette-muted: #ae9ec7;
+  --palette-accent: #b98aff;
+  --palette-accent-secondary: #ec8dff;
+  --palette-selected: #2e184a;
+  --palette-hover: #26133d;
+  --palette-focus: #dac0ff;
+  --palette-glow: #9e48ff28;
+  --palette-gradient: radial-gradient(ellipse at 90% 0%, #a33bff18, transparent 56%), linear-gradient(155deg, #1a0b30, #07030e 72%);
+  --palette-success: #a1dfbb;
+  --palette-warning: #efcd91;
+  --palette-error: #ffa3be;
+}
+:root[data-prodero-theme][data-prodero-theme$="-neon"] {
+  --surface: var(--palette-page);
+  --surface-4: var(--palette-elevated);
+  --surface-5: var(--palette-elevated);
+  --surface-6: var(--palette-tinted);
+  --surface-7: var(--palette-surface);
+  --surface-9: var(--palette-surface);
+  --border: var(--palette-border-subtle);
+  --border-2: var(--palette-border-subtle);
+  --border-4: var(--palette-border-subtle);
+  --border-5: var(--palette-border-subtle);
+  --border-6: var(--palette-border-subtle);
+  --border-7: var(--palette-border-subtle);
+  --border-3: var(--palette-border);
+  --focus-ring: var(--palette-focus);
+  --control-shadow: 0 0 16px var(--palette-glow);
+  --accent-effect-7: color-mix(in srgb, var(--palette-accent-secondary) 30%, transparent);
+  --accent-effect-19: var(--palette-selected);
+}
+:root[data-prodero-theme][data-prodero-theme$="-neon"] .shell { background: var(--palette-gradient) var(--palette-page); }
+:root[data-prodero-theme][data-prodero-theme$="-neon"] .panel { background: var(--palette-surface); }
+:root[data-prodero-theme][data-prodero-theme$="-neon"] :is(.project-skill, .telemetry-grid > div, .context-inspector, .metrics) { background: var(--palette-elevated); }
+:root[data-prodero-theme][data-prodero-theme$="-neon"] :is(.context-content, input, textarea, select) { background: var(--palette-surface); }
+:root[data-prodero-theme][data-prodero-theme$="-neon"] :is(.context-boundary-note, .onboarding-foundation, .context-group h2 span) { background: var(--palette-tinted); }
+:root[data-prodero-theme][data-prodero-theme$="-neon"] button:not(.primary) { background: var(--palette-elevated); }
+:root[data-prodero-theme][data-prodero-theme$="-neon"] :is(button, input, select, textarea):hover:not(:disabled) {
+  background: var(--palette-hover);
+  border-color: var(--palette-accent-secondary);
+}
+:root[data-prodero-theme][data-prodero-theme$="-neon"] button.primary:hover:not(:disabled) { background: var(--palette-accent-secondary); }
+:root[data-prodero-theme][data-prodero-theme$="-neon"] :is(.theme-options label:has(:checked), button[aria-pressed="true"], [role="tab"][aria-selected="true"]) {
+  background: var(--palette-selected);
+  border-color: var(--palette-accent);
+  box-shadow: inset 0 1px color-mix(in srgb, var(--palette-accent-secondary) 20%, transparent), var(--control-shadow);
+}
+:root[data-prodero-theme][data-prodero-theme$="-neon"] :is(.mark b, .mark i, .pulse em) { box-shadow: var(--control-shadow); }
+:root[data-prodero-theme][data-prodero-theme$="-neon"] .core { box-shadow: 0 0 30px var(--palette-glow); }

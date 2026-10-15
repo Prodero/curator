@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 8,
+  "knowledgeSchemaVersion": 3,
+  "initializedWith": "0.1.0",
+  "lastUpdatedWith": "0.1.0",
+  "projectId": "819d9de4-35d3-4d44-a586-1d26c45f10aa",
+  "createdAt": "2026-10-07T11:33:30.977Z",
+  "context": {
+    "max_tokens": 6000,
+    "max_items": 8,
+    "required_max_tokens": 2000
+  }
+}

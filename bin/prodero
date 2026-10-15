@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+// Capture the host launch context before loading either runtime or any build code.
+import { captureLocalStdioContext } from '../dist/mcp-workspace.js';
+const mcp = process.argv.slice(2).some(arg => arg === 'mcp' || arg === '--stdio');
+const context = mcp ? captureLocalStdioContext() : undefined;
+const { main } = await import('../dist/cli.js');
+await main(context);

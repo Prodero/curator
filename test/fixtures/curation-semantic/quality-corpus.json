@@ -1,0 +1,305 @@
+{
+  "version": 1,
+  "purpose": "Semantic quality reference corpus; not protocol-validation proof and not yet independently human-labelled.",
+  "cases": [
+    {
+      "id": "exact-duplicate",
+      "sources": [
+        {
+          "id": "exact-duplicate-1",
+          "body": "Audit exports must include a checksum."
+        },
+        {
+          "id": "exact-duplicate-2",
+          "body": "Audit exports must include a checksum."
+        }
+      ],
+      "expected": {
+        "relation": "duplicate",
+        "outcome": "proposed",
+        "rationale": "Exact duplicates can share one statement; MUST remains.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "semantic-duplicate",
+      "sources": [
+        {
+          "id": "semantic-duplicate-1",
+          "body": "Audit exports must include a checksum."
+        },
+        {
+          "id": "semantic-duplicate-2",
+          "body": "Each audit export must carry a checksum."
+        }
+      ],
+      "expected": {
+        "relation": "duplicate",
+        "outcome": "proposed",
+        "rationale": "Same mandatory checksum condition expressed differently.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "refinement",
+      "sources": [
+        {
+          "id": "refinement-1",
+          "body": "Export jobs must write checksums."
+        },
+        {
+          "id": "refinement-2",
+          "body": "Export jobs must write SHA-256 checksums."
+        }
+      ],
+      "expected": {
+        "relation": "refinement",
+        "outcome": "proposed",
+        "rationale": "The algorithm refines the general requirement; preserve MUST.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "partial-refinement",
+      "sources": [
+        {
+          "id": "partial-refinement-1",
+          "body": "Export jobs must write checksums and retain audit logs."
+        },
+        {
+          "id": "partial-refinement-2",
+          "body": "Export jobs must use SHA-256 for checksums."
+        }
+      ],
+      "expected": {
+        "relation": "partial_refinement",
+        "outcome": "proposed",
+        "rationale": "Retain the separate audit-log requirement.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "temporal-evolution",
+      "sources": [
+        {
+          "id": "temporal-evolution-1",
+          "body": "Before the migration, workers used queue v1."
+        },
+        {
+          "id": "temporal-evolution-2",
+          "body": "The completed migration on 2026-09-01 moved all workers to queue v2."
+        }
+      ],
+      "expected": {
+        "relation": "evolution",
+        "outcome": "proposed",
+        "rationale": "Explicit completion evidence supports historical evolution; retain temporal meaning.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "contradiction",
+      "sources": [
+        {
+          "id": "contradiction-1",
+          "body": "Development may synchronize development and production artifacts."
+        },
+        {
+          "id": "contradiction-2",
+          "body": "Production artifacts must be updated only by deployment."
+        }
+      ],
+      "expected": {
+        "relation": "conflict",
+        "outcome": "unresolved",
+        "rationale": "Missing fact: whether developers or deployment own production updates.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "different-environment",
+      "sources": [
+        {
+          "id": "different-environment-1",
+          "body": "In staging, workers may replay queued jobs."
+        },
+        {
+          "id": "different-environment-2",
+          "body": "In production, workers must not replay queued jobs."
+        }
+      ],
+      "expected": {
+        "relation": "scope_difference",
+        "outcome": "unchanged",
+        "rationale": "Different environments; retain both scoped rules.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "independent",
+      "sources": [
+        {
+          "id": "independent-1",
+          "body": "Audit exports must include checksums."
+        },
+        {
+          "id": "independent-2",
+          "body": "Search requests should use pagination."
+        }
+      ],
+      "expected": {
+        "relation": "independent",
+        "outcome": "unchanged",
+        "rationale": "Independent policy subjects do not require consolidation.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "preserved-exception",
+      "sources": [
+        {
+          "id": "preserved-exception-1",
+          "body": "Workers must retain audit logs unless legal retention expires."
+        },
+        {
+          "id": "preserved-exception-2",
+          "body": "Audit log storage uses the archive bucket."
+        }
+      ],
+      "expected": {
+        "relation": "refinement",
+        "outcome": "proposed",
+        "rationale": "Any combined statement must retain the exception verbatim for this validator.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "preserved-negation",
+      "sources": [
+        {
+          "id": "preserved-negation-1",
+          "body": "Workers must not log access tokens."
+        },
+        {
+          "id": "preserved-negation-2",
+          "body": "Workers use structured JSON logs."
+        }
+      ],
+      "expected": {
+        "relation": "refinement",
+        "outcome": "proposed",
+        "rationale": "Combined statement must preserve the prohibition.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "modality-difference",
+      "sources": [
+        {
+          "id": "modality-difference-1",
+          "body": "Clients MUST retry transient failures."
+        },
+        {
+          "id": "modality-difference-2",
+          "body": "Clients SHOULD retry transient failures."
+        }
+      ],
+      "expected": {
+        "relation": "conflict",
+        "outcome": "unresolved",
+        "rationale": "Missing fact: whether retry is mandatory or recommended.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "ambiguous-history",
+      "sources": [
+        {
+          "id": "ambiguous-history-1",
+          "body": "Workers use queue v1."
+        },
+        {
+          "id": "ambiguous-history-2",
+          "body": "The migration plan proposes queue v2."
+        }
+      ],
+      "expected": {
+        "relation": "ambiguous_history",
+        "outcome": "unresolved",
+        "rationale": "A plan is not completion evidence; migration status is missing.",
+        "additionalEvidenceRequired": false
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    },
+    {
+      "id": "incomplete-evidence",
+      "sources": [
+        {
+          "id": "incomplete-evidence-1",
+          "body": "The current retention rules supersede earlier rules."
+        },
+        {
+          "id": "incomplete-evidence-2",
+          "body": "[Referenced current rules excluded by evidence budget.]"
+        }
+      ],
+      "expected": {
+        "relation": "ambiguous_history",
+        "outcome": "unresolved",
+        "rationale": "Request missing evidence; no complete resolution is justified.",
+        "additionalEvidenceRequired": true
+      },
+      "labelProvenance": {
+        "kind": "agent_authored_reference",
+        "humanReview": "pending"
+      }
+    }
+  ]
+}

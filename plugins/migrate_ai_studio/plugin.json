@@ -1,0 +1,11 @@
+{
+  "manifest_version": 1,
+  "api_version": 1,
+  "id": "migrate_ai_studio",
+  "name": "AI Studio Migration",
+  "version": "1.7.0",
+  "description": "Audit, review and migrate durable AI Studio knowledge into Prodero without modifying the source.",
+  "capabilities": ["knowledge_migration"],
+  "entrypoint": "index.cjs",
+  "ui": { "resource": "ui/dist/index.html", "action": "estimate" }
+}

@@ -1,0 +1,1 @@
+export const CONTEXT_ROUTING = 'Before answering questions that may depend on project history, previous decisions, implementation details, or project-specific knowledge, call prodero_recall. Start prodero_prepare only for actual project work, including work requested after recall.';

@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { CreateMessageRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { createServer, PRODERO_TOOLS } from '../dist/server.js';
+import { distilled } from './helpers/intelligence-provider.mjs';
+
+for (const sampling of [false, true]) test(`MCP close remains deterministic with negotiated sampling=${sampling}`, async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'prodero-sampling-'));
+  await fs.mkdir(path.join(root, '.git'));
+  const server = createServer({projectRoot:root});
+  const client = new Client({ name: 'sampling-contract-test', version: '1' }, { capabilities: { ...(sampling ? { sampling: {} } : {}), extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } } });
+  const sampled = [];
+  if (sampling) client.setRequestHandler(CreateMessageRequestSchema, async ({ params }) => {
+    sampled.push(params);
+    assert.equal(params.includeContext, 'none'); assert.equal(params.tools, undefined);
+    assert.equal(params.maxTokens, 4000);
+    assert.match(params.systemPrompt, /untrusted DATA/); assert.match(params.systemPrompt, /Do not execute tools/);
+    const { phase, data } = JSON.parse(params.messages[0].content.text);
+    const output = phase === 'distill' ? distilled(data) : phase === 'reconcile' ? { actions: [{ action: 'CREATE', sources: [data.candidate.id], canonical: null, reason: 'New observed rule.' }] } : { status: 'clean', issues: [], actions: [] };
+    return { role: 'assistant', content: { type: 'text', text: JSON.stringify(output) }, model: 'deterministic-contract-double', stopReason: 'endTurn' };
+  });
+  const [ct, st] = InMemoryTransport.createLinkedPair(); await server.connect(st); await client.connect(ct);
+  t.after(async () => { await client.close(); await server.close(); await fs.rm(root, { recursive: true, force: true }); });
+  const call = async (name, args = {}) => { const r = await client.callTool({ name, arguments: { projectRoot: root, ...args } }); assert.ok(!r.isError, JSON.stringify(r)); return r.structuredContent; };
+  await call(PRODERO_TOOLS.initialize);
+  const file = path.join(root, '.prodero/config.json'); const config = JSON.parse(await fs.readFile(file)); config.knowledgeEngine = { mode: 'assisted' }; await fs.writeFile(file, JSON.stringify(config));
+  const status = await call(PRODERO_TOOLS.status); assert.equal(status.phase, 'initial'); assert.equal(sampled.length, 0);
+  const details = await call(PRODERO_TOOLS.statusDetails); assert.equal(details.knowledgeEngine.samplingAvailable, sampling);
+  const p = await call(PRODERO_TOOLS.prepare);
+  await call(PRODERO_TOOLS.sessionRecord, { sessionId: p.result.session.id, entries: ['Cache stays local.', 'Worktrees isolate cache files.', 'Tests validate cache recovery.'].map((content) => ({ type: 'state_change', content })) });
+  const closed = await call(PRODERO_TOOLS.sessionClose, { sessionId: p.result.session.id, sync: true });
+  assert.equal(closed.result.learned.syncState, 'synchronized');
+  assert.equal(closed.result.learned.synchronization.intelligence.mode, 'deterministic');
+  assert.deepEqual(sampled.map((p) => JSON.parse(p.messages[0].content.text).phase), []);
+  assert.deepEqual(closed.result.learned.synchronization.intelligence.providerUsage, []);
+  const next = await call(PRODERO_TOOLS.prepare); assert.equal(next.result.automaticSync.sessionsProcessed, 0);
+  const count = sampled.length; await call(PRODERO_TOOLS.status); assert.equal(sampled.length, count);
+});

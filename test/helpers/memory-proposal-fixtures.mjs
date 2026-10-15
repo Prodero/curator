@@ -1,0 +1,12 @@
+/** Manually authored semantic evaluations of the fixed bundle fixtures, NOT a transformer. */
+export function fixtureProposal(bundle, scenario) {
+ const binding={version:1,bundleId:bundle.bundleId,candidateId:bundle.candidateId,sourceRevisions:structuredClone(bundle.revisions)};
+ const dispositions=bundle.activeSources.map(s=>({sourceId:s.id,action:'keep',proposedKeys:[],rationale:'This focused fact remains independently useful.',coverage:'All information remains in the unchanged source.',omittedAsRedundant:[],unresolvedInformation:[]}));
+ if(scenario==='protected')return {...binding,records:[],dispositions,summary:'Keep durable replay policy and force invariant. The two remaining focused records do not justify consolidation.',warnings:[],additionalEvidenceRequired:[]};
+ const records=[
+  {key:'draft_physics',category:'state',scope:'path',path:'src/driving',priority:'normal',title:'Driving integration and tire loads',body:'Evaluate traction at a fixed 60 Hz step. Calculate tire forces before integrating chassis velocity. Under braking, normal load shifts toward the front axle; calculate tire force limits using updated per-wheel normal loads.',sourceIds:['mem_driving_00','mem_driving_02']},
+  {key:'draft_verification',category:'lesson',scope:'path',path:'src/driving',priority:'normal',title:'Driving replay and slip verification',body:'Replay identical steering and throttle traces for regressions. Compare final pose and wheel-slip histories. Record longitudinal and lateral slip separately: slip traces reveal oscillations concealed by average speed metrics.',sourceIds:['mem_driving_01','mem_driving_03']},
+ ];
+ for(const d of dispositions){d.action='consolidate';d.proposedKeys=[records.find(r=>r.sourceIds.includes(d.sourceId)).key];d.rationale='Related valid facts fit one focused record with the same category and path applicability.';d.coverage=bundle.activeSources.find(s=>s.id===d.sourceId).knowledge.content;}
+ return {...binding,records,dispositions,summary:'Represent four current records as two focused records: physics state and verification lessons. Preserve all behavioral facts and rationale.',warnings:scenario==='evolution'?['The obsolete variable-step predecessor is historical evidence, not an active supersession target.']:scenario==='provenance'?['Direct archived predecessors remain evidence only; no historical source is retired again.']:[],additionalEvidenceRequired:[]};
+}

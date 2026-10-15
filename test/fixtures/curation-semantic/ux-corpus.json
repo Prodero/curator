@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "provenance": "Host-authored examples validated by Core and rendered with production App code; not an independent model-quality evaluation. Human review remains pending.",
+  "cases": [
+    {
+      "id": "exact-duplicate",
+      "status": "validated",
+      "outcome": "proposed",
+      "question": null
+    },
+    {
+      "id": "semantic-duplicate",
+      "status": "validated",
+      "outcome": "proposed",
+      "question": null
+    },
+    {
+      "id": "refinement",
+      "status": "validated",
+      "outcome": "proposed",
+      "question": null
+    },
+    {
+      "id": "partial-refinement",
+      "status": "validated",
+      "outcome": "proposed",
+      "question": null
+    },
+    {
+      "id": "temporal-evolution",
+      "status": "validated",
+      "outcome": "proposed",
+      "question": null
+    },
+    {
+      "id": "contradiction",
+      "status": "validated",
+      "outcome": "unresolved",
+      "question": {
+        "title": "Production artifacts",
+        "prompt": "Who currently updates production artifacts?",
+        "choices": [
+          {
+            "id": "developers",
+            "label": "Developers update development and production artifacts",
+            "meaning": "Developers update both manually."
+          },
+          {
+            "id": "deployment",
+            "label": "Developers update development artifacts; deployment owns production",
+            "meaning": "Deployment owns production artifacts."
+          }
+        ],
+        "allowFreeText": true
+      }
+    },
+    {
+      "id": "different-environment",
+      "status": "validated",
+      "outcome": "unchanged",
+      "question": null
+    },
+    {
+      "id": "independent",
+      "status": "validated",
+      "outcome": "unchanged",
+      "question": null
+    },
+    {
+      "id": "preserved-exception",
+      "status": "validated",
+      "outcome": "proposed",
+      "question": null
+    },
+    {
+      "id": "preserved-negation",
+      "status": "validated",
+      "outcome": "proposed",
+      "question": null
+    },
+    {
+      "id": "modality-difference",
+      "status": "validated",
+      "outcome": "unresolved",
+      "question": {
+        "title": "Retrying transient failures",
+        "prompt": "Are clients required to retry transient failures, or is retrying recommended?",
+        "choices": [
+          {
+            "id": "required",
+            "label": "Retrying is required",
+            "meaning": "Clients MUST retry transient failures."
+          },
+          {
+            "id": "recommended",
+            "label": "Retrying is recommended",
+            "meaning": "Clients SHOULD retry transient failures."
+          }
+        ],
+        "allowFreeText": true
+      }
+    },
+    {
+      "id": "ambiguous-history",
+      "status": "validated",
+      "outcome": "unresolved",
+      "question": {
+        "title": "Worker queue migration",
+        "prompt": "Has the migration to queue v2 completed?",
+        "choices": [
+          {
+            "id": "complete",
+            "label": "Yes, all workers use queue v2",
+            "meaning": "All workers now use queue v2."
+          },
+          {
+            "id": "planned",
+            "label": "No, workers still use queue v1",
+            "meaning": "Migration has not started."
+          },
+          {
+            "id": "partial",
+            "label": "Partly \u2014 I will explain which workers",
+            "meaning": "Migration is partial; affected worker scope is still missing."
+          }
+        ],
+        "allowFreeText": true
+      }
+    },
+    {
+      "id": "incomplete-evidence",
+      "status": "validated",
+      "outcome": "unresolved",
+      "question": {
+        "title": "Current retention rules",
+        "prompt": "What do the current retention rules require?",
+        "choices": [],
+        "allowFreeText": true
+      }
+    }
+  ]
+}

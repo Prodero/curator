@@ -1,0 +1,29 @@
+name: Release gate
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  gate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ['22.14.0', '22.x']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm run release:gate
+        env:
+          PRODERO_GATE_OUTPUT: ${{ runner.temp }}/prodero-release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-evidence-${{ matrix.os }}-${{ matrix.node }}
+          path: |
+            ${{ runner.temp }}/prodero-release/*.log
+            ${{ runner.temp }}/prodero-release/*.json
+            ${{ runner.temp }}/prodero-release/*.tgz

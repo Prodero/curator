@@ -1,0 +1,20 @@
+node_modules/
+dist/
+dist-ui/
+.DS_Store
+*.log
+.prodero/.cache/
+/prodero-cli.code-workspace
+.prodero/.transactions/
+.prodero/local/
+.prodero/sessions/*
+!.prodero/sessions/.gitkeep
+.prodero/checkpoints/*
+!.prodero/checkpoints/.gitkeep
+.prodero/.backups/
+.prodero/.migrations/
+.prodero/**/*.tmp-*
+*.tgz
+
+# Derived index can contain Local skill metadata.
+.prodero/index.md

@@ -1,0 +1,90 @@
+{
+  "name": "@prodero/cli",
+  "version": "0.1.0",
+  "description": "Local-first project intelligence and memory for coding agents.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "prodero": "./bin/prodero"
+  },
+  "files": [
+    "bin/prodero",
+    "dist/**/*.js",
+    "dist-ui/index.html",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "ARCHITECTURE.md",
+    "prodero.release.json",
+    "instructions/AGENTS.md",
+    "docs/PRIVACY.md",
+    "docs/RECOVERY.md",
+    "docs/MIGRATIONS.md",
+    "docs/KNOWLEDGE-SCHEMA-V2.md",
+    "docs/KNOWLEDGE-AUTHORITY.md",
+    "docs/APPLICABILITY.md",
+    "docs/IMPORTER-CURATION.md",
+    "docs/CURATION-APP-REVIEW.md",
+    "docs/CURATION-CLAUSE-REFINEMENT.md",
+    "docs/COMPATIBILITY.md",
+    "docs/CONTEXT-SELECTION-V2.md",
+    "docs/RELEASING.md",
+    "docs/hosts.md",
+    "docs/plugins.md",
+    "docs/ui-themes.md",
+    "plugins/*/*.cjs",
+    "plugins/*/plugin.json",
+    "plugins/*/README.md",
+    "plugins/*/instructions/*.md",
+    "plugins/*/ui/dist/index.html"
+  ],
+  "scripts": {
+    "build": "npm run build:server && npm run ui:build",
+    "build:server": "node scripts/clean-server.mjs && tsc -p tsconfig.json && npm run build:instructions",
+    "ui:build": "vite build && node scripts/build-plugin-ui.mjs",
+    "mcp:build": "npm run build",
+    "mcp:dev": "./bin/prodero mcp --dev",
+    "dev": "npm run --silent mcp:dev",
+    "playground": "node --import tsx scripts/playground.ts",
+    "benchmark:memory": "node --import tsx scripts/memory-benchmark.ts",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "prepack": "npm test",
+    "pretest": "npm run build",
+    "release:gate": "node scripts/release-gate.mjs",
+    "build:instructions": "node --import tsx scripts/build-agent-instructions.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "jsonc-parser": "^3.3.1",
+    "smol-toml": "^1.9.0",
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0",
+    "vite": "^6.0.0",
+    "vite-plugin-singlefile": "^2.3.0"
+  },
+  "engines": {
+    "node": ">=22.14.0 <23"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prodero/curator.git"
+  },
+  "keywords": [
+    "mcp",
+    "agents",
+    "project-intelligence",
+    "memory",
+    "codex",
+    "claude-code",
+    "developer-tools",
+    "prodero"
+  ]
+}
