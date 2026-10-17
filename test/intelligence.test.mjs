@@ -14,24 +14,7 @@ import { sha256 } from '../dist/core/storage.js';
 import { commitSyncTransaction, recoverSyncTransaction, withSyncLock } from '../dist/core/sync-transaction.js';
 import { fakeProvider, distilled, canonical } from './helpers/intelligence-provider.mjs';
 
-async function fixture(t, assisted = true) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'prodero-engine-'));
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
-  await fs.mkdir(path.join(root, '.git')); await initializeProject(root);
-  const file = path.join(root, '.prodero/config.json');
-  const config = JSON.parse(await fs.readFile(file)); config.knowledgeEngine = { mode: assisted ? 'assisted' : 'deterministic' };
-  await fs.writeFile(file, JSON.stringify(config)); return root;
-}
-async function session(root, entries) {
-  const p = await prepareProject(root);
-  await recordProjectSession(root, p.session.id, entries);
-  // This fixture exercises explicit manual assisted Sync, so leave evidence pending.
-  await closeProjectSession(root, p.session.id, [], false);
-  return p.session.id;
-}
-const entry = (content, extra = {}) => ({ type: 'decision', title: 'Cache lifecycle', content, scopeHint: 'module', scopeRef: 'cache', ...extra });
-const seed = (content, overrides = {}) => ({ id: 'mem_existing', scope: 'module', scopeRef: 'cache', category: 'decision', priority: 'important', status: 'active', title: 'Cache lifecycle', content, createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z', sourceSessions: ['sess_old'], derivedFrom: ['sess_old#obs_1'], supersedes: [], related: [], ...overrides });
-const checkpoint = async (root, result) => JSON.parse(await fs.readFile(path.join(root, '.prodero/checkpoints', `${result.checkpoint}.json`)));
+import { fixture, session, entry, seed, checkpoint } from './helpers/intelligence-fixtures.mjs';
 
 const unsafePairs = [
  ['Caching is enabled for all API requests.', 'Caching is not enabled for all API requests.'],
@@ -148,29 +131,6 @@ test('unavailable provider uses explicit offline fallback; changed sessions send
   assert.equal(inputs.length, 1); assert.equal(inputs[0].content, 'New durable fact.');
 });
 
-test('bounded batches, related discovery and single audit with 10,000 canonical memories exclude historical sessions', async (t) => {
-  const root = await fixture(t);
-  await Promise.all(Array.from({ length: 10_000 }, (_, i) => writeKnowledge(root, seed(`Historical cache fact ${i}.`, { id: `mem_scale_${i}` }), false, 'local')));
-  const historical = await prepareProject(root); await recordProjectSession(root, historical.session.id, [entry('HISTORICAL_PRIVATE_CONTENT')]);
-  await closeProjectSession(root, historical.session.id, [], true);
-  await loadMemoryCatalog(root); await discoverSessions(root);
-  const p = await prepareProject(root);
-  await recordProjectSession(root, p.session.id, Array.from({ length: 15 }, (_, i) => entry(`New fact ${i}. ${'Compact local constraint. '.repeat(50)}`)));
-  await closeProjectSession(root, p.session.id, [], false);
-  const provider = fakeProvider(); const result = await syncProject(root, { provider });
-  assert.ok(provider.calls.filter((c) => c.phase === 'distill').length > 1);
-  for (const call of provider.calls) {
-    assert.doesNotMatch(JSON.stringify(call.input), /HISTORICAL_PRIVATE_CONTENT/);
-    const limit = call.phase === 'distill' ? L.distillInputTokens : call.phase === 'reconcile' ? L.reconcileInputTokens : L.auditInputTokens;
-    assert.ok(estimateTokens(JSON.stringify(call.input)) <= limit);
-    if (call.phase === 'reconcile') assert.ok(call.input.related.length <= L.relatedMemories);
-    if (call.phase === 'audit') assert.ok(call.input.items.length <= L.auditItems);
-  }
-  assert.equal(provider.calls.filter((c) => c.phase === 'audit').length, 1);
-  assert.equal(result.diagnostics.sessionBodiesConsolidated, 1);
-  const before = provider.calls.length; const fast = await getFastProjectStatus(root);
-  assert.equal(Object.hasOwn(fast, 'knowledgeCount'), false); assert.equal(provider.calls.length, before);
-});
 
 test('validated write journal recovers after partial application and cache deletion; locks exclude concurrent Sync', async (t) => {
   const root = await fixture(t);

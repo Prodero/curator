@@ -9,18 +9,7 @@ import { listKnowledge, writeKnowledge } from '../dist/core/memory.js';
 import { getMemoryPressureSnapshot, recordRetrievalEvidence, MEMORY_PRESSURE_LIMITS as L, MEMORY_PRESSURE_PATH } from '../dist/core/memory-pressure.js';
 import { listCheckpoints } from '../dist/core/storage.js';
 
-async function fixture(t, budget=150) {
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'prodero-pressure-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
- await fs.mkdir(path.join(root,'.git'));await initializeProject(root);
- const file=path.join(root,'.prodero/config.json');const config=JSON.parse(await fs.readFile(file));config.context={...config.context,max_tokens:budget,required_max_tokens:50};await fs.writeFile(file,JSON.stringify(config));return root;
-}
-const item=(id,patch={})=>({id,title:'Driving control',content:'Driving control preserves traction.',scope:'module',scopeRef:'driving',category:'state',priority:'normal',status:'active',createdAt:'2026-09-01T00:00:00Z',updatedAt:'2026-09-01T00:00:00Z',sourceSessions:[],derivedFrom:[],supersedes:[],related:[],relations:[],...patch});
-const entry=(content,patch={})=>({type:'state_change',title:'Driving control',content,scopeHint:'module',scopeRef:'driving',...patch});
-async function seed(root) {
- await writeKnowledge(root,item('mem_small'),false,'local');
- await writeKnowledge(root,item('mem_large',{content:'Driving control preserves traction. '.repeat(100)}),false,'versioned');
-}
-const pressure=async root=>(await getMemoryPressureSnapshot(root));
+import { fixture, item, entry, seed, pressure } from './helpers/memory-pressure-fixtures.mjs';
 
 test('prepare observes selected and budget-omitted knowledge with layer, scores, token totals and budgets',async t=>{
  const root=await fixture(t);await seed(root);const p=await prepareProject(root,{task:'driving'});assert.equal(p.memoryTelemetry,'recorded');
@@ -118,16 +107,6 @@ test('partial Sync recovery cannot publish failed pressure or inflate committed 
  await closeProjectSession(root,p.session.id);s=await pressure(root);assert.equal(s.totals.newKnowledge,1);assert.equal((await listCheckpoints(root)).length,1);
 });
 
-test('compact session histories retain at most 32 sessions and Sync histories retain at most 32 committed events',async t=>{
- const root=await fixture(t,6000);let evidence;await getContext(root,'',{onRetrievalEvidence:e=>evidence=e});
- for(let i=0;i<L.sessions+2;i++)await recordRetrievalEvidence(root,`sess_${String(i).padStart(3,'0')}`,evidence);
- assert.equal((await pressure(root)).sessions.length,L.sessions);
- for(let i=0;i<L.syncs+2;i++){
-  const p=await prepareProject(root);await closeProjectSession(root,p.session.id,[entry(`Driving component ${i} uses a separate control path.`,{title:`Component ${i}`,scopeRef:`driving/${i}`})]);
- }
- const s=await pressure(root);assert.equal(s.syncs.length,L.syncs);assert.equal(s.coverage.checkpoints,L.syncs);assert.equal(s.totals.newKnowledge,L.syncs);
- assert.equal(s.coverage.checkpointsWithoutDetails.length,0);assert.equal((await listKnowledge(root)).length,L.syncs+2);
-});
 
 test('malformed telemetry is preserved and disabled without altering knowledge or context',async t=>{
  const root=await fixture(t);await seed(root);const file=path.join(root,'.prodero',MEMORY_PRESSURE_PATH);await fs.writeFile(file,'invalid telemetry');

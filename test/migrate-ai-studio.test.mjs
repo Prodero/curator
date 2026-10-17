@@ -111,15 +111,6 @@ test('two bounded LLM calls create a stable staged plan; apply makes no semantic
   const plan=await reviewed(f,audited.plan);await f.call('apply',{plan,approvedPlanId:plan.planId},ctx);assert.equal(calls.length,2);
 });
 
-test('F08: production file-count boundary rejects digest and importer audit instead of a partial result',async t=>{
-  const f=await fixture(t);const bulk=path.join(f.root,'.ai-studio/bulk');await fs.mkdir(bulk);
-  for(let group=0;group<201;group++){
-    const dir=path.join(bulk,String(group));await fs.mkdir(dir);
-    await Promise.all(Array.from({length:100},(_,n)=>fs.writeFile(path.join(dir,`${n}.log`),'x')));
-  }
-  await assert.rejects(digestTree(f.root,'.ai-studio'),/INTEGRITY_LIMIT: file-count/);
-  await assert.rejects(f.call('audit'),/INTEGRITY_LIMIT: file-count/);
-});
 
 test('core rejects traversal, symlinks, forged secrets and oversized durable items before canonical writes',async t=>{
   const f=await fixture(t);const state=await readImportState(f.root);const text=await f.ctx.files.read('README.md');

@@ -4,10 +4,10 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { buildIndex, getFastProjectStatus, initializeProject, resolveProjectContext, syncProject } from "../dist/core/project.js";
-import { MAX_RELATED_MEMORY_CANDIDATES } from "../dist/core/memory-index.js";
-import { writeKnowledge } from "../dist/core/memory.js";
-import { discoverSessions } from "../dist/core/session-index.js";
+import { buildIndex, getFastProjectStatus, initializeProject, resolveProjectContext, syncProject } from "../../dist/core/project.js";
+import { MAX_RELATED_MEMORY_CANDIDATES } from "../../dist/core/memory-index.js";
+import { writeKnowledge } from "../../dist/core/memory.js";
+import { discoverSessions } from "../../dist/core/session-index.js";
 
 async function fixture(prefix) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), prefix));

@@ -6,13 +6,68 @@ From a clean checkout on Node 22.14+ (22.x):
 npm run release:gate
 ```
 
-The gate copies tracked working files plus non-ignored new files into a clean temporary checkout (never node_modules/dist), runs `npm ci`, build, tests, pack, then installs the tarball into a separate prefix with production dependencies only. Its standalone runner resolves SDK dependencies from that installation. CLI, stdio MCP, bundled resources, the knowledge lifecycle, Git boundaries, restart and synthetic manual upgrade preservation are checked. `npm test` rebuilds first; ordinary `npm pack` runs the full tests through prepack. The gate's pack skips lifecycle scripts only after its build/tests have passed.
+## CI tiers and local commands
+
+| Trigger / command | Tests | Pack and doc links | Installed-artifact checks |
+| --- | --- | --- | --- |
+| Branch push or pull request | Ordinary suite, Ubuntu / Node 22.14.0 | Always | Required except for explicitly documentation-only changes |
+| Any tag push or `workflow_dispatch` | Full suite, Ubuntu/macOS × minimum/latest Node 22 | Always | Always |
+| `npm run ci:fast` | Ordinary suite | Always | Omitted |
+| `npm run ci:fast -- --integration` | Ordinary suite | Always | Included |
+| `npm run release:gate` | Full suite | Always | Included |
+| `npm test` | Full suite after build | Not a package gate | Not a package gate |
+| `npm run test:fast` | Ordinary suite after build | Not a package gate | Not a package gate |
+
+Before creating a release, manually dispatch **Release gate** on the intended
+commit and verify all four jobs against that exact SHA. A tag push also runs the
+full matrix; neither check publishes a package or creates a GitHub release.
+A successful fast run alone does not certify a release.
+
+`test/scale/` explicitly owns the seven large-fixture tests (10,000-memory
+intelligence, context/status/discovery scales, 20,100-file importer boundary and
+retention histories). Their assertions and fixture sizes are unchanged. The
+recursive runner includes every `*.test.mjs` below `test/` in full mode; every
+suite outside `test/scale/` defaults to ordinary, including newly added suites.
+Optional `*.browser.mjs` checks remain separate, as before. Fast mode runs at most
+two test files concurrently; full mode retains one. Both fail on any selected
+test failure. Partition and workflow-policy regression tests run in both modes.
+
+Path classification is conservative: only the named top-level Markdown files,
+LICENSE, `docs/*.md` and `docs/images/*.png` may omit installed-artifact checks.
+Any other path (including core, installer, MCP, UI, plugins, managed instructions,
+package manifests, workflow, runner or tests), mixed changes, missing/zero base,
+or diff failure requires them. Both sides of renames are classified. PRs compare
+the base SHA with the checked-out merge result; pushes compare the previous SHA
+with HEAD. All branch/PR changes still run ordinary tests and package validation.
+
+Superseded runs are cancelled only within the same branch or PR group. PR groups
+use PR numbers to avoid collisions between fork branch names. Manual and tag
+runs use unique run IDs and cannot cancel, or be cancelled by, branch/PR runs.
+
+The gate copies tracked working files plus non-ignored new files into a clean
+temporary checkout (never node_modules/dist), runs `npm ci`, builds **once**, then
+packs and validates package resources, secret/path screening and documentation
+links **before** running tests. It skips npm pack lifecycle scripts only because
+the gate explicitly controls build/tests; successful completion requires both.
+Ordinary `npm pack` still runs the full tests through prepack.
+
+When integration is required, the gate installs that same tarball into a separate
+prefix with production dependencies only, takes the build checkout offline and
+runs the existing standalone smoke runner against the installation. CLI, stdio
+MCP, bundled resources, the knowledge lifecycle, Git boundaries, restart and
+synthetic manual upgrade preservation remain checked. The smoke runner's
+synthetic patch version is only an isolated test fixture, never a publication.
+
+`result.json` records mode, whether integration ran, total elapsed time, each
+child-command duration, artifact path and SHA-256. CI uploads these results and
+logs with the tarball. Measure fast and full runs separately; runner performance
+and the filesystem-heavy fixtures make local and remote times different.
 
 For host-integration verification, use a fresh temporary directory outside the real user home, an isolated HOME and Codex/Claude/XDG configuration, and no inherited host registrations. Keep custom `PRODERO_GATE_OUTPUT` paths outside real-home ancestry: normal workspace checks inspect ancestors and can correctly report `HOST_SCOPE_CONFLICT`. Never disable those checks or alter real settings to make a smoke test pass.
 
-CI allows 45 minutes per matrix job. Child-command output is streamed to the console and written continuously to evidence logs, so cancellation retains partial test diagnostics. The limit remains finite; a timeout is not a passing check.
+CI allows 30 minutes for the fast job and 45 minutes per full matrix job. Child-command output is streamed to the console and written continuously to evidence logs, so cancellation retains partial test diagnostics. The limit remains finite; a timeout is not a passing check.
 
-Gate outputs and the tarball remain in the printed temporary directory for inspection. Nothing is published. CI repeats the gate on macOS/Ubuntu and the declared minimum/latest Node 22. Remote CI results must actually pass before those targets are certified.
+Gate outputs and the tarball remain in the printed temporary directory for inspection. Nothing is published. Full CI repeats the gate on macOS/Ubuntu and the declared minimum/latest Node 22. Remote CI results must actually pass before those targets are certified.
 
 A protocol runner is not a real host. Independently connect a primary host to the **installed artifact** in a synthetic Git project, run open/init/prepare/record/close/next prepare/remember/search/edit/restart, inspect tool results and Git status, and record host/runtime/artifact versions. Review promotion outcomes and approve only the intended synthetic fixture publication. Apps rendering needs its own host check.
 

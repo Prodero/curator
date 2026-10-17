@@ -1,9 +1,51 @@
 name: Release gate
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  # Manual and immutable tag runs have unique groups and are never cancelled.
+  group: ${{ github.workflow }}-${{ (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/') }}
 jobs:
+  fast:
+    if: github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+      - name: Classify changed paths conservatively
+        id: changes
+        run: node scripts/ci-policy.mjs
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+      - name: Fast tests and mandatory package validation
+        run: |
+          args=(--mode fast)
+          if [[ "$CI_INTEGRATION" == "true" ]]; then args+=(--integration); fi
+          node scripts/release-gate.mjs "${args[@]}"
+        env:
+          CI_INTEGRATION: ${{ steps.changes.outputs.integration }}
+          PRODERO_GATE_OUTPUT: ${{ runner.temp }}/prodero-fast
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-evidence
+          path: |
+            ${{ runner.temp }}/prodero-fast/*.log
+            ${{ runner.temp }}/prodero-fast/*.json
+            ${{ runner.temp }}/prodero-fast/*.tgz
   gate:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     strategy:
       fail-fast: false
       matrix:
