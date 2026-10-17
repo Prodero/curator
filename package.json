@@ -19,6 +19,7 @@
     "ARCHITECTURE.md",
     "prodero.release.json",
     "instructions/AGENTS.md",
+    "docs/images/*.png",
     "docs/PRIVACY.md",
     "docs/RECOVERY.md",
     "docs/MIGRATIONS.md",
