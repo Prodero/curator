@@ -13,6 +13,7 @@ Candidate prepared 2026-10-20; no publication or release date is implied.
 - Procedural intent gates skill selection so a project name alone does not pull an installer into unrelated context. Skill Preview/Review honor effective local/shared/invocation presentation, retain complete drafts and identify create/update/covered and the exact target before consent. Explicit skill creation and inferred candidates keep their existing distinct workflows.
 - The generated runtime guide is shorter and restores bundle-only read-only handling, last-resort file fallback, readiness/migration/resume and lifecycle rules. It separates Curator tools' Git behavior from the coding agent's current user authorization and host approval controls.
 - Incomplete provenance diagnostics no longer imply proven loss of history; no provenance backfill or canonical storage redesign is included.
+- Session writers serialize lock acquisition, stale-owner recovery and release under the same transition guard, preventing a stale PID decision from deleting a successor's lock. Deterministic process barriers and acknowledgment-preservation stress regressions cover record/close concurrency; unknown owners and interrupted guards remain fail-closed.
 
 Project schema remains **8** and knowledge schema remains **3**. No canonical schema migration is added by this version bump. See [compatibility and evidence limits](docs/COMPATIBILITY.md) and [release gates](docs/RELEASING.md). Exact-commit remote CI and selected native-host acceptance remain required; this entry does not announce publication.
 

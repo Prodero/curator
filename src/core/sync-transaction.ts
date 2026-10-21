@@ -39,43 +39,69 @@ export function ownsSyncLock(root: string): boolean {
   const owner = writerContext.getStore();
   return Boolean(owner?.active && owner.root === path.resolve(root));
 }
+type LockIdentity = {dev: number; ino: number};
+function sameLock(a: LockIdentity, b: LockIdentity): boolean { return a.dev === b.dev && a.ino === b.ino; }
+// Recovery may inspect a PID only while every cooperating acquisition/release is
+// excluded. Otherwise a dead PID can describe the previous directory generation.
+// An interrupted transition guard remains fail-closed, as documented in RECOVERY.
+async function tryLockTransition<T>(root: string, transition: () => Promise<T>): Promise<{value: T} | null> {
+  const guard = await checkedDataPath(root, '.transactions/lock-recovery');
+  try { await fs.mkdir(guard, {mode: PRIVATE_DIRECTORY_MODE}); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'EEXIST') return null; throw error; }
+  const identity = await fs.lstat(guard);
+  try { return {value: await transition()}; }
+  finally {
+    const current = await fs.lstat(await checkedDataPath(root, '.transactions/lock-recovery'));
+    if (!sameLock(identity, current)) throw new Error('Sync lock recovery guard changed; preserve transaction state for inspection');
+    await fs.rm(guard, {recursive: true, force: true});
+  }
+}
+async function removeOwnedLock(root: string, identity: LockIdentity, owner?: string): Promise<void> {
+  const lock = await checkedDataPath(root, '.transactions/lock');
+  const current = await fs.lstat(lock);
+  if (!sameLock(identity, current) || (owner !== undefined && await fs.readFile(await checkedDataPath(root, '.transactions/lock/owner'), 'utf8') !== owner)) {
+    throw new Error('Sync storage writer lock ownership changed; preserve transaction state for inspection');
+  }
+  await fs.rm(lock, {recursive: true, force: true});
+}
+const writerBusy = () => new Error('Another Sync or storage writer is already running, or its lock has no live owner; inspect .prodero/.transactions/lock and .prodero/.transactions/lock-recovery before retrying');
 /** Per-worktree writer exclusion shared by migration, Sync and session mutations. */
 export async function withSyncLock<T>(root: string, operation: () => Promise<T>, options: { waitMs?: number; migrationRecovery?: boolean; recoverLifecycle?: boolean; maintainIntegration?: boolean } = {}): Promise<T> {
   if (options.maintainIntegration === false) await ensureSelfIgnoredPrivateDirectory(root, '.transactions');
   else await runtimeDirectory(root);
   const lock = await checkedDataPath(root, '.transactions/lock');
   const deadline = Date.now() + (options.waitMs ?? 0);
+  let identity: LockIdentity;
   while (true) {
-    try {
-      await fs.mkdir(lock, {mode: PRIVATE_DIRECTORY_MODE});
-      try { await writeFileExclusive(await checkedDataPath(root, '.transactions/lock/owner'), String(process.pid)); }
-      catch (error) { await fs.rm(lock, { recursive: true, force: true }); throw error; }
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      await checkedDataPath(root, '.transactions/lock/owner');
-      // Only one stale-owner reaper may inspect/remove a lock. Re-read under that guard
-      // so a second reaper cannot delete a newly acquired writer's lock.
-      const reaper = await checkedDataPath(root, '.transactions/lock-recovery');
-      let reaping = false, recovered = false;
+    const attempt = await tryLockTransition(root, async () => {
+      let created = false;
       try {
-        try { await fs.mkdir(reaper, {mode: PRIVATE_DIRECTORY_MODE}); reaping = true; } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
-        if (reaping) {
-          const owner = await fs.readFile(await checkedDataPath(root, '.transactions/lock/owner'), 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error; });
-          const pid = /^\d+$/.test(owner) ? Number(owner) : 0;
-          if (pid > 0 && Number.isSafeInteger(pid)) {
-            try { process.kill(pid, 0); }
-            catch (probe) {
-              if ((probe as NodeJS.ErrnoException).code !== 'ESRCH') throw probe;
-              await fs.rm(lock, { recursive: true, force: true }); recovered = true;
-            }
+        await fs.mkdir(lock, {mode: PRIVATE_DIRECTORY_MODE}); created = true;
+        const acquired = await fs.lstat(lock);
+        try { await writeFileExclusive(await checkedDataPath(root, '.transactions/lock/owner'), String(process.pid)); }
+        catch (error) { await removeOwnedLock(root, acquired); throw error; }
+        return {identity: acquired, recovered: false};
+      } catch (error) {
+        if (created || (error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        const stale = await fs.lstat(await checkedDataPath(root, '.transactions/lock')).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+        if (!stale) return {identity: null, recovered: true};
+        const owner = await fs.readFile(await checkedDataPath(root, '.transactions/lock/owner'), 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error; });
+        const pid = /^\d+$/.test(owner) ? Number(owner) : 0;
+        if (pid > 0 && Number.isSafeInteger(pid)) {
+          try { process.kill(pid, 0); }
+          catch (probe) {
+            if ((probe as NodeJS.ErrnoException).code !== 'ESRCH') throw probe;
+            await removeOwnedLock(root, stale, owner);
+            return {identity: null, recovered: true};
           }
         }
-      } finally { if (reaping) await fs.rm(reaper, { recursive: true, force: true }); }
-      if (recovered) continue;
-      if (Date.now() >= deadline) throw new Error('Another Sync or storage writer is already running, or its lock has no live owner; inspect .prodero/.transactions/lock before retrying');
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
+        return {identity: null, recovered: false};
+      }
+    });
+    if (attempt?.value.identity) { identity = attempt.value.identity; break; }
+    if (attempt?.value.recovered) continue;
+    if (Date.now() >= deadline) throw writerBusy();
+    await new Promise(resolve => setTimeout(resolve, 10));
   }
   try {
     if (!options.migrationRecovery && await exists(await checkedDataPath(root, '.transactions/migration.json'))) throw new Error('Interrupted migration requires recovery; run Prodero init or prepare before recording new data. Preserve .prodero/.backups and .prodero/.transactions.');
@@ -91,7 +117,13 @@ export async function withSyncLock<T>(root: string, operation: () => Promise<T>,
     try { return await writerContext.run(owner, operation); }
     finally { owner.active = false; }
   }
-  finally { await fs.rm(lock, { recursive: true, force: true }); }
+  finally {
+    const releaseDeadline = Date.now() + 5_000;
+    while (!await tryLockTransition(root, () => removeOwnedLock(root, identity, String(process.pid)))) {
+      if (Date.now() >= releaseDeadline) throw writerBusy();
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+  }
 }
 async function validateWriteContent(root: string, writes: PlannedWrite[]): Promise<void> {
   assertNoSecrets(writes.map(write => write.after));
