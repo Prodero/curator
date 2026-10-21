@@ -1,12 +1,14 @@
-/** Pure product copy shared by Open, Sync Memory and text clients. Core owns decisions. */
+/** Pure product copy shared by Open, Curate Memory and text clients. Core owns decisions. */
+import {memorySyncOperation} from './memory-sync-operation.js';
 type Data = Record<string, any>;
 const count = (n:number,one:string,many=one+'s') => `${n} ${n===1?one:many}`;
 const tokens = (n:number) => n>=1000?`${(n/1000).toFixed(2)}K`:String(n);
 export const MEMORY_COPY = {
  automatic: 'Prodero remembers automatically. Sessions save useful knowledge into Local Knowledge when they close.',
- purpose: 'Sync Memory keeps that memory useful and shareable.',
+ purpose: 'Curate Memory keeps that memory useful and shareable.',
  noHistory: 'Not enough usage history yet to evaluate memory optimization.',
- stale: 'Project memory changed since this Sync started. Re-analyze before continuing.',
+ stale: 'Project memory changed since this curation started. Re-analyze before continuing.',
+ incompleteProvenance: 'Some provenance fields are incomplete; this is not proof of lost history. Existing records are preserved. Verify actual sources before proposing repairs; diagnostics do not infer or backfill provenance.',
  shared: 'Versioned Knowledge is Git-shareable project state that your agent can change. Curator does not commit or push; review the repository diff before doing so.',
 };
 /** Display only: never infer a topic from a knowledge title. Full labels remain in text/details. */
@@ -35,34 +37,35 @@ export function memoryOpenPresentation(p:Data) {
  const hasHistory=o?.available&&o.sessions>0;
  const headline=!o?.available?'Memory overview unavailable':areas.length?`${count(areas.length,'area')} can be improved`:hasHistory?'No improvements suggested by recent usage':'Memory is ready to learn';
  const notes=[MEMORY_COPY.automatic,MEMORY_COPY.purpose];
- if(!o?.available)notes.push('Memory analysis is temporarily unavailable. Try Sync Memory again when current work has finished.');
+ if(!o?.available)notes.push('Memory analysis is temporarily unavailable. Try Curate Memory again when current work has finished.');
  else if(!hasHistory)notes.push(MEMORY_COPY.noHistory);
  else if(!areas.length)notes.push('No transformation is suggested by the available recent usage.');
  if(p.knowledgeCount===0)notes.push('No current memories yet. Normal work will build Local Knowledge.');
  if(p.promotionRecommendedCount)notes.push(`${count(p.promotionRecommendedCount,'Local memory','Local memories')} can be reviewed for team sharing.`);
  if(areas.some((a:Data)=>a.reasons.some((r:string)=>r.includes('did not fit'))))notes.push('Some relevant knowledge has not fit into recent task context.');
- if(o?.areasOmitted)notes.push(`${count(o.areasOmitted,'additional area')} can be inspected in a later Sync Memory run.`);
+ if(o?.areasOmitted)notes.push(`${count(o.areasOmitted,'additional area')} can be inspected in a later Curate Memory run.`);
  const workflow=o?.workflow;
- if(workflow)notes.push(workflow.state==='stale'?MEMORY_COPY.stale:'Memory Sync is in progress. Continue when you are ready.');
+ if(workflow)notes.push(workflow.state==='stale'?MEMORY_COPY.stale:'Curate Memory is in progress. Continue when you are ready.');
  const signal=areas.some((a:Data)=>a.reasons.some((r:string)=>r.includes('did not fit')))?'Relevant knowledge has not fit into recent task context.'
   :areas.length?areas[0].reasons.find((r:string)=>!r.includes('incompatible'))??'Related knowledge is ready for review.'
   :!o?.available?'Memory analysis is temporarily unavailable.':!hasHistory?'Not enough usage history yet to evaluate improvements.':'No improvements suggested by recent usage.';
  const total=areas.length+(o?.areasOmitted??0);
  const dashboard={headline:areas.length?'Memory can be improved':headline,areasLabel:total?`${count(total,'area')} identified`:null,signal,
   sharing:typeof p.localKnowledgeCount==='number'?p.localKnowledgeCount?`${count(p.localKnowledgeCount,'Local memory','Local memories')} available for sharing review.`:'No Local memories to share.':null,
-  established:p.knowledgeCount>0,workflowNotice:workflow?workflow.state==='stale'?MEMORY_COPY.stale:'Memory Sync is in progress.':null};
- return {headline,notes,areas,conflicts,workflow,dashboard,button:workflow?(workflow.state==='stale'?'Re-analyze memory':'Continue Memory Sync'):'Sync Memory'};
+  established:p.knowledgeCount>0,workflowNotice:workflow?workflow.state==='stale'?MEMORY_COPY.stale:'Curate Memory is in progress.':null};
+ return {headline,notes,areas,conflicts,workflow,dashboard,button:workflow?(workflow.state==='stale'?'Re-analyze memory':'Continue curation'):'Curate Memory'};
 }
 export function memorySyncPresentation(w:Data) {
  const areas=(w.jobs??[]).map(memoryArea),s=w.summary??{},p=w.review?.preview;
- const headlines:Record<string,string>={awaiting_selection:'Sync Memory',semantic_work:'Improving memory…',awaiting_clarification:'A question about your project',awaiting_review:w.review?.kind==='promotion'?'Review knowledge for team sharing':p?.requiresVersionedReview?'Review shared-memory changes':'Review memory changes',applying:'Saving changes…',awaiting_promotion_selection:'Review Local knowledge for sharing',completed:'Memory synced',stale:'Re-analyze memory'};
+ const operation=w.operation??memorySyncOperation(w as Parameters<typeof memorySyncOperation>[0]);
+ const headlines:Record<string,string>={awaiting_selection:'Curate Memory',semantic_work:'Improving memory…',awaiting_clarification:'A question about your project',awaiting_review:w.review?.kind==='promotion'?'Review knowledge for team sharing':p?.requiresVersionedReview?'Review shared-memory changes':'Review memory changes',applying:'Approved changes pending verification',awaiting_promotion_selection:'Review Local knowledge for sharing',completed:'Memory curated',stale:'Re-analyze memory'};
  const notes:string[]=[],warnings:string[]=[],metrics:{label:string,value:string|number}[]=[],sections:{title:string,items:{title:string,body:string,notes:string[]}[]}[]=[];
  const section=(title:string,body:string)=>sections.push({title,items:[{title:'',body,notes:[]}]});
  if(w.state==='awaiting_selection'){
   // Operation choices are the entry surface; planner data is diagnostic.
  }
- if(w.state==='semantic_work')notes.push('Prodero is reviewing related knowledge and making safe Local improvements. You will only be asked about missing project facts.');
- if(w.state==='applying')notes.push('Your approved changes are being saved safely. Continue to check their result.');
+ if(['semantic_work','awaiting_clarification'].includes(w.state)&&operation.phase!=='question')notes.push(operation.phase==='submitted'?'The result was submitted and is awaiting validation.':operation.phase==='awaiting_agent'?'Prepared evidence is waiting for host-agent analysis. No background worker is confirmed.':'Analysis is queued. Continue with the prepared evidence; you may be asked about missing project facts.');
+ if(w.state==='applying')notes.push('The approved intention is saved. Check progress to verify the result or resume recovery; no active writer is assumed.');
  if(w.state==='stale')notes.push(MEMORY_COPY.stale);
  if(w.state==='awaiting_promotion_selection')notes.push('Select Local knowledge to move to Versioned Knowledge.');
  if(w.state!=='stale'&&w.review?.kind==='transformation'){
@@ -93,7 +96,7 @@ export function memorySyncPresentation(w:Data) {
  if(w.state!=='stale'&&w.review?.kind==='link-repair'){
   notes.push(`Remove ${count(p.count,'broken link')} to missing memories. No replacement memory is inferred.`, 'Memory text and valid links stay unchanged. Original records, including removed links, are saved in a checkpoint.');
   if(p.requiresVersionedReview)notes.push(MEMORY_COPY.shared);
-  if(p.remaining)notes.push(`${count(p.remaining,'additional broken link')} will remain for a later Sync.`);
+  if(p.remaining)notes.push(`${count(p.remaining,'additional broken link')} will remain for a later curation run.`);
   sections.push({title:'Broken links to remove',items:p.changes.map((c:Data)=>({title:c.title,body:c.links.map((l:Data)=>`${l.type} → ${l.target}`).join('\n'),notes:[`${c.layer==='versioned'?'Shared / Versioned':'Local'} · ${c.id}`]}))});
  }
  if(w.state!=='stale'&&w.review?.kind==='promotion'){
@@ -114,16 +117,20 @@ export function memorySyncPresentation(w:Data) {
   else notes.push(w.usage?.available&&w.usage?.sessions?'No transformation was needed based on recent usage.':MEMORY_COPY.noHistory);
   if(s.brokenLinksFixed)notes.push(`${count(s.brokenLinksFixed,'broken link')} fixed.`);
   if(s.brokenLinksRemaining)notes.push(`${count(s.brokenLinksRemaining,'broken link')} remain unchanged.`);
-  if(s.promoted)notes.push(`${count(s.promoted,'Local memory','Local memories')} shared with the team.`);
+  if(s.promoted)notes.push(`${count(s.promoted,'Local memory','Local memories')} prepared in Versioned files. Review the Git diff before sharing; Curator did not commit or push.`);
   if(s.areasProcessed)notes.push(`Estimated context for reviewed knowledge: ${tokens(s.estimatedTokens.before)} → ${tokens(s.estimatedTokens.after)} tokens.`);
-  if(s.unresolved)notes.push(`${count(s.unresolved,'memory','memories')} still need clarification and remain current.`);
+  if(s.unresolved)notes.push(`${count(s.unresolved,'unresolved item')} still need clarification and remain current.`);
   if(s.areasSkipped)notes.push('Some knowledge was retained because a safe improvement could not be established.');
   if(s.areasFailed)notes.push('Some analysis could not be completed. Saved knowledge is unchanged for those items.');
   if(s.questionsDeferred)notes.push('Deferred questions are saved for later. Independent work continued.');
   if(s.promotionConflicts)notes.push(`${count(s.promotionConflicts,'sharing item')} still need review and remain Local.`);
   notes.push('Previous knowledge remains available through history.');
  }
+ notes.push('Your place and saved answers are retained. Leave and return with Continue curation.');
+ if(['semantic_work','awaiting_clarification','awaiting_review'].includes(w.state))notes.push('Skip or Answer later retains original knowledge and saved answers, then continues other selected work.');
+ if(w.state==='stale'||w.state==='completed')notes.push('Re-analyze starts a fresh workflow from current project data. Changes already saved remain in place.');
  if(w.error&&w.state!=='stale')notes.push('This step could not finish. Continue to check saved progress before retrying.');
- if(w.state==='awaiting_promotion_selection'&&w.coverage?.promotionCandidatesOmitted)notes.push(`${count(w.coverage.promotionCandidatesOmitted,'additional Local memory','additional Local memories')} can be reviewed in a later Sync Memory run.`);
- return {headline:headlines[w.state]??'Sync Memory',graphicalHeadline:headlines[w.state]??'Sync Memory',reviewAreaLabel:'Memory changes',notes,warnings,metrics,sections,areas};
+ if(w.state==='awaiting_promotion_selection'&&w.coverage?.promotionCandidatesOmitted)notes.push(`${count(w.coverage.promotionCandidatesOmitted,'additional Local memory','additional Local memories')} can be reviewed in a later Curate Memory run.`);
+ const headline=w.state==='completed'&&operation.outcome==='remaining'?'Completed with remaining work':operation.phase==='awaiting_agent'?'Awaiting agent analysis':operation.phase==='submitted'?'Submitted · validation pending':w.state==='semantic_work'?'Analysis queued':headlines[w.state]??'Curate Memory';
+ return {headline,graphicalHeadline:headline,operation,reviewAreaLabel:'Memory changes',notes,warnings,metrics,sections,areas};
 }

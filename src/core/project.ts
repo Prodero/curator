@@ -34,6 +34,7 @@ import { closeSession, createSession, readSession, recordSessionObservations, up
 import { DEFAULT_CONTEXT_BUDGET_TOKENS, DEFAULT_REQUIRED_CONTEXT_BUDGET_TOKENS, memoryCompression, summarizeSessionMemory, TOKEN_COUNT_METHOD } from "./telemetry.js";
 import { INDEX_TEMPLATE } from "./templates.js";
 import {
+  CANONICAL_ID_PATTERN,
   ensureDerivedStateRoot,
   checkedDataPath,
   ensureProjectDirectories,
@@ -106,7 +107,7 @@ export async function getFastProjectStatus(start = process.cwd(), options: { ins
   });
 }
 
-export async function getDetailedProjectStatus(start = process.cwd(), options: { instrument?: StatusInstrumentation } = {}): Promise<ProjectStatus> {
+export async function getDetailedProjectStatus(start = process.cwd(), options: { instrument?: StatusInstrumentation; persistCache?: boolean } = {}): Promise<ProjectStatus> {
   const started = performance.now();
   try {
     const root = await findProjectRoot(start);
@@ -114,13 +115,13 @@ export async function getDetailedProjectStatus(start = process.cwd(), options: {
     const statusReads = [
       config ? (async () => {
         const phaseStarted = performance.now();
-        const result = await discoverSessions(root);
+        const result = await discoverSessions(root, {persistCache: options.persistCache});
         options.instrument?.({ phase: "session-index", durationMs: performance.now() - phaseStarted, cache: result.cacheState, filesScanned: result.sessionFilesScanned, bodiesRead: result.sessionBodiesRead });
         return result;
       })() : null,
       config ? (async () => {
         const phaseStarted = performance.now();
-        const result = await loadMemoryCatalog(root);
+        const result = await loadMemoryCatalog(root, {persistCache: options.persistCache});
         options.instrument?.({ phase: "memory-index", durationMs: performance.now() - phaseStarted, cache: result.cacheState, filesScanned: result.filesScanned, bodiesRead: result.bodiesIndexed });
         return result;
       })() : null,
@@ -138,7 +139,7 @@ export async function getDetailedProjectStatus(start = process.cwd(), options: {
     const [discovery, catalog, fast, skills] = statusResults;
     const telemetryStarted = performance.now();
     const knowledge = catalog?.summaries ?? [];
-    const graph = config && catalog ? await loadKnowledgeGraph(root, catalog) : null;
+    const graph = config && catalog ? await loadKnowledgeGraph(root, catalog, {persistCache: options.persistCache}) : null;
     const disputedIds = new Set(knowledge.filter((item) => item.status === "disputed").map((item) => item.id));
     const conflictPairs = new Set<string>();
     for (const item of knowledge.filter((candidate) => candidate.status === "disputed")) {
@@ -146,7 +147,7 @@ export async function getDetailedProjectStatus(start = process.cwd(), options: {
       if (!item.related.some((id) => disputedIds.has(id))) conflictPairs.add(item.id);
     }
     const counts = skillCounts(skills);
-    const recommendations = config ? await promotionRecommendations(root) : [];
+    const recommendations = config ? await promotionRecommendations(root, {persistCache: options.persistCache}) : [];
     const status = {
       ...fast,
       knowledgeCount: knowledge.filter((item) => item.status === "active" || item.status === "disputed").length,
@@ -173,8 +174,8 @@ export async function getDetailedProjectStatus(start = process.cwd(), options: {
 }
 
 /** Complete status remains the compatibility API for correctness-oriented callers. */
-export async function getProjectStatus(start = process.cwd()): Promise<ProjectStatus> {
-  return getDetailedProjectStatus(start);
+export async function getProjectStatus(start = process.cwd(), options: {persistCache?: boolean} = {}): Promise<ProjectStatus> {
+  return getDetailedProjectStatus(start, options);
 }
 
 export async function initializeProject(start = process.cwd()): Promise<ProjectStatus> {
@@ -515,7 +516,7 @@ export async function rememberProjectKnowledge(start: string | undefined, input:
     .sort((a, b) => a.type.localeCompare(b.type) || a.target.localeCompare(b.target));
   if (relationships.length > 12) throw new Error("Remember supports at most 12 explicit relationships.");
   for (const relation of relationships) {
-    if (!["related_to", "depends_on", "implements"].includes(relation.type) || !/^mem_[a-zA-Z0-9_]+$/.test(relation.target)) throw new Error("Remember relationship is malformed.");
+    if (!["related_to", "depends_on", "implements"].includes(relation.type) || !CANONICAL_ID_PATTERN.test(relation.target)) throw new Error("Remember relationship is malformed.");
     const target = beforeKnowledge.find((item) => item.id === relation.target);
     if (!target || (target.status !== "active" && target.status !== "disputed")) throw new Error(`Remember relationship target is not current canonical knowledge: ${relation.target}`);
   }

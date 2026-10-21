@@ -63,6 +63,47 @@ export async function ensureStorageDirectory(target: string, forcePrivate = fals
   if (forcePrivate) await tightenPrivateMode(target);
 }
 
+const privateIgnoreUpdates = new Map<string, Promise<string>>();
+/** Preference writes must not repair shared integration. Private self-exclusion
+ * protects files even when root ignore rules are absent; custom rules are never edited.
+ */
+export async function ensureSelfIgnoredPrivateDirectory(root: string, directory: 'local' | '.transactions'): Promise<string> {
+  const key = projectDataPath(root, directory), pending = privateIgnoreUpdates.get(key);
+  if (pending) return pending;
+  const failure = () => new Error('PRODERO_LOCAL_IGNORE_UNAVAILABLE: Private ignore protection is unavailable. Preserve the existing local state and restore a safe self-excluding .gitignore containing only * in the private directory before retrying; shared project ignore rules were not changed.');
+  const update = (async () => {
+    try {
+      const target = await checkedDataPath(root, directory);
+      const ignore = await checkedDataPath(root, directory, '.gitignore');
+      const read = () => fs.readFile(ignore, 'utf8').catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+      const validate = (text: string) => {
+        const rules = text.split(/\r?\n/).filter(line => line !== '' && !line.startsWith('#'));
+        if (rules.length !== 1 || rules[0] !== '*') throw failure();
+      };
+      const readReady = async () => {
+        let current = await read();
+        // Another process may have opened the exclusive marker but not written its
+        // one rule yet. Wait briefly; never overwrite an existing empty/custom file.
+        for (let attempt = 0; current === '' && attempt < 3; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          current = await read();
+        }
+        return current;
+      };
+      const current = await readReady();
+      if (current !== null) validate(current);
+      else {
+        await ensureStorageDirectory(target);
+        await writeFileExclusive(ignore, '*\n').catch(error => { if (error.code !== 'EEXIST') throw error; });
+        validate((await readReady()) ?? '');
+      }
+      return target;
+    } catch { throw failure(); }
+  })();
+  privateIgnoreUpdates.set(key, update);
+  try { return await update; } finally { privateIgnoreUpdates.delete(key); }
+}
+
 export async function writeFileExclusive(target: string, content: string): Promise<void> {
   await assertSafePath(target);
   await protectPrivatePath(target);
@@ -179,8 +220,9 @@ export async function ensureDataDirectory(root: string, relative: string): Promi
   return target;
 }
 
+export const CANONICAL_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 export function canonicalId(value: unknown, filename: string): asserts value is string {
-  if (typeof value !== "string" || !/^[a-zA-Z0-9_-]+$/.test(value)) throw new Error(`Invalid canonical ID: ${filename}`);
+  if (typeof value !== "string" || !CANONICAL_ID_PATTERN.test(value)) throw new Error(`Invalid canonical ID: ${filename}`);
 }
 
 const positive = z.number().int().positive();

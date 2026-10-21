@@ -1,9 +1,12 @@
 import { loadKnowledgeGraph } from './knowledge-graph.js';
+import {memorySyncOperation} from '../memory-sync-operation.js';
+import {curationAnswers} from './curation-semantic-jobs.js';
+import {graphicalReviewPayload} from './curation-graphical.js';
 import { previewMemoryLinkRepair, applyMemoryLinkRepair, type MemoryLinkRepairPreview } from './memory-link-repair.js';
-import {loadCurationReview} from './curation-review.js';
+import {loadCurationReview,CurationReviewError} from './curation-review.js';
 import { requireCurrentProject } from "./migrations.js";
 import { publicDiagnostic } from './diagnostics.js';
-import {prepareSyncCuration,inspectSyncCuration,previewSyncCuration} from './memory-sync-curator.js';
+import {prepareSyncCuration,inspectSyncCuration,previewSyncCuration,refreshSyncQuestions} from './memory-sync-curator.js';
 /** User-initiated orchestration. One bounded local workflow; no provider or background caller. */
 import fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -38,6 +41,7 @@ export const memorySyncActionSchema = z.discriminatedUnion('action', [
  z.object({action:z.literal('approve'),...requestIdentity,reviewId:z.string(),approved:z.literal(true)}).strict(),
  z.object({action:z.literal('skip'),...requestIdentity,candidateId:id.optional()}).strict(),
  z.object({action:z.literal('retry'),...requestIdentity,candidateId:id}).strict(),
+ z.object({action:z.literal('refresh_questions'),...requestIdentity,candidateId:id,reviewId:z.string(),reviewRevisionId:z.string(),planHash:z.string(),decisionRevision:z.number().int().nonnegative(),answerLogHash:z.string()}).strict(),
  z.object({action:z.literal('promotions'),...requestIdentity,ids:z.array(z.string()).max(50)}).strict(),
  z.object({action:z.literal('complete'),...requestIdentity}).strict(),
 ]);
@@ -45,8 +49,8 @@ export const memorySyncActionSchema = z.discriminatedUnion('action', [
 export type MemorySyncAction = z.input<typeof memorySyncActionSchema>;
 async function knowledgeHash(root:string,exclude:string[]=[]){return digest((await readKnowledgeInventory(root)).filter(r=>!exclude.includes(r.item.id)).map(r=>[r.item.id,r.path,r.revision]));}
 async function fingerprint(root:string,excludeCheckpoint?:string){return {knowledge:await knowledgeHash(root),telemetry:await fileHash(await checkedDataPath(root,'local/memory-pressure.json'))??'missing',checkpoints:digest((await listCheckpoints(root)).filter(c=>c.id!==excludeCheckpoint).map(c=>[c.id,digest(c)]))};}
-async function load(root:string):Promise<Workflow|null>{const target=await checkedDataPath(root,FILE);try{const stat=await fs.stat(target);if(stat.size>MEMORY_SYNC_LIMITS.bytes)throw new Error('Memory Sync state exceeds bound');const envelope=JSON.parse(await fs.readFile(target,'utf8'));if(envelope.hash!==digest(envelope.workflow))throw new Error('Memory Sync checkpoint is corrupt');const state=stateSchema.parse(envelope.workflow);if(state.root!==await fs.realpath(root))throw new Error('Memory Sync belongs to another project');return state;}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return null;throw e;}}
-async function save(root:string,w:Workflow){w.revision++;const workflow=stateSchema.parse(w);const text=JSON.stringify({hash:digest(workflow),workflow});if(Buffer.byteLength(text)>MEMORY_SYNC_LIMITS.bytes)throw new Error('Memory Sync checkpoint exceeds bounded storage; split work');await ensureDataDirectory(root,'local');await writeFileAtomic(await checkedDataPath(root,FILE),text);}
+async function load(root:string):Promise<Workflow|null>{const target=await checkedDataPath(root,FILE);try{const stat=await fs.stat(target);if(stat.size>MEMORY_SYNC_LIMITS.bytes)throw new Error('Curate Memory state exceeds bound');const envelope=JSON.parse(await fs.readFile(target,'utf8'));if(envelope.hash!==digest(envelope.workflow))throw new Error('Curate Memory checkpoint is corrupt');const state=stateSchema.parse(envelope.workflow);if(state.root!==await fs.realpath(root))throw new Error('Curate Memory belongs to another project');return state;}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return null;throw e;}}
+async function save(root:string,w:Workflow){w.revision++;const workflow=stateSchema.parse(w);const text=JSON.stringify({hash:digest(workflow),workflow});if(Buffer.byteLength(text)>MEMORY_SYNC_LIMITS.bytes)throw new Error('Curate Memory checkpoint exceeds bounded storage; split work');await ensureDataDirectory(root,'local');await writeFileAtomic(await checkedDataPath(root,FILE),text);}
 async function promotions(root:string,w:Workflow){const rows=await promotionRecommendations(root,{persistCache:false});w.promotionCandidates=rows.slice(0,50);w.promotionTotal=rows.length;}
 function currentJob(w:Workflow){return w.jobs.find(j=>j.selected&&['pending','semantic_work','awaiting_review','awaiting_clarification'].includes(j.status));}
 async function advance(root:string,w:Workflow){
@@ -56,10 +60,33 @@ async function advance(root:string,w:Workflow){
   w.repairLinksDone=true;
  }
  if(currentJob(w))w.state='semantic_work';else if(w.promotionEnabled&&!w.promotionDone){await promotions(root,w);if(w.improveEnabled!==undefined&&!w.promotionCandidates.length){w.promotionDone=true;w.state='completed';}else w.state='awaiting_promotion_selection';}else w.state='completed';}
-function view(w:Workflow,clarification?:Awaited<ReturnType<typeof inspectSyncCuration>>){
+async function deferredQuestions(root:string,w:Workflow){
+ const questions=[];
+ for(const job of w.jobs.filter(j=>j.selected&&j.status==='deferred'&&j.curationReviewId)){
+  const payload=await inspectSyncCuration(root,job.curationReviewId!),review=payload.review!,g=payload.graphical!;
+  const seen=new Set<string>();
+  for(const q of g.questions.filter(q=>q.state==='deferred')){
+   const related=q.reopenedQuestions,key=related.map(other=>other.id).sort().join(',');if(seen.has(key))continue;seen.add(key);
+   questions.push({candidateId:job.id,title:q.question.title,prompt:q.question.prompt,expired:payload.projection.lifecycle==='stale',affectedQuestions:related,
+    action:'question_reopen' as const,reviewId:review.snapshot.reviewId,reviewRevisionId:review.snapshot.revision!.id,planHash:review.snapshot.planHash,decisionRevision:review.state.revision,answerLogHash:g.answerLogHash,questionId:q.question.id,questionVersion:q.question.version});
+  }
+ }
+ return questions;
+}
+/** Adopt only an explicitly reopened saved question. Inspection never reopens
+ * one, preempts independent reasoning, or replaces an active exact review. */
+async function resumeRevisitedQuestion(root:string,w:Workflow){
+ if(!w.improveEnabled||currentJob(w)||w.active||['stale','applying','awaiting_selection'].includes(w.state))return;
+ for(const job of w.jobs.filter(j=>j.selected&&j.status==='deferred'&&j.curationReviewId)){
+  const payload=await inspectSyncCuration(root,job.curationReviewId!);
+  if(!payload.graphical!.activeQuestionCount&&!payload.graphical!.analysisPending&&!payload.graphical!.questions.some(q=>q.state==='answered_pending_analysis'))continue;
+  job.curationReviewId=payload.review!.snapshot.reviewId;job.status='semantic_work';delete job.error;w.state='semantic_work';await save(root,w);return;
+ }
+}
+function view(w:Workflow,clarification?:Awaited<ReturnType<typeof inspectSyncCuration>>,deferred:Awaited<ReturnType<typeof deferredQuestions>>=[]){
  const applied=w.jobs.filter(j=>j.status==='applied').map(j=>(j.result as Awaited<ReturnType<typeof applyMemoryTransformation>>).summary);
  const promotion=w.promotionResult as Awaited<ReturnType<typeof applyKnowledgePromotion>>|undefined;
- return {...w,clarification,active:undefined,review:w.active?{kind:w.active.kind,reviewId:w.active.reviewId,preview:w.active.preview}:undefined,
+ return {...w,clarification,deferredQuestions:deferred,active:undefined,review:w.active?{kind:w.active.kind,reviewId:w.active.reviewId,preview:w.active.preview}:undefined,
   health:{transformationCandidates:w.jobs.length,contextPressureCandidates:w.jobs.filter(j=>j.signals.includes('context_pressure')).length,potentialConflictCandidates:w.jobs.filter(j=>j.signals.includes('potential_conflict')).length,localPromotionCandidates:w.promotionTotal,possibleVersionedTransformationRecords:w.jobs.reduce((n,j)=>n+j.layers.versioned,0)},
   summary:{brokenLinksFixed:w.repairLinksResult?.fixed??0,brokenLinksRemaining:w.repairLinksResult?.remaining??w.brokenLinks??0,areasProcessed:applied.length,areasFailed:w.jobs.filter(j=>j.status==='failed').length,areasSkipped:w.jobs.filter(j=>j.status==='skipped').length,questionsDeferred:w.jobs.filter(j=>j.status==='deferred').length,
    sourcesBefore:applied.reduce((n,r)=>n+r.consolidated.length+r.superseded.length+r.kept.length+r.unresolved.length,0),currentAfter:applied.reduce((n,r)=>n+r.created.length+r.kept.length+r.unresolved.length,0),
@@ -69,6 +96,24 @@ function view(w:Workflow,clarification?:Awaited<ReturnType<typeof inspectSyncCur
   coverage:{promotionCandidatesOmitted:Math.max(0,w.promotionTotal-w.promotionCandidates.length)},
   next:w.state==='semantic_work'?{action:'semantic_work_required',candidateId:currentJob(w)?.id,instructions:w.improveEnabled?'Use prodero_memory_sync prepare for the next candidate. For its curation job, use the existing prodero_curation_reasoning_prepare/propose protocol, then inspect this Sync workflow. Continue sequentially until a question, review or completion. Never Apply or approve; Core handles eligible Local changes. No session lifecycle or extra scans.':'Use prodero_memory_sync action=prepare, then reason only over that one bundle and submit action=propose with the returned workflow ID/revision. Continue sequentially while semantic_work_required. Never approve review automatically. Do not use session prepare/record/close for this workflow.'}:['awaiting_clarification','awaiting_promotion_selection','awaiting_review'].includes(w.state)?{action:w.state==='awaiting_review'?'human_review_required':w.state,tool:'prodero_sync',arguments:{projectRoot:w.root,workflowId:w.id},instructions:'When an unattached continuation returns this state, present the pending human step before ending the turn: read project presentation settings and invoke prodero_sync with these exact arguments once (use prodero_text for text mode). This reopens the same saved workflow without restarting analysis. After presenting it, stop and wait; do not repeatedly reopen an unchanged step. Never select records, answer questions, approve or publish for the human.'}:{action:w.state},
  };
+}
+async function workflowView(root:string,w:Workflow,clarification?:Awaited<ReturnType<typeof inspectSyncCuration>>,deferred?:Awaited<ReturnType<typeof deferredQuestions>>){
+ const previous=currentJob(w)?.id;
+ if(w.state!=='stale')await resumeRevisitedQuestion(root,w);
+ if(!previous&&currentJob(w))clarification=await refreshCuration(root,w);
+ const snapshot=view(w,clarification,deferred??(w.state!=='stale'?await deferredQuestions(root,w):[]));
+ const lineages=new Set<string>(),questions=new Set<string>();let savedAnswerEvents=0,unsupersededAnswerEvents=0;
+ let reasoning:NonNullable<Awaited<ReturnType<typeof inspectSyncCuration>>['graphical']>|undefined;
+ for(const job of w.jobs.filter(j=>j.selected&&j.curationReviewId)){
+  const payload=clarification&&clarification.review?.snapshot.reviewId===job.curationReviewId?clarification:await graphicalReviewPayload(root,await loadCurationReview(root,job.curationReviewId!,{allowExpired:true}));
+  const lineage=payload.review!.snapshot.revision!.lineageId;
+  if(job.id===currentJob(w)?.id)reasoning=payload.graphical!;
+  if(lineages.has(lineage))continue;lineages.add(lineage);
+  for(const q of payload.graphical!.questions)if(q.state==='deferred')questions.add(`${lineage}:${q.question.id}`);
+  const answers=await curationAnswers(root,lineage);savedAnswerEvents+=answers.length;unsupersededAnswerEvents+=answers.filter(a=>!answers.some(next=>next.replacesAnswerId===a.id)).length;
+ }
+ const projected={...snapshot,reasoning,questionCounts:{deferred:questions.size,savedAnswerEvents,unsupersededAnswerEvents,coverage:'saved_selected_reviews' as const}};
+ return {...projected,operation:memorySyncOperation(projected)};
 }
 async function refreshCuration(root:string,w:Workflow){
  const j=currentJob(w);if(!w.improveEnabled||!j?.curationReviewId||!['semantic_work','awaiting_clarification'].includes(w.state))return;
@@ -125,7 +170,7 @@ async function resume(root:string,w:Workflow){
 export async function runMemorySync(root:string,raw:MemorySyncAction){
  const input=memorySyncActionSchema.parse(raw);
  root=await findProjectRoot(root);
- if(!await readConfig(root))throw new Error('Prodero must be initialized before Sync Memory');
+ if(!await readConfig(root))throw new Error('Prodero must be initialized before Curate Memory');
  if(input.action==='start'){
   await requireCurrentProject(root);
   await autoMigrateProject(root);
@@ -139,15 +184,21 @@ export async function runMemorySync(root:string,raw:MemorySyncAction){
   return withSyncLock(root,async()=>{
    const plan=await getMemoryIntelligencePlan(root);
    const w:Workflow={brokenLinks:(await loadKnowledgeGraph(root,undefined,{persistCache:false})).diagnostics.brokenReferences,version:1,id:randomUUID(),root:await fs.realpath(root),revision:0,createdAt:new Date().toISOString(),state:'awaiting_selection',usage:{sessions:plan.coverage.sessions,available:plan.coverage.telemetry==='available'},baseline:await fingerprint(root),jobs:plan.candidates.map(c=>({id:c.id,label:c.label,signals:c.signals,recordCount:c.recordCount,counts:c.counts,categories:c.categories,sourceIds:c.records.map(r=>r.id),layers:c.layers,selected:false,status:'unselected'})),promotionEnabled:false,promotionDone:false,promotionCandidates:[],promotionTotal:0,recovery};
-   await promotions(root,w);await save(root,w);return view(w);
+   await promotions(root,w);await save(root,w);return workflowView(root,w);
   });
  }
  return withSyncLock(root,async()=>{
   await recoverSyncTransaction(root);
-  const w=await load(root);if(!w)throw new Error('Start Sync Memory first');
-  if(input.workflowId&&input.workflowId!==w.id)throw new Error('Memory Sync workflow expired or was replaced');
+  const w=await load(root);if(!w)throw new Error('Start Curate Memory first');
+  if(input.workflowId&&input.workflowId!==w.id)throw new Error('Curate Memory workflow expired or was replaced');
   const before=w.revision;await resume(root,w);
-  if(input.action==='inspect')return view(w,w.state!=='stale'?await refreshCuration(root,w):undefined);
+  if(input.action==='inspect'){
+   if(w.state!=='stale')await resumeRevisitedQuestion(root,w);
+   const clarification=w.state!=='stale'?await refreshCuration(root,w):undefined;
+   // Finishing independent work may make a deliberately reopened question next.
+   if(w.state!=='stale')await resumeRevisitedQuestion(root,w);
+   return workflowView(root,w,clarification??(w.state!=='stale'?await refreshCuration(root,w):undefined),w.state!=='stale'?await deferredQuestions(root,w):[]);
+  }
   if(w.state==='stale')throw new Error(w.error);
   if(w.state==='applying')throw new Error('Approved apply is pending recovery; inspect/resume before another action');
   if(!('revision' in input)||input.revision!==before||w.revision!==before)throw new Error('Stale workflow revision; inspect current workflow');
@@ -164,24 +215,29 @@ export async function runMemorySync(root:string,raw:MemorySyncAction){
   }else if(input.action==='prepare'){
    const j=currentJob(w);if(w.state!=='semantic_work'||!j||input.candidateId!==j.id)throw new Error('Prepare only the next selected candidate');
    if(w.improveEnabled){
-    try{const curation=await prepareSyncCuration(root,j.sourceIds,j.curationReviewId);j.curationReviewId=curation.reviewId;j.status='semantic_work';await save(root,w);return {...view(w),curation};}
-    catch(e){j.status='failed';j.error=publicDiagnostic(e).slice(0,1000);await advance(root,w);await save(root,w);return view(w);}
+    try{const curation=await prepareSyncCuration(root,j.sourceIds,j.curationReviewId,j.status==='pending'&&!!j.curationReviewId);j.curationReviewId=curation.reviewId;j.status='semantic_work';await save(root,w);return {...await workflowView(root,w),curation};}
+    catch(e){j.status='failed';j.error=publicDiagnostic(e).slice(0,1000);await advance(root,w);await save(root,w);return workflowView(root,w);}
    }
-   try{const semantic=await prepareMemoryTransformation(root,j.id);if(!semantic.canPropose)throw new Error('Candidate requires splitting or complete evidence');if(semantic.bundle.sourceIds.length!==j.recordCount||semantic.bundle.sourceIds.some(id=>!j.sourceIds.includes(id)))throw new Error('Candidate membership changed');j.status='semantic_work';await save(root,w);return {...view(w),semantic};}catch(e){j.status='failed';j.error=publicDiagnostic(e).slice(0,1000);await advance(root,w);}
+   try{const semantic=await prepareMemoryTransformation(root,j.id);if(!semantic.canPropose)throw new Error('Candidate requires splitting or complete evidence');if(semantic.bundle.sourceIds.length!==j.recordCount||semantic.bundle.sourceIds.some(id=>!j.sourceIds.includes(id)))throw new Error('Candidate membership changed');j.status='semantic_work';await save(root,w);return {...await workflowView(root,w),semantic};}catch(e){j.status='failed';j.error=publicDiagnostic(e).slice(0,1000);await advance(root,w);}
   }else if(input.action==='propose'){
-   if(w.improveEnabled)throw new Error('Submit this job through Curator reasoning, then inspect Sync Memory');
+   if(w.improveEnabled)throw new Error('Submit this job through Curator reasoning, then inspect Curate Memory');
    const j=currentJob(w);if(w.state!=='semantic_work'||j?.status!=='semantic_work'||input.candidateId!==j.id||!input.proposal)throw new Error('Prepare selected candidate before submitting its proposal');
    try{
     if(input.proposal.candidateId!==j.id)throw new Error('Proposal belongs to another candidate');
     const validated=await validateMemoryTransformationProposal(root,input.proposal);const preview=await previewMemoryTransformation(root,validated);
     j.unresolved=preview.summary.unresolved.length;w.active={kind:'transformation',candidateId:j.id,reviewId:preview.previewId,preview,approved:false};j.status='awaiting_review';w.state='awaiting_review';await save(root,w);
-   }catch(e){j.status='failed';j.error=publicDiagnostic(e).slice(0,1000);await advance(root,w);await save(root,w);return view(w);}
+   }catch(e){j.status='failed';j.error=publicDiagnostic(e).slice(0,1000);await advance(root,w);await save(root,w);return workflowView(root,w);}
    if((w.active!.preview as MemoryTransformationPreview).localDirectApplyEligible)await beginApply(root,w);
-   return view(w);
+   return workflowView(root,w);
   }else if(input.action==='approve'){
-   if(w.state!=='awaiting_review'||!w.active||input.approved!==true||input.reviewId!==w.active.reviewId)throw new Error('Explicit approval of this exact review is required');w.active.approved=true;await beginApply(root,w);return view(w);
+   if(w.state!=='awaiting_review'||!w.active||input.approved!==true||input.reviewId!==w.active.reviewId)throw new Error('Explicit approval of this exact review is required');w.active.approved=true;await beginApply(root,w);return workflowView(root,w);
   }else if(input.action==='skip'){
    if(w.active?.kind==='link-repair'){delete w.active;w.repairLinksDone=true;await advance(root,w);}else if(w.active?.kind==='promotion'){delete w.active;w.promotionDone=true;await advance(root,w);}else{const j=currentJob(w);if(!j||input.candidateId!==j.id)throw new Error('Skip requires current candidate');j.status='skipped';delete w.active;await advance(root,w);}
+  }else if(input.action==='refresh_questions'){
+   const j=w.jobs.find(j=>j.id===input.candidateId&&j.selected&&j.status==='deferred'&&j.curationReviewId);
+   if(!j||w.active)throw new CurationReviewError('review_changed','Refresh only this saved deferred review after finishing the active exact review.');
+   if((await inspectSyncCuration(root,j.curationReviewId!)).review!.snapshot.reviewId!==input.reviewId)throw new CurationReviewError('review_changed','This deferred review changed. Inspect saved progress.');
+   const fresh=await refreshSyncQuestions(root,j.sourceIds,input);j.curationReviewId=fresh.review!.snapshot.reviewId;
   }else if(input.action==='retry'){
    if(w.active||w.promotionResult)throw new Error('Finish review before retry, or start a fresh workflow after promotion');const j=w.jobs.find(j=>j.id===input.candidateId&&j.selected&&j.status==='failed');if(!j)throw new Error('Only failed candidates can be retried');j.status='pending';delete j.error;w.state='semantic_work';
   }else if(input.action==='promotions'){
@@ -191,7 +247,7 @@ export async function runMemorySync(root:string,raw:MemorySyncAction){
   }else if(input.action==='complete'){
    if(!['awaiting_promotion_selection','completed'].includes(w.state))throw new Error('Finish or skip selected transformations first');w.promotionDone=true;w.state='completed';
   }
-  await save(root,w);return view(w);
+  await save(root,w);return workflowView(root,w);
  });
 }
 
@@ -212,9 +268,21 @@ export async function getMemorySyncOverview(root:string) {
 /** Resolve continuation ownership from persisted review lineage, not a particular App instance. */
 export async function syncWorkflowForCuration(root:string,lineageId:string) {
  const w=await load(root);
- if(!w||!w.improveEnabled||!['semantic_work','awaiting_clarification'].includes(w.state))return undefined;
- const reviewId=currentJob(w)?.curationReviewId;
- if(!reviewId)return undefined;
- const review=await loadCurationReview(root,reviewId);
- return review.snapshot.revision?.lineageId===lineageId?w.id:undefined;
+ if(!w||!w.improveEnabled||w.state==='stale')return undefined;
+ for(const job of w.jobs.filter(j=>j.selected&&j.curationReviewId&&['pending','semantic_work','awaiting_clarification','deferred'].includes(j.status))){
+  const review=await loadCurationReview(root,job.curationReviewId!,{allowExpired:true});
+  if(review.snapshot.revision?.lineageId===lineageId)return w.id;
+ }
+ return undefined;
+}
+
+/** Internal adapter ownership check under the common writer lock. A review ID
+ * from another workflow/candidate never grants conversational access. */
+export async function syncCurationReview(root:string,workflowId:string,candidateId:string,reviewId:string){
+ const w=await load(root),job=w?.jobs.find(j=>j.id===candidateId&&j.selected&&j.curationReviewId&&['pending','semantic_work','awaiting_clarification','deferred','failed'].includes(j.status));
+ if(!w||w.id!==workflowId||!w.improveEnabled||!job||w.state==='stale')throw new CurationReviewError('review_changed','This question is not part of the current Sync workflow. Inspect saved progress.');
+ if(digest(await fingerprint(root))!==digest(w.baseline))throw new CurationReviewError('semantic_stale','Knowledge or evidence changed. Inspect the current workflow.');
+ const payload=await inspectSyncCuration(root,job.curationReviewId!);
+ if(payload.review!.snapshot.reviewId!==reviewId)throw new CurationReviewError('review_changed','This review changed. Inspect saved progress.');
+ return payload;
 }

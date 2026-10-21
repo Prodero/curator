@@ -15,14 +15,13 @@ export interface KnowledgeGraphEdge {
 }
 
 interface KnowledgeGraphCache {
-  version: 1;
+  version: 2;
   sourceDigest: string;
   nodes: string[];
   edges: KnowledgeGraphEdge[];
   brokenReferences: string[];
 }
 
-const MEMORY_ID = /^mem_[a-zA-Z0-9_]+$/;
 const EDGE_WEIGHT: Record<KnowledgeRelationType, number> = {
   depends_on: 24,
   implements: 20,
@@ -42,7 +41,7 @@ const RELATION_TYPES = new Set<KnowledgeRelationType>(["related_to", "depends_on
 function validCache(value: unknown, digest: string): value is KnowledgeGraphCache {
   if (!value || typeof value !== "object") return false;
   const cache = value as KnowledgeGraphCache;
-  return cache.version === 1 && cache.sourceDigest === digest
+  return cache.version === 2 && cache.sourceDigest === digest
     && Array.isArray(cache.nodes) && cache.nodes.every((node) => typeof node === "string")
     && Array.isArray(cache.brokenReferences) && cache.brokenReferences.every((entry) => typeof entry === "string")
     && Array.isArray(cache.edges) && cache.edges.every((edge) => edge && typeof edge.from === "string" && typeof edge.to === "string"
@@ -76,7 +75,9 @@ function build(summaries: KnowledgeSummary[], archives: string[]): KnowledgeGrap
   const broken = new Set<string>();
   const add = (from: string, to: string, type: KnowledgeRelationType, inferred = false) => {
     const needsMemoryTarget = type === "related_to" || type === "depends_on" || type === "implements" || type === "supersedes" || type === "superseded_by" || type === "consolidates" || type === "consolidated_into" || type === "contradicts";
-    if (needsMemoryTarget && (!MEMORY_ID.test(to) || !knownIds.has(to))) { broken.add(`${from}:${type}:${to}`); return; }
+    // IDs have already passed storage's canonicalId contract. Historical and
+    // imported IDs need not use the generated mem_ prefix.
+    if (needsMemoryTarget && !knownIds.has(to)) { broken.add(`${from}:${type}:${to}`); return; }
     const [edgeFrom, edgeTo] = canonicalPair(from, to, type);
     const key = `${edgeFrom}\0${type}\0${edgeTo}`;
     if (!edges.has(key) || !inferred) edges.set(key, { from: edgeFrom, to: edgeTo, type, inferred, weight: EDGE_WEIGHT[type] });
@@ -130,7 +131,7 @@ function build(summaries: KnowledgeSummary[], archives: string[]): KnowledgeGrap
   }
 
   return {
-    version: 1,
+    version: 2,
     sourceDigest: graphSourceDigest(summaries, archives),
     nodes,
     edges: [...edges.values()].sort((a, b) => a.from.localeCompare(b.from) || a.type.localeCompare(b.type) || a.to.localeCompare(b.to) || Number(a.inferred) - Number(b.inferred)),

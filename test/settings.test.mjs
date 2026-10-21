@@ -2,16 +2,16 @@ import {ListRootsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {pathToFileURL} from 'node:url';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
-import {createServer} from '../dist/server.js';import {readConfig,writeConfig} from '../dist/core/storage.js';
+import {createServer} from '../dist/server.js';import {readConfig,writeConfig} from '../dist/core/storage.js';import {projectSettings} from '../dist/core/settings.js';
 const ui={extensions:{'io.modelcontextprotocol/ui':{mimeTypes:['text/html;profile=mcp-app']}}};
 async function connection(root,capabilities=ui,roots){const server=createServer({projectRoot:roots?undefined:root}),client=new Client({name:'settings-test',version:'1'},{capabilities:roots?{...capabilities,roots:{}}:capabilities});if(roots)client.setRequestHandler(ListRootsRequestSchema,async()=>({roots:roots.map(r=>({uri:pathToFileURL(r).href}))}));const [a,b]=InMemoryTransport.createLinkedPair();await server.connect(b);await client.connect(a);return {client,call:(name,args={})=>client.callTool({name,arguments:args}),close:async()=>{await client.close();await server.close();}};}
 async function fixture(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'prodero-settings-'));const c=await connection(root);await c.call('prodero_initialize');t.after(async()=>{await c.close();await fs.rm(root,{recursive:true,force:true});});return {root,...c};}
 test('legacy config uses effective defaults without rewriting; friendly views distinguish source',async t=>{
  const f=await fixture(t),config=await readConfig(f.root);delete config.presentation;delete config.context;await writeConfig(f.root,config);
  const before=await fs.readFile(f.root+'/.prodero/config.json','utf8');const result=await f.call('prodero_config_get');
- assert.equal(result.isError,undefined);assert.match(result.content[0].text,/Display mode: Automatic \(default\)/);assert.match(result.content[0].text,/Theme: Current \/ Prodero/);assert.match(result.content[0].text,/6,000 tokens/);
+ assert.equal(result.isError,undefined);assert.match(result.content[0].text,/Display mode[\s\S]*Automatic[\s\S]*Source: default/);assert.match(result.content[0].text,/Theme[\s\S]*Current \/ Prodero/);assert.match(result.content[0].text,/6,000 tokens/);
  assert.equal(await fs.readFile(f.root+'/.prodero/config.json','utf8'),before);assert.deepEqual(result.structuredContent.projectSettings.presentation,{mode:'auto',theme:'prodero'});
- config.context={budgetTokens:8000};await writeConfig(f.root,config);const legacy=await f.call('prodero_config_get');assert.match(legacy.content[0].text,/8,000 tokens \(project override\)/);
+ config.context={budgetTokens:8000};await writeConfig(f.root,config);const legacy=await f.call('prodero_config_get');assert.match(legacy.content[0].text,/8,000 tokens[\s\S]*Source: project override/);
 });
 test('two projects keep modes and themes isolated on one client and across restart',async t=>{
  const a=await fixture(t),b=await fixture(t);
@@ -45,6 +45,16 @@ test('validated config updates preserve unrelated fields and affect context budg
 });
 test('concurrent settings edits preserve both keys and cannot create knowledge',async t=>{
  const f=await fixture(t);const before=await fs.readdir(f.root+'/.prodero/local/memory');
- const changes=await Promise.all([f.call('prodero_config_set',{key:'presentation.mode',value:'text'}),f.call('prodero_config_set',{key:'presentation.theme',value:'purple-neon'})]);assert.ok(changes.every(r=>!r.isError));
- assert.deepEqual((await readConfig(f.root)).presentation,{mode:'text',theme:'purple-neon'});assert.deepEqual(await fs.readdir(f.root+'/.prodero/local/memory'),before);
+ const changes=await Promise.all([f.call('prodero_config_set',{key:'presentation.mode',value:'text'}),f.call('prodero_config_set',{key:'presentation.theme',value:'purple-neon'})]);assert.ok(changes.every(r=>!r.isError),JSON.stringify(changes));
+ assert.deepEqual((await projectSettings(f.root)).presentation,{mode:'text',theme:'purple-neon'});assert.equal((await readConfig(f.root)).presentation,undefined);assert.deepEqual(await fs.readdir(f.root+'/.prodero/local/memory'),before);
+});
+test('local reset API removes one override, reveals legacy defaults and rejects ambiguous requests',async t=>{
+ const f=await fixture(t),config=await readConfig(f.root);config.presentation={theme:'dark-neon',mode:'ui',extension:{keep:true}};await writeConfig(f.root,config);
+ const before=await fs.readFile(f.root+'/.prodero/config.json','utf8');
+ await f.call('prodero_config_set',{key:'presentation.mode',value:'text'});await f.call('prodero_config_set',{key:'presentation.theme',value:'light'});
+ const result=await f.call('prodero_config_set',{key:'presentation.theme',reset:true});assert.equal(result.isError,undefined);
+ assert.match(result.content[0].text,/local override removed/);assert.deepEqual(result.structuredContent.projectSettings.presentation,{mode:'text',theme:'dark-neon'});assert.equal(result.structuredContent.updated.source,'legacy project default');
+ for(const args of [{key:'presentation.theme',reset:true,value:'light'},{key:'context.max_tokens',reset:true},{key:'presentation.theme',value:null},{key:'presentation.theme'}])assert.equal((await f.call('prodero_config_set',args)).isError,true);
+ const opened=await f.call('prodero_open',{presentation:'ui'});assert.equal(opened.structuredContent.presentation.resolved,'ui');assert.equal(opened.structuredContent.projectSettings.presentationSources.mode,'local override');
+ assert.equal((await projectSettings(f.root)).presentation.mode,'text');assert.equal(await fs.readFile(f.root+'/.prodero/config.json','utf8'),before);
 });

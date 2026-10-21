@@ -1,0 +1,41 @@
+```text
+╭─ >_ PRODERO ──────────────────── /04
+│ Curator · project memory
+│
+├─ CURATE MEMORY ─────────────────────
+│ A question about your project
+│ Review required · not approval.
+│ Your place and saved answers are
+│ retained. Leave and return with
+│ Continue curation.
+│ Skip or Answer later retains
+│ original knowledge and saved
+│ answers, then continues other
+│ selected work.
+├─ Project questions ─────────────────
+│ Queue migration
+│
+│ Show the question and review
+│ details?
+╰─────────────────────────────────────
+```
+
+```text
+Project questions:
+Queue migration
+Has the migration to queue v2 completed?
+Completed
+Not completed
+```
+
+```text
+Available actions:
+
+  1 > Completed
+  2 > Not completed
+  3 > Answer later
+  4 > Check progress
+  5 > Show details
+
+Reply with a number or the command name.
+```

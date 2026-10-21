@@ -26,8 +26,8 @@ test('initialization, quiet Open and session lifecycle retain exact state withou
  const f=await fixture(t);let r=await f.text('prodero_open');
  assert.match(r.content[0].text,/Not initialized/);assert.equal(operation(r).continuation.tool,'prodero_initialize');
  r=await f.text('prodero_initialize');assert.equal(r.isError,undefined);assert.match(r.content[0].text,/Initialized/);
- r=await f.text('prodero_open');assert.match(r.content[0].text,/none active/);assert.ok(r.content[0].text.split('\n').filter(Boolean).length<14);
- assert.doesNotMatch(r.content[0].text,/Required instructions|Versioned/);
+ r=await f.text('prodero_open');assert.match(r.content[0].text,/none active/);assert.ok(r.content[0].text.split('\n').filter(Boolean).length<40);
+ assert.doesNotMatch(r.content[0].text,/Required instructions:/);
  assert.ok(r.structuredContent.presentation.actions.every(a=>!a.approval));
  assert.deepEqual(operation(r).bootstrap,r.structuredContent.bootstrap);
  const prepared=await f.text('prodero_prepare',{task:'Document conversation presentation'});
@@ -79,16 +79,16 @@ test('deferred session saving is never reported as saved',()=>{
 test('migration decision details include the actual plan and recovery before approval',()=>{
  const payload={action:'migration',root:'/tmp/example',plan:{state:'available',safeToApply:true,planId:'plan-exact',current:{project:1,knowledge:1},target:{project:2,knowledge:2},migrations:[{domain:'knowledge',from:1,to:2,description:'Preserve explicit applicability while normalizing old records.',kind:'structural',affectedStores:['memory']}],backup:{path:'.prodero/backups/example'},recovery:'Restore the exact backup before retrying.'}};
  const vm=buildViewModel(payload),summary=renderText(vm),detail=renderText(vm,false,true);
- assert.doesNotMatch(summary,/normalizing old records/);assert.match(detail,/normalizing old records/);assert.match(detail,/Restore the exact backup/);
+ assert.doesNotMatch(summary,/normalizing old records/);assert.match(detail.replace(/\n│ ?/g,' '),/normalizing old records/);assert.match(detail,/Restore the exact backup/);
  assert.equal(conversationOperation(payload,vm).continuation.arguments.action,'status');
  const approval=conversationOperation(payload,vm,true).continuation;assert.equal(approval.approval,true);assert.equal(approval.arguments.planId,'plan-exact');
 });
 test('Open offers three conversational requests with valid bindings and keeps the attention question last',async t=>{
- const f=await fixture(t);let r=await f.text('prodero_open');assert.match(r.content[0].text,/1\. Initialize Prodero/);
+ const f=await fixture(t);let r=await f.text('prodero_open');assert.match(r.content[0].text,/1 > Initialize Prodero/);
  assert.equal(operation(r).numberedActions[0].tool,'prodero_initialize');
  await f.text('prodero_initialize');r=await f.text('prodero_open');
- assert.match(r.content[0].text,/Available actions:\n\n1\. Sync memory\n2\. Show knowledge\n3\. Show settings/);
- assert.doesNotMatch(r.content[0].text,/prodero_[a-z_]+/);assert.ok(r.content[0].text.split('\n').filter(Boolean).length<14);
+ assert.match(r.content[0].text,/1 > Curate Memory[\s\S]*2 > Explore knowledge[\s\S]*3 > Show settings/);
+ assert.doesNotMatch(r.content[0].text,/prodero_[a-z_]+/);assert.ok(r.content[0].text.split('\n').filter(Boolean).length<40);
  const suggestions=operation(r).suggestions;assert.equal(suggestions.length,3);
  const numbered=operation(r).numberedActions;
  assert.deepEqual(numbered,suggestions.map((a,i)=>({...a,number:i+1})));
@@ -98,8 +98,8 @@ test('Open offers three conversational requests with valid bindings and keeps th
  const settings=await f.call(suggestions[2].tool,suggestions[2].arguments);assert.equal(settings.isError,undefined);
  const sync=await f.text(suggestions[0].tool,suggestions[0].arguments);assert.equal(sync.isError,undefined);
  r=await f.text('prodero_open');const resume=operation(r).suggestions[0];
- assert.equal(resume.label,'Continue memory sync');assert.equal(resume.arguments.workflowId,sync.structuredContent.result.id);
- assert.match(r.content[0].text,/Continue Memory Sync\?$/);
+ assert.equal(resume.label,'Continue curation');assert.equal(resume.arguments.workflowId,sync.structuredContent.result.id);
+ assert.match(r.content[0].text,/Continue curation\?/);
  const stale=buildViewModel({action:'open',project:{root:f.root,name:'fixture',initialized:true,memoryOverview:{available:true,areas:[],workflow:{id:'saved',state:'stale'}}}});
  assert.deepEqual(stale.conversation.suggestions[0].arguments.request,{action:'start',restart:true});
  assert.equal(buildViewModel({action:'status',project:{initialized:true}}).conversation.suggestions,undefined);
@@ -111,7 +111,7 @@ test('numbered menus match visible actions in compact and detailed views and ret
  const vm=buildViewModel(payload);
  for(const expanded of [false,true]) {
   const text=renderText(vm,false,expanded),op=conversationOperation(payload,vm,expanded);
-  for(const action of op.numberedActions) assert.ok(text.includes(`${action.number}. ${action.label}`));
+  for(const action of op.numberedActions) assert.ok(text.includes(`  ${action.number} > ${action.label}`));
   assert.deepEqual(op.numberedActions.map(a=>a.number),op.numberedActions.map((_,i)=>i+1));
   assert.match(text,/Reply with a number or the command name/);
  }
@@ -121,11 +121,21 @@ test('numbered menus match visible actions in compact and detailed views and ret
  const detailed=conversationOperation(payload,vm,true);
  const apply=detailed.numberedActions.find(a=>a.approval);
  assert.ok(apply);assert.equal(apply.arguments.planId,'exact-plan');
- assert.match(renderText(vm,false,true),/workflow approval required/);
- assert.match(detailed.instructions,/numeric selection.*never explicit approval/);
- assert.match(detailed.instructions,/out of range/);
- assert.match(detailed.instructions,/latest action menu actually shown/);
+ assert.match(renderText(vm,false,true),/Explicit approval required/);
+ assert.match(detailed.instructions,/menu number.*never approval/);
+ assert.match(detailed.instructions,/missing\/out-of-range bindings/);
+ assert.match(detailed.instructions,/latest displayed screen in this conversation and project/);
+ assert.match(detailed.instructions,/question expecting a numeric value/);
  const noMenu=buildViewModel({action:'status',project:{initialized:true,conflictCount:0}});
  assert.deepEqual(conversationOperation({action:'status'},noMenu).numberedActions,[]);
  assert.doesNotMatch(renderText(noMenu),/Reply with a number/);
+});
+
+test('Skill Preview projection reports review without synthesizing approval and covered drafts need no promotion',()=>{
+ for(const disposition of ['new','update','covered']) {
+  const payload={ok:true,action:'skill-preview',preview:{disposition:{action:disposition}},result:{skills:[]}};
+  const operation=conversationOperation(payload,buildViewModel(payload));
+  assert.equal(operation.reviewRequired,disposition!=='covered');
+  assert.deepEqual(operation.numberedActions,[]);
+ }
 });

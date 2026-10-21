@@ -1,0 +1,168 @@
+{
+  "date": "2026-10-19",
+  "productionHead": "939b148aa5a6af034cbe74c3844bfcb990f05f12",
+  "productionCommits": {
+    "P04": "41cd1a947444e52cfd97f9cd566529b07623c1d7",
+    "P03": "939b148aa5a6af034cbe74c3844bfcb990f05f12"
+  },
+  "node": "22.14.0",
+  "toolchain": {
+    "playwright": "1.64.1",
+    "playwrightCore": "1.64.1",
+    "registry": "https://registry.npmjs.org",
+    "installRoot": "/tmp/curator-playwright-acceptance",
+    "browsersPath": "/tmp/curator-playwright-acceptance/browsers",
+    "browser": {
+      "version": "156.0.8078.4",
+      "executable": "/tmp/curator-playwright-acceptance/browsers/chromium-1248/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+      "sandbox": true
+    },
+    "playwrightTarball": "https://registry.npmjs.org/playwright/-/playwright-1.64.1.tgz",
+    "playwrightIntegrity": "sha512-HCrVhHr5QQuwYoswEUGTb7gGp522yflbv/ST8nF4sFWGuLjQCt17Q/EubpGGSNKYn1tsTCPZxqHhHCfVURu7UA=="
+  },
+  "tests": {
+    "browser": {
+      "passed": 11,
+      "failed": 0,
+      "runner": "node --test --test-concurrency=1 test/themes.browser.mjs test/memory-ux.browser.mjs",
+      "log": "/tmp/curator-playwright-acceptance/browser-tests-final.log"
+    },
+    "fixtureRegressions": {
+      "passed": 22,
+      "failed": 0,
+      "runner": "node --test test/memory-ux.test.mjs test/text-layout.test.mjs",
+      "log": "/tmp/curator-playwright-acceptance/fixture-regressions-final.log"
+    }
+  },
+  "artifact": {
+    "filename": "prodero-curator-0.1.0.tgz",
+    "size": 1506533,
+    "unpackedSize": 3225816,
+    "shasum": "75151f93e378e00f7b6e07b72a19cc83dcd6a1b6",
+    "integrity": "sha512-+v8osxMJ/3QYBCkaHNlzoM6pNd9l9bXd4rno6vVVHyMsjRj2jxV/8E298XVPkujD5+xpyfxVh+x6/2ibReJaQg=="
+  },
+  "artifactFileCount": 148,
+  "artifactEvidence": "/tmp/curator-artifact-acceptance-agehrtjo",
+  "artifactReceipt": {
+    "passed": true,
+    "package": "/private/tmp/curator-artifact-acceptance-agehrtjo/prefix/lib/node_modules/@prodero/curator",
+    "dependencyMode": "owned copy of pre-existing dependencies; no dependency resolution/install",
+    "checks": [
+      "artifact instructions and text gateway discovery",
+      "packaged MCP App resources load without checkout URLs",
+      "stdio exact A/page replacement/detail/back and numeric search with actual input",
+      "healthy Prepare continues with no menu; expanded exact returned snapshot without retrieval",
+      "local theme/mode isolate roots, persist reconnect, reset without shared rewrite",
+      "update tool is read-only terminal instructions",
+      "full fixture promotion preview; approved:false rejects; exact synthetic preview applies only after explicit fixture approval"
+    ],
+    "stderr": []
+  },
+  "reproducibleHarness": {
+    "passed": true,
+    "evidenceDirectory": "/var/folders/fy/0tfqb1mx5pgbmg02qhr32w7m0000gn/T/curator-artifact-text-OCvuRW",
+    "checks": [
+      "artifact instructions and text gateway discovery",
+      "packaged MCP App resources load without checkout URLs",
+      "stdio exact A/page replacement/detail/back and numeric search with actual input",
+      "healthy Prepare continues with no menu; expanded exact returned snapshot without retrieval",
+      "local theme/mode isolate roots, persist reconnect, reset without shared rewrite",
+      "update tool is read-only terminal instructions",
+      "full fixture promotion preview; approved:false rejects; exact synthetic preview applies only after explicit fixture approval"
+    ]
+  },
+  "protectedSha256": {
+    ".prodero/config.json": "0ced35cd95820a0553b7907979242740e3f211ee6d1fb40fad192aef68dec011",
+    "docs/V0.2-UX-RELIABILITY-AUDIT.md": "1fba88108150efe590e0134be590e5466c45619b1213c72439de0bb287f35dc4",
+    "docs/V0.2-LOCAL-PREFERENCES-SUPPLEMENTAL-AUDIT.md": "8b2622e4f5f273d8898afd8c89639d3e70fdf1f1e34313c6cd4a3abb01c1b213"
+  },
+  "notCertified": [
+    "native Codex chat/iframe",
+    "native Claude Code navigation",
+    "Claude Desktop MCP/capabilities",
+    "Codex mobile/iOS",
+    "actual terminal self-update after P03/P04",
+    "remote CI"
+  ],
+  "dockerFollowup": {
+    "status": "passed",
+    "context": "desktop-linux",
+    "socket": "unix:///Users/example/.docker/run/docker.sock",
+    "desktop": "/Applications/Docker.app",
+    "daemonVersion": "29.6.2",
+    "container": "curator-test-vm-lab-1",
+    "isolation": {
+      "mounts": [],
+      "portBindings": {},
+      "privileged": false,
+      "user": "node"
+    },
+    "taskRoot": "/home/node/curator-p03-acceptance-72VtjB",
+    "node": "22.14.0",
+    "npm": "10.9.2",
+    "freshCandidateInstall": true,
+    "packagesAdded": 100,
+    "registry": "https://registry.npmjs.org",
+    "publishedVersions": [
+      "0.0.0-stage",
+      "0.1.0"
+    ],
+    "candidateVersion": "0.1.0",
+    "candidateTarballSha256": "d1ec83f13c9129ab7a02877c0e625bdbf456077f5f2cf6a36a7611ed57aac9e7",
+    "artifactMatchesCurrentCheckoutFiles": 148,
+    "stdioGroupsPassed": 7,
+    "preservation": {
+      "preserved": true,
+      "files": 7534,
+      "changed": []
+    },
+    "restartedOrRecreated": false,
+    "exportedEvidence": "/tmp/curator-docker-followup-evidence",
+    "receipt": {
+      "passed": true,
+      "package": "/home/node/curator-p03-acceptance-72VtjB/prefix/lib/node_modules/@prodero/curator",
+      "dependencyMode": "caller-provided isolated artifact dependencies; no resolution/install by this harness",
+      "checks": [
+        "artifact instructions and text gateway discovery",
+        "packaged MCP App resources load without checkout URLs",
+        "stdio exact A/page replacement/detail/back and numeric search with actual input",
+        "healthy Prepare continues with no menu; expanded exact returned snapshot without retrieval",
+        "local theme/mode isolate roots, persist reconnect, reset without shared rewrite",
+        "update tool is read-only terminal instructions",
+        "full fixture promotion preview; approved:false rejects; exact synthetic preview applies only after explicit fixture approval"
+      ],
+      "stderr": []
+    },
+    "finalPreservation": {
+      "preserved": true,
+      "files": 7534,
+      "changed": []
+    },
+    "containerIdentityUnchanged": true
+  },
+  "initialBlockers": {
+    "codex": "0.144.4 ephemeral read-only probe exit 1 before MCP: readonly state DB and app-server Operation not permitted",
+    "claudeCode": "2.1.302 print/dontAsk/no-session-persistence probe exit 1: Not logged in; no MCP call",
+    "docker": "docker ps denied access to existing ~/.docker/run/docker.sock; no container changed"
+  },
+  "nativeDiagnosis": {
+    "codex": "Observed before MCP in the outer restricted exec environment. State path is outside writable roots; POSIX owner modes allow writes. Inference: consistent with outer execution sandbox, not proof normal Codex is broken. Exact app-server failing syscall unverified. No permissions/config/state changes or retry of native exec.",
+    "claudeCode": {
+      "readOnlyAuthStatus": {
+        "loggedIn": false,
+        "authMethod": "none",
+        "apiProvider": "firstParty"
+      },
+      "qualification": "This CLI execution environment sees no login; normal interactive user environment may differ. No login performed."
+    },
+    "docker": "Original socket permission failure was limited to restricted exec; approved daemon access succeeded without daemon/security/context/socket change."
+  },
+  "remainingBlockers": [
+    "native Codex execution outside child-command sandbox untested",
+    "Claude Code test CLI sees no login; normal-user auth status unverified",
+    "Claude Desktop/mobile/iOS native capability and journeys untested",
+    "actual terminal-update follow-up and exact-candidate remote CI untested",
+    "local commit pending direct confirmation after prior auto-review denial; not retried"
+  ],
+  "publicSummary": "Personal host paths are neutral examples; machine/container identifiers are omitted. Original local receipts remain private. Verification outcomes are historical observations, not a new synthetic run."
+}

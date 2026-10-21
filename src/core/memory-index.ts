@@ -69,6 +69,8 @@ export function memoryHealth(summaries: KnowledgeSummary[], now = new Date()): M
   const active = summaries.filter((item) => item.status === "active");
   const disputedItems = summaries.filter((item) => item.status === "disputed").length;
   const staleActiveItems = active.filter((item) => isStaleSummary(item, now)).length;
+  // Compatibility counter: incomplete source/observation metadata, not evidence
+  // that source history was deleted. Do not infer or rewrite provenance here.
   const missingProvenanceItems = active.filter((item) => (item.sourceSessionCount === 0 && (item.sourceEvidenceCount ?? 0) === 0) || item.derivedFromCount === 0).length;
   const oversizedActiveItems = active.filter((item) => item.estimatedTokens > MAX_CANONICAL_ITEM_TOKENS).length;
   return {

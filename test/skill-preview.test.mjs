@@ -162,10 +162,13 @@ for (const mode of ['deterministic', 'assisted', 'unavailable', 'failure']) test
   const call = (name, args = {}) => client.callTool({ name, arguments: { projectRoot: root, ...args } });
   const raw = await call(PRODERO_TOOLS.skillPreview, { id: skill.id }); assert.ok(!raw.isError);
   assert.equal(raw.structuredContent.approval.appSupportAdvertised, false);
-  assert.equal(raw.structuredContent.approval.chatFallback, 'only-if-app-cannot-render');
-  assert.match(raw.content[0].text, /Only if this host cannot render the MCP App/);
+  assert.equal(raw.structuredContent.approval.surface, 'chat');
+  assert.equal(raw.structuredContent.presentation.resolved, 'text');
+  assert.equal(raw.structuredContent.approval.chatFallback, undefined);
+  assert.match(raw.content[0].text, /Show the complete preview in chat/);
   assert.match(raw.content[0].text, /## Procedure/);
   const { preview } = raw.structuredContent;
+  if (preview.notice) { assert.ok(raw.content[0].text.includes(`Notice: ${preview.notice}`)); assert.ok(raw.content[0].text.indexOf('Notice:') < raw.content[0].text.indexOf('## Procedure')); }
   assert.equal(preview.mode, mode === 'assisted' ? 'assisted' : 'deterministic');
   assert.equal(calls, mode === 'assisted' || mode === 'failure' ? 1 : 0);
   assert.equal((await call(PRODERO_TOOLS.skillReview, { id: skill.id, action: 'promote' })).isError, true);

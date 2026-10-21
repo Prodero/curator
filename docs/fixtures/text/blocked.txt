@@ -1,0 +1,22 @@
+```text
+╭─ >_ PRODERO ──────────────────── /03
+│ Curator · project memory
+│
+├─ Required context incomplete ───────
+│ Task: Fix CLI update flow
+│
+├─ PROVIDED TO AGENT ─────────────────
+│ 1 required · 1 relevant · 1 skill
+│
+├─ PRODERO CONTEXT ───────────────────
+│ ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱ 72%
+│ 4,320 / 6,000 est. tokens
+│ Task · Prodero allocation only.
+│
+├─ ATTENTION ─────────────────────────
+│ 1 required instruction not loaded.
+│ Do not continue work.
+│
+│ Review the missing instructions?
+╰─────────────────────────────────────
+```

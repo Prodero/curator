@@ -8,7 +8,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { parseKnowledge } from './memory.js';
 import { parseSkill } from './skills.js';
-import { readConfig, checkedDataPath, exists, parseCheckpointData, ensureRuntimeDirectories, ensureDataDirectory, sha256, writeFileAtomic } from './storage.js';
+import { readConfig, checkedDataPath, exists, parseCheckpointData, ensureRuntimeDirectories, ensureDataDirectory, ensureSelfIgnoredPrivateDirectory, sha256, writeFileAtomic } from './storage.js';
 
 const writeSchema = z.object({ path: z.string().regex(/^(memory|local\/memory|local\/skills|skills|(local\/)?archive\/\d{4}_(0[1-9]|1[0-2]))\/[a-zA-Z0-9_-]+\.md$|^checkpoints\/chk_[a-zA-Z0-9_-]+\.json$/), before: z.string().nullable(), after: z.string() }).strict();
 const moveSchema = z.object({from:z.string().regex(/^(local\/)?memory\/[a-zA-Z0-9_-]+\.md$/),to:z.string().regex(/^(local\/)?archive\/\d{4}_(0[1-9]|1[0-2])\/[a-zA-Z0-9_-]+\.md$/),before:z.string().regex(/^[a-f0-9]{64}$/)}).strict();
@@ -40,8 +40,9 @@ export function ownsSyncLock(root: string): boolean {
   return Boolean(owner?.active && owner.root === path.resolve(root));
 }
 /** Per-worktree writer exclusion shared by migration, Sync and session mutations. */
-export async function withSyncLock<T>(root: string, operation: () => Promise<T>, options: { waitMs?: number; migrationRecovery?: boolean; recoverLifecycle?: boolean } = {}): Promise<T> {
-  await runtimeDirectory(root);
+export async function withSyncLock<T>(root: string, operation: () => Promise<T>, options: { waitMs?: number; migrationRecovery?: boolean; recoverLifecycle?: boolean; maintainIntegration?: boolean } = {}): Promise<T> {
+  if (options.maintainIntegration === false) await ensureSelfIgnoredPrivateDirectory(root, '.transactions');
+  else await runtimeDirectory(root);
   const lock = await checkedDataPath(root, '.transactions/lock');
   const deadline = Date.now() + (options.waitMs ?? 0);
   while (true) {

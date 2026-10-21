@@ -16,6 +16,7 @@ export const PRODERO_TOOLS = {
   migrate: "prodero_migrate",
   curation: "prodero_curation",
   curationReview: "prodero_curation_review",
+  curationQuestion: "prodero_curation_question",
   curationReasoningPrepare: "prodero_curation_reasoning_prepare",
   curationReasoningPropose: "prodero_curation_reasoning_propose",
   curationApply: "prodero_curation_apply",

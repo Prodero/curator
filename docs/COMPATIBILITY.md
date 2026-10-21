@@ -1,6 +1,8 @@
-# v0.1 compatibility
+# Compatibility and verification
 
-> v0.1 contract: Local/Versioned describe Git storage and sharing, not a security boundary against the connected agent. Review and approval are workflow safeguards, not authenticated human consent. The agent may create, promote and maintain Versioned files. Curator does not commit or push; users review repository changes before doing so. See [Privacy](PRIVACY.md).
+The current checkout prepares **0.2.0 (unreleased)**. Historical v0.1 artifact/host evidence below is not certification of the new candidate. Candidate-specific artifact evidence must satisfy the [release gates](RELEASING.md). Supported runtime targets and project/knowledge schemas remain unchanged; see the [changelog](../CHANGELOG.md) for status JSON and local-preference compatibility changes.
+
+> Contract: Local/Versioned describe Git storage and sharing, not a security boundary against the connected agent. Review and approval are workflow safeguards, not authenticated human consent. The agent may create, promote and maintain Versioned files within current authorization. Curator tools do not execute Git commit or push; coding-agent Git actions follow current user scope and host approval controls. See [Privacy](PRIVACY.md).
 
 Supported runtime target: **Node 22.14.0–22.x**, npm and Git. Node 22.14.0 is the tested minimum; the package rejects other Node majors through its engine contract (npm may only warn unless engine-strict is enabled). `import.meta.dirname` and modern Node filesystem/runtime APIs are used. Earlier Node 20 declarations were not a verified compatibility promise.
 
@@ -47,3 +49,7 @@ Codex setup and per-tool configuration reference: [official configuration refere
 ## Project and knowledge compatibility
 
 Project schema 8 and Knowledge Schema 3 are the current targets. Schema 3 adds explicit applicability with a mechanical legacy-scope migration; see [Applicability](APPLICABILITY.md). Missing knowledge version means legacy format 1; its approved migration preserves instruction behavior with explicit context policy and legacy authority. Both versions live in the project config; moving or cloning a project requires no machine registry. Newer project or knowledge formats fail closed at the storage boundary. Open/Prepare can present update instructions without interpreting unsupported records. See [Migration Foundation](MIGRATIONS.md) for approval, recovery and future format transitions.
+
+## CLI status output
+
+`prodero status` and `prodero status --root PATH` now default to readable text, including when piped. Consumers of the previous implicit JSON output must add `--json`; TTY detection never selects the format. Successful machine JSON fields are unchanged. Project JSON keeps `version`, `project` and `update`, adding `scope: "project"`. Status errors in JSON mode are one stdout document with `ok: false`, `version`, `scope` and a safe `error` object (`code`, `message`, `recovery`); migration gates also include `migration`. CLI status performs no writes, including derived caches or ignore-rule maintenance; other detailed-status readers retain their existing defaults. Existing exit meanings remain: failed arguments/project compatibility/host inspection exit 1; an unavailable registry alone retains exit 0 and its `update.status` diagnostic. See [status commands and read-only/cache boundaries](hosts.md#commands-and-status).

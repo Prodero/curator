@@ -36,7 +36,7 @@ export async function executeCurationReview(root:string,input:CurationApplyReque
       return {...result(stored.review,prior.id,true),successor,projection:successor?(await curationReviewView(root,successor.snapshot.plan,successor)).projection:curationReceiptProjection(stored.plan,stored.review)};
     }
     const review=await loadCurationReview(root,input.reviewId);
-    if(review.snapshot.plan.memorySyncSources)throw new CurationReviewError('invalid_selection','Sync analysis is read-only; continue its owning Sync Memory operation.');
+    if(review.snapshot.plan.memorySyncSources)throw new CurationReviewError('invalid_selection','Sync analysis is read-only; continue its owning Curate Memory operation.');
     if(review.snapshot.planHash!==input.planHash)throw new CurationReviewError('stale_review','Knowledge changed since this review.');
     if(review.state.revision!==input.decisionRevision)throw new CurationReviewError('review_changed','Your review changed in another window. Reload your decisions.');
     const revision=review.snapshot.revision;

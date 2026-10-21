@@ -7,6 +7,11 @@ import {pathToFileURL} from 'node:url';
 import {execFileSync} from 'node:child_process';
 const [prefix,project,tarball]=process.argv.slice(2);
 const pkg=path.join(prefix,'lib/node_modules/@prodero/curator');
+const packageIdentity=JSON.parse(await fs.readFile(path.join(pkg,'package.json'),'utf8'));
+const packageVersion=packageIdentity.version;
+assert.match(packageVersion,/^\d+\.\d+\.\d+(?:[-+].*)?$/);
+const [major,minor,patch]=packageVersion.split(/[+-]/,1)[0].split('.').map(Number);
+const syntheticPatchVersion=`${major}.${minor}.${patch+1}`;
 const require=createRequire(path.join(pkg,'package.json'));
 const {Client}=await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/index.js')).href);
 const {StdioClientTransport}=await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/stdio.js')).href);
@@ -14,7 +19,7 @@ const bin=path.join(prefix,'bin/prodero');
 const env={...process.env,NODE_PATH:'',PRODERO_RELEASE_SOURCE:'none'};
 const run=(cmd,args,cwd=project)=>execFileSync(cmd,args,{cwd,env,encoding:'utf8',stdio:['ignore','pipe','pipe']});
 await fs.mkdir(project,{recursive:true});run('git',['init','--quiet']);run('git',['config','user.name','RC Fixture']);run('git',['config','user.email','rc@example.invalid']);
-assert.equal(run(bin,['--version']).trim(),'0.1.0');assert.match(run(bin,['--help']),/--root/);
+assert.equal(run(bin,['--version']).trim(),packageVersion);assert.match(run(bin,['--help']),/--root/);
 for(const args of [['unknown'],['init','--unknown'],['init','--root',project+'/missing']])assert.throws(()=>run(bin,args));
 // Exercise the public machine commands with no real user settings or checkout access.
 const machineHome=path.join(prefix,'host-fixture-home');
@@ -29,7 +34,8 @@ assert.throws(()=>machine(['install']));
 const {runInstallWizard}=await import(pathToFileURL(path.join(pkg,'dist/hosts/wizard.js')).href);
 const wizard=async answers=>runInstallWizard({interactive:true,write:()=>{},question:async()=>{assert.ok(answers.length,'Unexpected wizard prompt');return answers.shift();}},{home:machineHome,env:machineEnv});
 assert.equal(await wizard(['1','y','1','y']),0);
-const machineStatus=machine(['status']);assert.equal(machineStatus.scope,'machine');
+assert.match(execFileSync(process.execPath,[path.join(pkg,'dist/cli.js'),'status'],{cwd:project,env:machineEnv,encoding:'utf8'}),/Machine integrations/);
+const machineStatus=machine(['status','--json']);assert.equal(machineStatus.scope,'machine');
 for(const id of ['codex','claude'])assert.equal(machineStatus.hosts.find(h=>h.id===id).state,'installed');
 const machineFiles=[path.join(machineHome,'.codex/config.toml'),path.join(machineHome,'.claude.json')];
 const installedBytes=await Promise.all(machineFiles.map(f=>fs.readFile(f,'utf8')));
@@ -40,7 +46,7 @@ assert.deepEqual(await Promise.all(machineFiles.map(async f=>(await fs.stat(f)).
 const {switchRuntime}=await import(pathToFileURL(path.join(pkg,'dist/hosts/runtime.js')).href);
 assert.equal((await switchRuntime('codex','package',{home:machineHome,env:machineEnv,workspace:machineHome,dryRun:true})).dryRun,true);
 await switchRuntime('codex','package',{home:machineHome,env:machineEnv,workspace:machineHome});
-assert.equal(machine(['status']).hosts.find(h=>h.id==='codex').runtimeMode,'package');
+assert.equal(machine(['status','--json']).hosts.find(h=>h.id==='codex').runtimeMode,'package');
 assert.equal(machine(['uninstall','--all']).ok,true);
 assert.equal(await fs.readFile(machineFiles[0],'utf8'),'model = "fixture-model"\n');
 assert.equal(await fs.readFile(machineFiles[1],'utf8'),'{"customFixture":true}\n');
@@ -57,6 +63,8 @@ try{
  const tools=(await client.listTools()).tools;assert.ok(tools.some(t=>t.name==='prodero_knowledge'));
  for(const {uri} of (await client.listResources()).resources){const resource=await client.readResource({uri});assert.ok(resource.contents[0].text.length>0);if(uri.endsWith('.html')){assert.match(resource.contents[0].text,/<html/i);assert.doesNotMatch(resource.contents[0].text,/(?:src|href)=["'](?:\/Users\/|\/src\/|http:\/\/localhost)/);}}
  assert.equal((await call('prodero_open')).project.initialized,false);await call('prodero_initialize');commit();
+ assert.match(run(bin,['status','--root',project]),/Knowledge:/);const projectStatus=JSON.parse(run(bin,['status','--root',project,'--json']));assert.equal(projectStatus.scope,'project');assert.equal(projectStatus.project.initialized,true);
+ try{run(bin,['status','--json','--root',project+'/missing']);assert.fail('Invalid status root must fail');}catch(error){assert.equal(error.status,1);assert.equal(String(error.stderr),'');assert.equal(JSON.parse(String(error.stdout)).ok,false);}
  const prepared=await call('prodero_prepare',{task:'RC durable lighthouse fixtures',agent:'artifact-smoke'});const sessionId=prepared.result.session.id;
  await call('prodero_session_record',{sessionId,entries:[{type:'decision',title:'Lighthouse fixtures',content:'Lighthouse integration tests must reuse the shared fixtures.',scopeHint:'global',importanceHint:'important'}]});
  assert.equal(JSON.parse(run(bin,['sync-sessions','--root',project])).sessions,0,'CLI sync-sessions must leave active observations untouched');
@@ -83,12 +91,12 @@ try{
  const snapshot=async()=>{const result={};async function walk(dir){for(const e of await fs.readdir(dir,{withFileTypes:true})){if(e.name==='.cache')continue;const p=path.join(dir,e.name);if(e.isDirectory())await walk(p);else result[path.relative(project,p)]=await fs.readFile(p,'utf8');}}await walk(path.join(project,'.prodero'));return result;};
  const before=await snapshot();assert.ok(!JSON.stringify(before).includes(secret));
  // A synthetic next patch package checks a real package-manager replacement, without publishing.
- const upgraded=path.join(prefix,'upgrade-fixture');await fs.cp(pkg,upgraded,{recursive:true});const manifest=JSON.parse(await fs.readFile(path.join(upgraded,'package.json'),'utf8'));manifest.version='0.1.1';await fs.writeFile(path.join(upgraded,'package.json'),JSON.stringify(manifest));
+ const upgraded=path.join(prefix,'upgrade-fixture');await fs.cp(pkg,upgraded,{recursive:true});const manifest=JSON.parse(await fs.readFile(path.join(upgraded,'package.json'),'utf8'));manifest.version=syntheticPatchVersion;await fs.writeFile(path.join(upgraded,'package.json'),JSON.stringify(manifest));
  const packed=JSON.parse(run('npm',['pack','--ignore-scripts','--json'],upgraded))[0].filename;
- run('npm',['install','--global','--prefix',prefix,'--omit=dev','--ignore-scripts','--no-audit','--no-fund',path.join(upgraded,packed)],prefix);assert.equal(run(bin,['--version']).trim(),'0.1.1');assert.deepEqual(await snapshot(),before);
+ run('npm',['install','--global','--prefix',prefix,'--omit=dev','--ignore-scripts','--no-audit','--no-fund',path.join(upgraded,packed)],prefix);assert.equal(run(bin,['--version']).trim(),syntheticPatchVersion);assert.deepEqual(await snapshot(),before);
  await connect();assert.ok((await call('prodero_knowledge')).result.counts.versioned>0);clean();await client.close();
  // Restore the actual RC for human/primary host inspection.
- run('npm',['install','--global','--prefix',prefix,'--omit=dev','--ignore-scripts','--no-audit','--no-fund',tarball],prefix);assert.equal(run(bin,['--version']).trim(),'0.1.0');assert.deepEqual(await snapshot(),before);
+ run('npm',['install','--global','--prefix',prefix,'--omit=dev','--ignore-scripts','--no-audit','--no-fund',tarball],prefix);assert.equal(run(bin,['--version']).trim(),packageVersion);assert.deepEqual(await snapshot(),before);
  // Final RC regressions run against the installed package, with the build checkout offline.
  const nested=path.join(project,'uninitialized-child');await fs.mkdir(nested);
  const parentBefore=await snapshot();

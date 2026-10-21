@@ -39,10 +39,10 @@ test("initializes the minimal Git-native Prodero structure and preserves AGENTS.
   assert.match(instructions, /If presentation.mode is text, call prodero_text with tool=prodero_open; otherwise call prodero_open/);
   assert.match(instructions, /`open prodero`/);
   assert.match(instructions, /`show prodero`/);
-  assert.match(instructions, /`prodero_status` only for a lightweight read-only status check/);
+  assert.match(instructions, /prodero_status only for lightweight read-only status/);
   assert.doesNotMatch(instructions, /`\/prodero`/);
-  assert.match(instructions, /Do not inspect repository files first, open README\.md, explain Prodero, or search documentation as a substitute/);
-  assert.match(instructions, /Never load the entire `\.prodero` directory\./);
+  assert.match(instructions, /Do not substitute repository\/docs inspection for a launch/);
+  assert.match(instructions, /Only as the last file fallback[\s\S]*never the whole \.prodero directory/);
 
   const index = await fs.readFile(path.join(root, ".prodero", "index.md"), "utf8");
   assert.match(index, /Compact router/);

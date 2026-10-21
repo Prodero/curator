@@ -5,7 +5,7 @@ import path from "node:path";
 import { z } from "zod";
 import { frontmatter, parseFrontmatter } from "./format.js";
 import { sortableId } from "./ids.js";
-import { tokens } from "./matching.js";
+import { tokens, normalized } from "./matching.js";
 import { exists, projectDataPath, checkedDataPath, ensureDataDirectory, readConfig, sha256, writeFileAtomic } from "./storage.js";
 import { withSyncLock, recoverSyncTransaction, safeProjectPath, commitSyncTransaction, fileHash, type PlannedWrite } from "./sync-transaction.js";
 import { estimateTokens } from "./telemetry.js";
@@ -274,7 +274,26 @@ export function scoreSkill(query: string, skill: Pick<ProjectSkill, "title" | "d
   const matched = new Set(signals.flatMap(s => s.matches));
   const domainMatch = [...matched].some(t => !ambiguous.has(t));
   const enoughContext = matched.size >= 2;
-  return { score: domainMatch || enoughContext ? signals.reduce((sum, signal) => sum + signal.score, 0) : 0, signals };
+  // Topic overlap (even several nouns) is not a request to execute a procedure.
+  // Match a small action family in both the task and skill metadata. Installation
+  // as an audit subject deliberately does not imply an install request.
+  const intentFamilies = [
+    ['build', 'building', 'rebuild', 'rebuilding'],
+    ['install', 'installing', 'uninstall', 'uninstalling'],
+    ['switch', 'switching', 'enable', 'enabling', 'disable', 'disabling'],
+    ['test', 'tests', 'testing', 'verify', 'verification', 'validate', 'validation', 'check', 'checks'],
+    ['recover', 'recovery', 'restore', 'restoring'],
+    ['debug', 'debugging', 'diagnose', 'diagnosing', 'inspect', 'inspection', 'troubleshoot', 'troubleshooting'],
+    ['change', 'changes', 'changing', 'edit', 'editing', 'fix', 'fixing', 'implement', 'update'],
+  ];
+  const rawQuery = tokenize(query), metadata = tokenize(fields.map(([, value]) => value).join(' '));
+  const sharedIntent = intentFamilies.find(family => family.some(t => rawQuery.has(t)) && family.some(t => metadata.has(t)));
+  const directionalMode = rawQuery.has('dev') && rawQuery.has('npm') && /(?:↔|→|←|->|<-|\bto\b)/i.test(query)
+    && metadata.has('dev') && (metadata.has('npm') || metadata.has('package'));
+  const evidence = new Set([...matched, ...(sharedIntent ? ['procedural-intent'] : [])]);
+  const named = normalized(query) === normalized(skill.title) && normalized(query).length > 0;
+  const eligible = named || ((sharedIntent || directionalMode) && (domainMatch || enoughContext) && evidence.size >= 2);
+  return { score: eligible ? Math.max(named ? 1 : 0, signals.reduce((sum, signal) => sum + signal.score, 0)) : 0, signals };
 }
 
 export async function projectSkillsView(root: string, options: { status?: SkillStatus; offset?: number; limit?: number } = {}) {

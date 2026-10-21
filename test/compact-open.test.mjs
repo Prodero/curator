@@ -22,7 +22,7 @@ test('only genuine conflicts warn; resume and stale instructions remain visible 
 test('graphical area labels use deterministic paths or IDs, never inferred knowledge-title topics',()=>{
  assert.equal(memoryAreaLabel({id:'area_abcdef123456',label}),'Area abcdef12');assert.equal(memoryAreaLabel({id:'area_xyz',label:'src/driving'}),'src/driving');
  const path='src/'+('long_component/').repeat(6)+'driving';assert.ok(memoryAreaLabel({label:path}).length<=48);
- const w={state:'semantic_work',jobs:[{...areas[0],status:'semantic_work'}],next:{candidateId:areas[0].id},summary:{}};const m=memorySyncPresentation(w);assert.equal(m.areas[0].title,areas[0].label);assert.doesNotMatch(m.graphicalHeadline,/knowledge title/);assert.equal(m.headline,'Improving memory…');
+ const w={state:'semantic_work',jobs:[{...areas[0],status:'semantic_work'}],next:{candidateId:areas[0].id},summary:{}};const m=memorySyncPresentation(w);assert.equal(m.areas[0].title,areas[0].label);assert.doesNotMatch(m.graphicalHeadline,/knowledge title/);assert.equal(m.headline,'Analysis queued');
 });
 test('no-history graphical summary remains uncertain without copying the whole text report',()=>{
  const p=structuredClone(payload.project);p.memoryOverview={available:true,sessions:0,areas:[]};const m=memoryOpenPresentation(p);assert.match(m.dashboard.signal,/Not enough usage history/);assert.doesNotMatch(m.dashboard.headline,/healthy/i);assert.ok(m.notes.length>1);

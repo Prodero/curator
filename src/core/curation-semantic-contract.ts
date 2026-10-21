@@ -45,7 +45,10 @@ export const semanticProposalSchema=z.object({
   rationale:text,limitations:z.array(text).max(16),
 }).strict();
 export type SemanticProposal=z.infer<typeof semanticProposalSchema>;
-export interface AcceptedSemanticAnalysis { jobId:string;inputHash:string;outputHash:string;decisionRevision:number;correction:number;bundle:SemanticBundle;proposal:SemanticProposal; }
+export interface AcceptedSemanticAnalysis { jobId:string;inputHash:string;outputHash:string;decisionRevision:number;correction:number;resumedFromJobId?:string;bundle:SemanticBundle;proposal:SemanticProposal; }
+/** Legacy analyses retain their original hash; only explicit recovery attempts
+ * add a predecessor so unchanged-input expiry cannot reuse an immutable job. */
+export const semanticAttemptInputHash=(bundle:SemanticBundle,decisionRevision:number,correction:number,resumedFromJobId?:string)=>semanticHash([bundle.id,decisionRevision,bundle.answerLogHash,SEMANTIC_VALIDATOR,correction,...(resumedFromJobId?[resumedFromJobId]:[])]);
 export interface SemanticIssue { id:string;basisHash:string;sourceIds:string[];kind:string;missingFact:string;why:string;grounding:string[];question:{id:string;version:number;title:string;prompt:string;choices:Array<{id:string;label:string;meaning:string}>;allowFreeText:boolean};limitations:string[]; }
 export interface SemanticTypedPlan {kind:'semantic-v2';validator:typeof SEMANTIC_VALIDATOR;plan:CurationPlan;basePlan:CurationPlan;analyses:AcceptedSemanticAnalysis[];}
 export class SemanticValidationError extends Error { constructor(readonly reason:string){super(`Semantic proposal rejected: ${reason}`);} }
@@ -142,7 +145,7 @@ export function materializeSemanticPlan(base:CurationPlan,analyses:AcceptedSeman
   for(const analysis of analyses){
     const {bundle,proposal}=analysis;validateSemanticProposal(bundle,proposal);
     requireThat(analysis.outputHash===semanticHash(proposal),'analysis_output_hash');
-    requireThat(Number.isInteger(analysis.decisionRevision)&&analysis.decisionRevision>=0&&Number.isInteger(analysis.correction)&&analysis.correction>=0&&analysis.correction<=bundle.limits.maxCorrections&&analysis.inputHash===semanticHash([bundle.id,analysis.decisionRevision,bundle.answerLogHash,SEMANTIC_VALIDATOR,analysis.correction])&&analysis.jobId===`semantic_job_${semanticHash([bundle.lineageId,analysis.inputHash]).slice(0,40)}`,'analysis_input_hash');
+    requireThat((analysis.resumedFromJobId===undefined||/^semantic_job_[a-f0-9]{40}$/.test(analysis.resumedFromJobId)&&analysis.resumedFromJobId!==analysis.jobId)&&Number.isInteger(analysis.decisionRevision)&&analysis.decisionRevision>=0&&Number.isInteger(analysis.correction)&&analysis.correction>=0&&analysis.correction<=bundle.limits.maxCorrections&&analysis.inputHash===semanticAttemptInputHash(bundle,analysis.decisionRevision,analysis.correction,analysis.resumedFromJobId)&&analysis.jobId===`semantic_job_${semanticHash([bundle.lineageId,analysis.inputHash]).slice(0,40)}`,'analysis_input_hash');
     for(const source of bundle.sources){const original=base.proposals.find(p=>p.id===source.id);if(source.editable)requireThat(original&&source.revision===original.revision&&semanticHash(source.record)===semanticHash(original.before)&&semanticHash(source.clauses)===semanticHash(semanticClauses(source.id,source.revision,source.record.content)),'analysis_source_binding');}
     const outputs=new Map(proposal.outputs.map(output=>{
       const originals=output.sourceIds.map(id=>base.proposals.find(p=>p.id===id)!.before),first=originals[0];

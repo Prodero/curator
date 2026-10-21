@@ -1,0 +1,33 @@
+```text
+╭─ >_ PRODERO ──────────────────── /01
+│ Curator · project memory
+│
+├─ CONTEXT ───────────────────────────
+│ ▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱ 24%
+│ 480 / 2,000 est. tokens
+│ Bootstrap · Prodero allocation only.
+│
+├─ MEMORY ────────────────────────────
+│ 128 records
+│ 86 local · 42 versioned
+│
+├─ ATTENTION ─────────────────────────
+│ ? 2 deferred questions
+│ Δ 4 unapplied change groups
+│ 4 proposed changes ready for review.
+│ Session  none active
+│
+│ Review these items?
+╰─────────────────────────────────────
+```
+
+```text
+Available actions:
+
+  1 > Curate Memory
+  2 > Explore knowledge
+  3 > Review changes
+  4 > Show settings
+
+Reply with a number or the command name.
+```

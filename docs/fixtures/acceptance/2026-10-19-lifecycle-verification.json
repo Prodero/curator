@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-19",
+  "baseCommit": "a7fd8c3",
+  "scope": "lifecycle response fallback and relay instructions; fixture evidence, not native-host certification",
+  "regressions": {
+    "passed": 29,
+    "failed": 0,
+    "runner": "node --test test/lifecycle-text-delivery.test.mjs test/presentation.test.mjs test/conversation-presentation.test.mjs test/text-layout.test.mjs test/agent-instructions.test.mjs",
+    "log": "/tmp/curator-lifecycle-delivery-final-tests.log"
+  },
+  "build": "passed",
+  "strictUiTypes": "passed with ES2022,DOM,DOM.Iterable libs",
+  "package": {
+    "filename": "prodero-curator-0.1.0.tgz",
+    "integrity": "sha512-1Nchz8tbPXEhD6RfLHukoID0jpkGl6wM/4ZRZZo3Pu989qrfpAphasl9G82aeXQCoxYZ4HgOlBybNmqMrY0Hkg==",
+    "shasum": "138e1f90c8c7c7246029c0b34ef8a78804ea5121"
+  },
+  "packageFiles": 148,
+  "packageSha256": "f0560c53791b6927da31859761818fab9f54a2828b9efc380e4d015991971806",
+  "stdio": {
+    "passed": true,
+    "evidenceDirectory": "Task-owned temporary stdio receipt; original machine-local path omitted",
+    "checks": [
+      "artifact instructions and text gateway discovery",
+      "packaged MCP App resources load without checkout URLs",
+      "stdio exact A/page replacement/detail/back and numeric search with actual input",
+      "healthy Prepare continues with no menu; expanded exact returned snapshot without retrieval",
+      "App-resolved Prepare/Close retain compact fallback and exact operation without duplicate Core calls",
+      "local theme/mode isolate roots, persist reconnect, reset without shared rewrite",
+      "update tool is read-only terminal instructions",
+      "full fixture promotion preview; approved:false rejects; exact synthetic preview applies only after explicit fixture approval"
+    ]
+  },
+  "dependencyMode": "reused task-owned existing dependency copy; no fresh resolution/install in this follow-up",
+  "nativeEvidence": "2026-10-19-native-lifecycle.json",
+  "nativeFixVerified": false,
+  "finalBuildLog": "/tmp/curator-lifecycle-delivery-build-final.log",
+  "consumerProjectMutations": "none",
+  "nativeEvidencePrivacy": "Anonymized historical summary; placeholder identities are illustrative and are not a synthetic native-host test result."
+}

@@ -51,8 +51,8 @@ const cacheSchema = z.object({
   sessions: z.record(stampSchema.extend({id: z.string(), parentSessionId: z.string().regex(/^sess_[a-zA-Z0-9_]+$/).optional(), sha256: z.string().regex(/^[a-f0-9]{64}$/), status: z.enum(["active", "open", "closed"]), hasObservations: z.boolean()})),
 });
 
-async function readCache(root: string): Promise<{ cache: SessionIndexCache; state: DerivedCacheState }> {
-  await ensureDerivedStateRoot(root);
+async function readCache(root: string, persistCache: boolean): Promise<{ cache: SessionIndexCache; state: DerivedCacheState }> {
+  if (persistCache) await ensureDerivedStateRoot(root);
   const target = await checkedDataPath(root, ".cache", "session-index.json");
   if (!(await exists(target))) return { cache: structuredClone(EMPTY_CACHE), state: "missing" };
   try {
@@ -61,7 +61,7 @@ async function readCache(root: string): Promise<{ cache: SessionIndexCache; stat
   } catch {
     // Disposable derived JSON is rebuilt below; canonical sessions/checkpoints remain authoritative.
   }
-  await fs.rm(target, { force: true });
+  if (persistCache) await fs.rm(target, { force: true });
   return { cache: structuredClone(EMPTY_CACHE), state: "invalid" };
 }
 
@@ -70,8 +70,8 @@ function parseCheckpoint(content: string, filename: string): CachedCheckpoint {
   return { observationHashes: checkpoint.observationHashes ?? [], id: checkpoint.id, createdAt: checkpoint.createdAt, processedKeys: checkpoint.sessions.map((session) => `${session.path}:${session.sha256}`), size: 0, mtimeMs: 0, ctimeMs: 0 };
 }
 
-export async function discoverSessions(root: string, options: { loadPendingBodies?: boolean; onlyClosed?: boolean } = {}): Promise<SessionDiscovery> {
-  const { cache, state } = await readCache(root);
+export async function discoverSessions(root: string, options: { loadPendingBodies?: boolean; onlyClosed?: boolean; persistCache?: boolean } = {}): Promise<SessionDiscovery> {
+  const { cache, state } = await readCache(root, options.persistCache !== false);
   const nextCheckpoints: Record<string, CachedCheckpoint> = {};
   const processed = new Set<string>();
   const processedObservations = new Set<string>();
@@ -131,8 +131,10 @@ export async function discoverSessions(root: string, options: { loadPendingBodie
   }
 
   const nextCache: SessionIndexCache = { version: 3, checkpoints: nextCheckpoints, sessions: nextSessions };
-  await ensureDerivedStateRoot(root);
-  await writeFileAtomic(projectDataPath(root, ".cache", "session-index.json"), `${JSON.stringify(nextCache)}\n`);
+  if (options.persistCache !== false) {
+    await ensureDerivedStateRoot(root);
+    await writeFileAtomic(projectDataPath(root, ".cache", "session-index.json"), `${JSON.stringify(nextCache)}\n`);
+  }
   const checkpointEntries = Object.values(nextCheckpoints).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   return {
     processedObservations,

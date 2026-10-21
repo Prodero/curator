@@ -8,15 +8,15 @@ import os from "node:os";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { compareVersions, checkForUpdate, installLatest, LocalCheckoutReleaseSource, LocalManifestReleaseSource, UnconfiguredReleaseSource } from "../dist/core/update.js";
-import { applyPendingProjectIntegrationRefresh, initializeProject, refreshProjectIntegration } from "../dist/core/project.js";
+import { compareVersions, checkForUpdate, installLatest, updateInstructions, LocalCheckoutReleaseSource, LocalManifestReleaseSource, UnconfiguredReleaseSource } from "../dist/core/update.js";
+import { initializeProject, refreshProjectIntegration } from "../dist/core/project.js";
 import { MIGRATIONS, migrateProject, migrationPlan } from "../dist/core/migrations.js";
 import { loadMemoryCatalog } from "../dist/core/memory-index.js";
 import { loadKnowledgeGraph } from "../dist/core/knowledge-graph.js";
 import { renderKnowledge, writeKnowledge } from "../dist/core/memory.js";
 import { readConfig, writeConfig } from "../dist/core/storage.js";
 import { createServer, PRODERO_TOOLS } from "../dist/server.js";
-import { PRODERO_VERSION } from "../dist/core/constants.js";
+import { PRODERO_VERSION, NEXT_RUNTIME_VERSION } from "./helpers/runtime-version.mjs";
 
 async function releaseFixture(options = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "prodero-release-"));
@@ -32,6 +32,7 @@ async function releaseFixture(options = {}) {
 
 test("strict semantic version comparison handles precedence and rejects malformed versions", () => {
   assert.equal(PRODERO_VERSION, JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);
+  assert.equal(compareVersions(NEXT_RUNTIME_VERSION, PRODERO_VERSION), 1, "the fake available release must be a semantic upgrade");
   assert.equal(compareVersions("1.10.0", "1.9.9"), 1);
   assert.equal(compareVersions("1.0.0", "1.0.0+build.7"), 0);
   assert.equal(compareVersions("1.0.0", "1.0.0-rc.1"), 1);
@@ -43,7 +44,7 @@ test("update checks report installed, available, current, unavailable, and inval
   const newer = await releaseFixture();
   assert.deepEqual(await checkForUpdate(newer.source, "0.1.0"), {
     current: "0.1.0", latest: "0.2.0", available: true, source: "local-manifest", status: "update-available",
-    installedSchemaVersion: 8, availableSchemaVersion: 8, manualUpdateCommand: "npm install --global @prodero/curator@latest", developmentOnly: true,
+    installedSchemaVersion: 8, availableSchemaVersion: 8, manualUpdateCommand: "prodero update", developmentOnly: true,
   });
   const current = await releaseFixture({ version: "0.1.0", release: { ...(await newer.source.latest()), version: "0.1.0", releaseId: "release-current" } });
   assert.equal((await checkForUpdate(current.source, "0.1.0")).status, "current");
@@ -63,7 +64,7 @@ test("successful local update verifies and stages a release without touching pro
   const fixture = await releaseFixture();
   const result = await installLatest(fixture.source, "0.1.0");
   assert.equal(result.ok, true); assert.equal(result.status, "restart-required"); assert.equal(result.restartRequired, true);
-  assert.equal(result.installedVersion, "0.1.0", "the live process still reports its installed version");
+  assert.equal(result.installedVersion, "0.1.0", "the supplied synthetic installed version remains unchanged");
   assert.equal(result.availableVersion, "0.2.0"); assert.match(result.message, /Restart the Prodero MCP runtime/);
   const pending = JSON.parse(await fs.readFile(path.join(fixture.root, "state/pending.json"), "utf8"));
   assert.equal(pending.release.version, "0.2.0"); assert.equal((await fs.stat(pending.stagedPath)).isFile(), true);
@@ -147,19 +148,23 @@ test("a migration cannot silently rewrite Versioned Knowledge unless its descrip
   assert.equal((await readConfig(root)).schemaVersion, 4);
 });
 
-test("MCP update tools use the injected release source and return restart semantics", async () => {
-  const fixture = await releaseFixture(); const server = createServer({ releaseSource: fixture.source });
+test("MCP update checks use the injected source but update instructions never invoke its installation hooks", async () => {
+  const fixture = await releaseFixture({version:NEXT_RUNTIME_VERSION}); const server = createServer({ releaseSource: fixture.source });
   const client = new Client({ name: "update-test", version: "1.0.0" }); const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
     const checked = await client.callTool({ name: PRODERO_TOOLS.checkUpdate, arguments: {} });
-    assert.equal(checked.structuredContent.update.current, "0.1.0"); assert.equal(checked.structuredContent.update.latest, "0.2.0");
+    assert.equal(checked.structuredContent.update.current, PRODERO_VERSION); assert.equal(checked.structuredContent.update.latest, NEXT_RUNTIME_VERSION); assert.equal(checked.structuredContent.update.available,true);
+    fixture.source.latest=()=>{throw new Error('instructions must not check or stage');};fixture.source.stage=()=>{throw new Error('instructions must not check or stage');};
+    const tool=(await client.listTools()).tools.find(t=>t.name===PRODERO_TOOLS.update);assert.equal(tool.annotations.readOnlyHint,true);assert.match(tool.title,/Instructions/);assert.match(tool.description,/never installs/);
     const updated = await client.callTool({ name: PRODERO_TOOLS.update, arguments: {} });
-    assert.equal(updated.structuredContent.status, "restart-required"); assert.equal(updated.structuredContent.restartRequired, true);
+    assert.equal(updated.isError,undefined);assert.equal(updated.structuredContent.status, "manual-update"); assert.equal(updated.structuredContent.restartRequired, false);assert.equal(updated.structuredContent.instructionOnly,true);
+    assert.match(updated.content[0].text.replace(/\n│ ?/g,' '),/terminal, run prodero update/);assert.match(updated.content[0].text.replace(/\n│ ?/g,' '),/close your MCP hosts/);assert.match(updated.content[0].text.replace(/\n│ ?/g,' '),/restart and reconnect/);assert.match(updated.content[0].text.replace(/\n│ ?/g,' '),/migration separately/);
+    await assert.rejects(fs.access(path.join(fixture.root,'state')),{code:'ENOENT'});
   } finally { await client.close(); await server.close(); }
 });
 
-test("explicit project update refreshes managed integration at the current runtime version", async () => {
+test("explicit MCP update leaves stale project integration untouched while the separate refresh API still works", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "prodero-project-refresh-"));
   await fs.mkdir(path.join(root, ".git")); await initializeProject(root);
   const memoryPath = path.join(root, ".prodero/memory/preserved.md"); await writeKnowledge(root, {id:"preserved",category:"state",scope:"global",scopeRef:null,priority:"normal",status:"active",title:"Preserved",content:"Versioned knowledge bytes",createdAt:"2026-09-01T00:00:00Z",updatedAt:"2026-09-01T00:00:00Z",sourceSessions:[],derivedFrom:[],supersedes:[],related:[]});
@@ -172,17 +177,18 @@ test("explicit project update refreshes managed integration at the current runti
   assert.match(agents, /# User instructions/); assert.match(agents, /# Keep this/); assert.equal(await fs.readFile(memoryPath, "utf8"), before);
 
   await fs.writeFile(path.join(root, "AGENTS.md"), agents.replace("prodero_instructions_read", "Stale pointer:"));
-  const currentFixture = await releaseFixture({ version: "0.1.0" });
+  const staleAgents=await fs.readFile(path.join(root,'AGENTS.md'),'utf8'),configBefore=await fs.readFile(path.join(root,'.prodero/config.json'),'utf8');
+  const currentFixture = await releaseFixture({ version: PRODERO_VERSION });
   const server = createServer({ projectRoot:root, releaseSource: currentFixture.source }); const client = new Client({ name: "refresh-test", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair(); await server.connect(serverTransport); await client.connect(clientTransport);
   try {
     const updated = await client.callTool({ name: PRODERO_TOOLS.update, arguments: { projectRoot: root } });
-    assert.equal(updated.structuredContent.status, "current"); assert.ok(updated.structuredContent.projectMaintenance.changedFiles.includes("AGENTS.md"));
-    assert.match(updated.structuredContent.message, /Refreshed AGENTS\.md/);
+    assert.equal(updated.structuredContent.status, "manual-update");assert.equal(updated.structuredContent.projectMaintenance,undefined);
+    assert.equal(await fs.readFile(path.join(root,'AGENTS.md'),'utf8'),staleAgents);assert.equal(await fs.readFile(path.join(root,'.prodero/config.json'),'utf8'),configBefore);assert.equal(await fs.readFile(memoryPath,'utf8'),before);
   } finally { await client.close(); await server.close(); }
 });
 
-test("a staged runtime update defers project integration until the restarted runtime opens it", async () => {
+test("MCP update with a development release never stages runtime or schedules deferred project maintenance", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "prodero-deferred-refresh-"));
   await fs.mkdir(path.join(root, ".git")); await initializeProject(root);
   const fixture = await releaseFixture(); const server = createServer({ projectRoot:root, releaseSource: fixture.source });
@@ -190,9 +196,14 @@ test("a staged runtime update defers project integration until the restarted run
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
     const updated = await client.callTool({ name: PRODERO_TOOLS.update, arguments: { projectRoot: root } });
-    assert.equal(updated.structuredContent.status, "restart-required"); assert.equal(updated.structuredContent.projectMaintenance, null);
-    assert.equal((await fs.stat(path.join(root, ".prodero/.cache/runtime-maintenance.json"))).isFile(), true);
+    assert.equal(updated.structuredContent.status, "manual-update");assert.equal(updated.structuredContent.instructionOnly,true);assert.equal(updated.structuredContent.projectMaintenance,undefined);
+    await assert.rejects(fs.stat(path.join(root, ".prodero/.cache/runtime-maintenance.json")),{code:'ENOENT'});await assert.rejects(fs.stat(path.join(fixture.root,'state')),{code:'ENOENT'});
   } finally { await client.close(); await server.close(); }
-  const refreshed = await applyPendingProjectIntegrationRefresh(root);
-  assert.ok(refreshed); await assert.rejects(fs.stat(path.join(root, ".prodero/.cache/runtime-maintenance.json")), { code: "ENOENT" });
+});
+
+test('instructions are inert across npm, unconfigured and custom source identities',()=>{
+ for(const id of ['npm','unconfigured','local-manifest','local-checkout','custom-source']){
+  const source={id,latest(){throw new Error('must not read release');},stage(){throw new Error('must not install');}};
+  const result=updateInstructions(source,'0.1.0');assert.equal(result.command,'prodero update');assert.equal(result.installedVersion,'0.1.0');assert.equal(result.availableVersion,null);assert.equal(result.restartRequired,false);assert.equal(result.instructionOnly,true);
+ }
 });

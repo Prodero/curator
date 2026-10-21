@@ -62,7 +62,7 @@ test('journal rollback preserves files on write failure; unresolved journal bloc
 
 test('machine operations never create project memory or change Git; status outside a project is read-only',async t=>{
  const f=await fixture(t);const project=path.join(f.home,'project');await fs.mkdir(project);await exec('git',['init','-q',project]);await fs.writeFile(path.join(project,'sentinel'),'untouched');const before=await tree(project);await f.run('install');await f.run('status');await f.run('uninstall');assert.deepEqual(await tree(project),before);
- const {stdout}=await exec(process.execPath,[fileURLToPath(new URL('../dist/cli.js',import.meta.url)),'status'],{cwd:project,env:{...process.env,HOME:f.home,CODEX_HOME:path.join(f.home,'.codex'),CLAUDE_CONFIG_DIR:path.join(f.home,'.claude'),XDG_STATE_HOME:path.join(f.home,'.local/state')}});assert.equal(JSON.parse(stdout).scope,'machine');assert.deepEqual(await tree(project),before);
+ const {stdout}=await exec(process.execPath,[fileURLToPath(new URL('../dist/cli.js',import.meta.url)),'status','--json'],{cwd:project,env:{...process.env,HOME:f.home,CODEX_HOME:path.join(f.home,'.codex'),CLAUDE_CONFIG_DIR:path.join(f.home,'.claude'),XDG_STATE_HOME:path.join(f.home,'.local/state')}});assert.equal(JSON.parse(stdout).scope,'machine');assert.deepEqual(await tree(project),before);
 });
 
 test('new Codex override conflicts on install but uninstall preserves the overriding file',async t=>{

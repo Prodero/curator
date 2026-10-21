@@ -82,7 +82,7 @@ for (const cacheState of ['missing','invalid']) {
     const text = await call(PRODERO_TOOLS.text, { tool:PRODERO_TOOLS.open });
     assert.deepEqual(buildViewModel(text.structuredContent), buildViewModel(payload));
     assert.equal(text.structuredContent.phase, 'ready');
-    assert.match(text.content[0].text, /Memory  2/);
+    assert.match(text.content[0].text, /2 records/);
   });
 }
 test('root resolution and pending prepare never paint onboarding before the final context-ready result', async t => {

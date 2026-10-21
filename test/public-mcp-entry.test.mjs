@@ -13,6 +13,7 @@ import {ListRootsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {machineIntegrations} from '../dist/hosts/manager.js';
 import {switchRuntime} from '../dist/hosts/runtime.js';
 import {packageFixture,curatorCheckout} from './helpers/public-runtime.mjs';
+import {PRODERO_VERSION} from '../dist/core/constants.js';
 const exec=promisify(execFile);
 async function fixture(t) {
   const home=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'prodero-public-')));
@@ -68,7 +69,7 @@ test('public package: no npm, no receipt, minimal GUI PATH and installed-bin ali
   await assert.rejects(exec('npm',['--version'],{env:{PATH:nodeOnly}}),e=>e.code==='ENOENT');
   await fs.writeFile(f.receipt('codex'),saved);
   // Managed env resolves Node when the GUI parent has no Node on PATH.
-  const child=await exec(entry.command,['--version'],{env:{...f.env,PATH:'/usr/bin:/bin',...entry.env}});assert.match(child.stdout,/0\.1\.0/);
+  const child=await exec(entry.command,['--version'],{env:{...f.env,PATH:'/usr/bin:/bin',...entry.env}});assert.equal(child.stdout.trim(),PRODERO_VERSION);
 });
 test('public dev: checkout is code only; Curator workspace and unrelated synthetic ToyGrid workspace',async t=>{
   const f=await fixture(t),entry=await f.install('codex','dev');

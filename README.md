@@ -2,6 +2,8 @@
 
 **Project memory for Codex and Claude Code.**
 
+> This checkout prepares **0.2.0 (unreleased)**. The registry example below is pinned to the 0.1.0 preview and does not install this candidate. For candidate review use the exact local tarball and isolated setup in [the release guide](docs/RELEASING.md); see [0.2.0 changes](CHANGELOG.md) and [verification limits](docs/COMPATIBILITY.md).
+
 Keep project decisions, conventions, and lessons across sessions, right inside your coding assistant.
 
 **Install in two commands → open Codex or Claude Code → type prodero.**
@@ -44,7 +46,7 @@ Everyday work happens in conversation with Codex or Claude Code; the terminal is
 - “Update the saved testing convention to use the new fixture directory.”
 - “Review which Local lessons would be useful to share with the team.”
 
-Use **Knowledge** to search, inspect and edit saved items. **Sync Memory** lets you choose **Improve memory**, **Share knowledge**, or both, then start the workflow. Eligible Local improvements can apply within that workflow; sharing presents proposed Versioned changes for review. Normal session learning does not require running Sync Memory.
+Use **Knowledge** to search, inspect and edit saved items. **Curate Memory** lets you choose **Improve memory**, **Share knowledge**, or both, then start the workflow. Eligible Local improvements can apply within that workflow; sharing presents proposed Versioned changes for review. Normal session learning does not require running Curate Memory.
 
 Where the host supports MCP Apps, Curator provides a graphical interface. Otherwise, use text mode: **“Show Prodero as text.”** You do not need to memorize CLI commands.
 
@@ -86,3 +88,7 @@ Retrieved context reaches your connected agent. Optional assisted operations can
 Preview interfaces and schemas may evolve. Back up the whole `.prodero` directory before upgrading; follow the linked maintenance and recovery guidance.
 
 Curator is [MIT licensed](LICENSE).
+
+### Updating the installed core
+
+Codex/Claude show an available-version indicator and terminal instructions only. Run `prodero update` in your terminal, finish active work and close the hosts when prompted, then explicitly confirm. Restart the hosts after completion. Project knowledge migration is offered separately on Open/Prepare; package update preserves saved dev selection and preferences. See [update and non-interactive options](docs/hosts.md#commands-and-status).

@@ -12,11 +12,15 @@ export async function previewMemoryLinkRepair(root: string, createdAt = new Date
   const graph = await loadKnowledgeGraph(root, undefined, { persistCache: false });
   const broken = new Set(graph.brokenReferences);
   const inventory = await readKnowledgeInventory(root);
+  const knownIds = new Set(inventory.map(r => r.item.id));
+  // Derived diagnostics are hints, never authority to remove a canonical link.
+  const missingReferences = new Set<string>();
   // Bound each exact review; remaining links are offered by the next Sync.
   const changes = inventory.filter(r => r.storage === 'current').flatMap(r => {
     const links = new Map<string, { type: string; target: string }>();
     const missing = (type: string, target: string) => {
-      if (!broken.has(`${r.item.id}:${type}:${target}`)) return false;
+      if (knownIds.has(target) || !broken.has(`${r.item.id}:${type}:${target}`)) return false;
+      missingReferences.add(`${r.item.id}:${type}:${target}`);
       links.set(`${type}:${target}`, { type, target }); return true;
     };
     const after = { ...r.item, version: 3 as const, applicability: r.item.applicability ?? { kind: 'legacy' as const }, updatedAt: createdAt,
@@ -29,7 +33,7 @@ export async function previewMemoryLinkRepair(root: string, createdAt = new Date
   }).slice(0, 100);
   const count = changes.reduce((n, c) => n + c.links.length, 0);
   const payload = { root: await fs.realpath(root), createdAt, changes, count,
-    remaining: broken.size - count, requiresVersionedReview: changes.some(c => c.layer === 'versioned') };
+    remaining: missingReferences.size - count, requiresVersionedReview: changes.some(c => c.layer === 'versioned') };
   return { ...payload, previewId: digest(payload) };
 }
 export type MemoryLinkRepairPreview = Awaited<ReturnType<typeof previewMemoryLinkRepair>>;

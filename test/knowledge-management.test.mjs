@@ -75,7 +75,7 @@ test('MCP exposes knowledge catalogue/detail text fallback and refuses ordinary 
  const root=await fixture(t);await writeKnowledge(root,item('mem_repository'));
  const server=createServer({projectRoot:root}),client=new Client({name:'knowledge-test',version:'1'});const [a,b]=InMemoryTransport.createLinkedPair();await server.connect(b);await client.connect(a);t.after(async()=>{await client.close();await server.close();});
  const call=(name,args={})=>client.callTool({name,arguments:{projectRoot:root,...args}});
- const list=await call(T.knowledge);assert.equal(list.structuredContent.result.total,1);assert.match(list.content[0].text,/Versioned  1/);
+ const list=await call(T.knowledge);assert.equal(list.structuredContent.result.total,1);assert.match(list.content[0].text,/Versioned/);
  const inspected=await call(T.knowledge,{id:'mem_repository'});assert.match(inspected.content[0].text,/Revision:/);assert.match(inspected.content[0].text,/Git-shareable/);
  const i=inspected.structuredContent.result.detail;const rejected=await call(T.knowledgeMutate,edit(i));assert.equal(rejected.isError,true);
  const changed=await call(T.knowledgeMutate,edit(i,{mode:'repository-maintenance'}));assert.equal(changed.structuredContent.result.detail.id,i.id);

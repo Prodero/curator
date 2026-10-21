@@ -35,6 +35,14 @@ test('failed project theme save preserves the previous value',async()=>{
  const f=fixture('blue-neon');f.controller.setProject('A','blue-neon',async()=>{throw Error('write failed');});
  await f.controller.select('pink-neon');assert.equal(f.controller.selected,'blue-neon');
 });
+test('local theme reset reveals supplied fallback; late or failed reset cannot recolor another project',async()=>{
+ const f=fixture('light');let calls=0;
+ f.controller.setProject('A','light',f.save,{source:'local override',reset:async root=>{assert.equal(root,'A');calls++;return {theme:'dark-neon',source:'legacy project default'};}});
+ await f.controller.reset();assert.equal(calls,1);assert.equal(f.controller.selected,'dark-neon');await f.controller.reset();assert.equal(calls,1);
+ let finish;f.controller.setProject('A','light',f.save,{source:'local override',reset:()=>new Promise(resolve=>finish=resolve)});
+ const pending=f.controller.reset();f.controller.setProject('B','purple-neon',f.save);finish({theme:'dark-neon',source:'legacy project default'});await pending;assert.equal(f.controller.selected,'purple-neon');
+ f.controller.setProject('A','light',f.save,{source:'local override',reset:async()=>{throw new Error('repair preference file');}});await f.controller.reset();assert.equal(f.controller.selected,'light');
+});
 test('host document theme updates cannot overwrite the project palette',()=>{
  const f=fixture('dark-neon');
  for(const theme of ['dark','light']){

@@ -1,0 +1,27 @@
+```text
+╭─ >_ PRODERO ──────────────────── /04
+│ Curator · project memory
+│
+├─ CURATE MEMORY ─────────────────────
+│ Completed with remaining work
+│ No memory changes.
+│
+├─ ATTENTION ─────────────────────────
+│ 1 area could not be analyzed.
+│ SYNC_STEP_INCOMPLETE: Analysis
+│ input expired. Inspect before
+│ retrying. Inspect saved progress
+│ before retrying.
+│
+│ Review the remaining items?
+╰─────────────────────────────────────
+```
+
+```text
+Available actions:
+
+  1 > Retry incomplete analysis
+  2 > Review this curation
+
+Reply with a number or the command name.
+```

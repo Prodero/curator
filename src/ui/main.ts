@@ -1,5 +1,5 @@
 import {applicabilityLabel} from "../core/applicability-label.js";
-import { buildViewModel, renderReviewProjection, renderMetricsHtml, memoryOpenPresentation, memorySyncPresentation, MEMORY_COPY } from "../presentation.js";
+import { buildViewModel, renderReviewProjection, renderMetricsHtml, memoryOpenPresentation, memorySyncPresentation, MEMORY_COPY, memorySyncOperation, syncClientFailure, syncClientNotice, UPDATE_INSTRUCTIONS, type SyncClientEvidence } from "../presentation.js";
 import { App } from "@modelcontextprotocol/ext-apps";
 import { PRODERO_TOOLS } from "../contracts.js";
 import { preparedContextSnapshot } from "../core/context-snapshot.js";
@@ -8,6 +8,8 @@ import "./style.css";
 import { themeController } from "./themes.js";
 import { mountCardDisclosure } from './card-disclosure.js';
 import './card-disclosure.css';
+
+declare const __PRODERO_VERSION__: string;
 
 type StatusPayload = {
   product: string;
@@ -61,7 +63,7 @@ let knowledgeDraft: any = null;
 let knowledgeConfirmation: any = null;
 let knowledgePromotionReturn = false;
 let textPresentation = false;
-const app = new App({ name: "Prodero Project Intelligence", version: "0.1.0" });
+const app = new App({ name: "Prodero Project Intelligence", version: __PRODERO_VERSION__ });
 const cardDisclosure = mountCardDisclosure(request => app.callServerTool(request), size => app.sendSizeChanged(size));
 app.onteardown = async () => {
   cardDisclosure?.dispose();
@@ -80,7 +82,13 @@ function adoptProjectTheme(payload:any) {
   themeController?.setProject(settings.root,settings.presentation.theme,async(root,theme)=>{
     const result=await app.callServerTool({name:PRODERO_TOOLS.configSet,arguments:{projectRoot:root,key:"presentation.theme",value:theme}});
     if(result.isError)throw new Error(result.content?.find(c=>c.type==="text")?.text ?? "Could not save project theme.");
-  });
+  },{source:settings.presentationSources?.theme,notice:settings.diagnostics?.map((d:any)=>`${d.code}: ${d.cause} ${d.recovery}`).join(' '),reset:async(root)=>{
+    const result=await app.callServerTool({name:PRODERO_TOOLS.configSet,arguments:{projectRoot:root,key:"presentation.theme",reset:true}});
+    if(result.isError)throw new Error(result.content?.find(c=>c.type==="text")?.text ?? "Could not reset checkout theme.");
+    const saved=parseToolResult(result)?.projectSettings;
+    if(!saved?.presentation)throw new Error("Theme reset result unavailable. Refresh settings before retrying.");
+    return {theme:saved.presentation.theme,source:saved.presentationSources?.theme??"default"};
+  }});
 }
 function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[c]!); }
 function metric(value: string | number, label: string, detail?: string) { return `<div class="metric"><strong>${value}</strong><span>${label}</span>${detail ? `<small>${detail}</small>` : ""}</div>`; }
@@ -446,7 +454,7 @@ function renderStatus() {
     <section class="panel"><div class="metrics status-metrics" style="--metric-count:${statusMetrics.length}">${statusMetrics.join("")}</div>
     <section class="memory-overview" aria-label="Memory Intelligence"><div class="memory-overview-heading"><h2>${escapeHtml(memory.dashboard.headline)}</h2>${memory.dashboard.areasLabel?`<span>${escapeHtml(memory.dashboard.areasLabel)}</span>`:''}</div><p>${escapeHtml(memory.dashboard.signal)}</p>${memory.dashboard.sharing?`<p>${escapeHtml(memory.dashboard.sharing)}</p>`:''}${memory.conflicts?`<p class="knowledge-warning">${memory.conflicts} ${memory.conflicts===1?'area needs':'areas need'} review. Prodero found incompatible current knowledge.</p>`:''}${memory.dashboard.workflowNotice?`<p role="status">${escapeHtml(memory.dashboard.workflowNotice)}</p>`:''}</section>
 
-    ${message ? `<div class="message" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}<div class="actions">${initialized ? `<button data-action="sync" class="primary" ${busy ? "disabled" : ""}>${busyAction === "sync" ? "Analyzing…" : `${escapeHtml(memory.button)} <span>↗</span>`}</button>` : `<button data-action="init" class="primary" ${busy ? "disabled" : ""}>${busyAction === "init" ? "Initializing…" : "Initialize Prodero <span>↗</span>"}</button>`}<button data-action="knowledge" ${busy || !initialized ? "disabled" : ""}>Knowledge</button><button data-action="skills" ${busy ? "disabled" : ""}>Skills</button><button data-action="update" ${busy || update?.status === "restart-required" ? "disabled" : ""}>${update?.status === "restart-required" ? "Restart Prodero" : update?.available ? "Update instructions" : busyAction === "update" ? "Checking…" : "Update instructions"}</button></div>
+    ${message ? `<div class="message" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}<div class="actions">${initialized ? `<button data-action="sync" class="primary" ${busy ? "disabled" : ""}>${busyAction === "sync" ? "Analyzing…" : `${escapeHtml(memory.button)} <span>↗</span>`}</button>` : `<button data-action="init" class="primary" ${busy ? "disabled" : ""}>${busyAction === "init" ? "Initializing…" : "Initialize Prodero <span>↗</span>"}</button>`}<button data-action="knowledge" ${busy || !initialized ? "disabled" : ""}>Knowledge</button><button data-action="skills" ${busy ? "disabled" : ""}>Skills</button>${update?.available ? `<button data-action="update" ${busy ? "disabled" : ""}>${busyAction === "update" ? "Showing instructions…" : `Update available${update.latest ? `: ${escapeHtml(update.latest)}` : ""} · instructions`}</button>` : ""}</div>
       ${(state as any)?.curation?.state==='unavailable'?`<p role="alert">${escapeHtml((state as any).curation.message??'Saved review is unavailable.')}</p>`:''}${(state as any)?.curation?.prominent?`<section><h2>Legacy knowledge can be improved</h2><p>${escapeHtml(renderReviewProjection((state as any).curation.projection))}</p><div class="actions"><button class="primary" data-action="curation" ${busy ? "disabled" : ""}>Review cleanup</button><button data-action="curation-later" ${busy ? "disabled" : ""}>Pause review</button></div></section>`:""}<details class="memory-details"><summary>Project details</summary>${(state as any)?.curation?.projection?.analyzedSourceCount>0?`<p>${escapeHtml(renderReviewProjection((state as any).curation.projection))}</p>`:''}<p>${MEMORY_COPY.automatic} ${MEMORY_COPY.purpose}</p>${renderBootstrap()}${(state as any)?.curation?.projection?.analyzedSourceCount>0?`<div class="actions"><button data-action="curation" ${busy ? "disabled" : ""}>Review saved decisions</button></div>`:""}<p>${projectName} · Last automatic save: ${project?.lastSyncAt?escapeHtml(formatLastSync(project.lastSyncAt)):'No saved sessions yet'} · ${escapeHtml(updateLabel)}</p><pre class="context-content">${escapeHtml(JSON.stringify(viewModel.diagnostics,null,2))}</pre></details>
     <footer><span>Local-first</span><span>Auto-save on session close</span><span>Shared knowledge stays in Git</span><b>prodero</b></footer></section></main>`;
   host.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => button.addEventListener("click", () => void act(button.dataset.action!)));
@@ -470,11 +478,11 @@ function renderKnowledge() {
     body = `<form id="knowledge-edit-form" class="knowledge-form"><h2>${item.layer==='versioned'?'Repository maintenance':'Edit Local Knowledge'}</h2><p>${item.layer==='versioned'?'Saving will modify Git-tracked project knowledge.':'Versioned Knowledge will remain unchanged.'} ${item.category==='instruction'?'Critical means correctness, safety, compatibility or project invariants. Normal required instructions still rank by relevance and scope.':'Type and scope are preserved.'} Identity, relationships and checkpoint history are retained.</p><label>Title<input name="title" maxlength="200" required value="${escapeHtml(knowledgeDraft.title)}"></label><label>Statement<textarea name="content" rows="8" maxlength="10000" required>${escapeHtml(knowledgeDraft.content)}</textarea></label>${item.category==='instruction'?renderKnowledgeClassification(item,knowledgeDraft,select):''}<button class="primary" type="submit" ${busyAction?'disabled':''}>Review changes</button>${knowledgeButton('cancel-edit','Cancel')}</form>`;
   } else if (item) {
     const current = ['active','disputed'].includes(item.status);
-    body = `<article class="project-skill knowledge-detail"><div class="knowledge-tags"><b data-knowledge-layer="${item.layer==='local'?'local':'versioned'}">${item.layer==='local'?'Local':'Shared / Versioned'}</b><span>${escapeHtml(item.category)}</span><span>${escapeHtml(scopeLabel(item))}</span><span>${escapeHtml(item.status)}</span></div><h2>${escapeHtml(item.title)}</h2><div class="context-content">${escapeHtml(item.content)}</div><p class="context-muted">Created ${escapeHtml(formatLastSync(item.createdAt))} · Updated ${escapeHtml(formatLastSync(item.updatedAt))}</p>${item.status==='disputed'?'<p class="knowledge-warning">This record is disputed. Editing its wording does not resolve the conflict automatically.</p>':''}<details><summary>Sources and relationships</summary><p>ID: ${escapeHtml(item.id)}</p>${renderProvenance(item)}<p>${escapeHtml((item.evidence??[]).map((e:any)=>`${e.kind}: ${e.ref}`).join('\n')||'No additional evidence recorded.')}</p><p>Supersedes: ${escapeHtml(item.supersedes.join(', ')||'None')}</p><p>Related: ${escapeHtml(item.related.join(', ')||'None')}</p><p>${escapeHtml((item.relations??[]).map((r:any)=>`${r.type}: ${r.target}`).join('\n'))}</p></details>${item.recommendation?.recommended?`<p>Available for sharing review · ${escapeHtml(item.recommendation.signals.join(' · '))}</p>`:''}<div class="actions">${current?knowledgeButton('edit',item.layer==='local'?'Edit':'Repository maintenance: Edit')+knowledgeButton('retire',item.layer==='local'?'Delete / forget':'Repository maintenance: Retire')+(item.layer==='local'?knowledgeButton('promote','Sync Memory',item.id):''):''}${knowledgeButton('reload','Reload item',item.id)}${knowledgeButton('list','Back to knowledge')}</div></article>`;
+    body = `<article class="project-skill knowledge-detail"><div class="knowledge-tags"><b data-knowledge-layer="${item.layer==='local'?'local':'versioned'}">${item.layer==='local'?'Local':'Shared / Versioned'}</b><span>${escapeHtml(item.category)}</span><span>${escapeHtml(scopeLabel(item))}</span><span>${escapeHtml(item.status)}</span></div><h2>${escapeHtml(item.title)}</h2><div class="context-content">${escapeHtml(item.content)}</div><p class="context-muted">Created ${escapeHtml(formatLastSync(item.createdAt))} · Updated ${escapeHtml(formatLastSync(item.updatedAt))}</p>${item.status==='disputed'?'<p class="knowledge-warning">This record is disputed. Editing its wording does not resolve the conflict automatically.</p>':''}<details><summary>Sources and relationships</summary><p>ID: ${escapeHtml(item.id)}</p>${renderProvenance(item)}<p>${escapeHtml((item.evidence??[]).map((e:any)=>`${e.kind}: ${e.ref}`).join('\n')||'No additional evidence recorded.')}</p><p>Supersedes: ${escapeHtml(item.supersedes.join(', ')||'None')}</p><p>Related: ${escapeHtml(item.related.join(', ')||'None')}</p><p>${escapeHtml((item.relations??[]).map((r:any)=>`${r.type}: ${r.target}`).join('\n'))}</p></details>${item.recommendation?.recommended?`<p>Available for sharing review · ${escapeHtml(item.recommendation.signals.join(' · '))}</p>`:''}<div class="actions">${current?knowledgeButton('edit',item.layer==='local'?'Edit':'Repository maintenance: Edit')+knowledgeButton('retire',item.layer==='local'?'Delete / forget':'Repository maintenance: Retire')+(item.layer==='local'?knowledgeButton('promote','Curate Memory',item.id):''):''}${knowledgeButton('reload','Reload item',item.id)}${knowledgeButton('list','Back to knowledge')}</div></article>`;
   } else {
     body = `<form id="knowledge-search-form" class="knowledge-filters"><label class="knowledge-search">Search knowledge<input name="query" value="${escapeHtml(q.query??'')}" placeholder="Search statements or topics"></label>${select('layer',[['','All layers'],['local','Local'],['versioned','Shared / Versioned']],q.layer??'')}${select('category',[['','All types'],['instruction','Rule'],['state','Fact / state'],['decision','Decision'],['lesson','Lesson'],['principle','Principle'],['invariant','Invariant'],['constraint','Constraint']],q.category??'')}${select('scope',[['','All scopes'],['global','Global'],['project','Project'],['path','Path']],q.scope??'')}<input name="path" aria-label="Scope path" placeholder="Path, e.g. docs" value="${escapeHtml(q.path??'')}">${select('history',[['current','Current'],['all','Include history']],q.includeHistorical?'all':'current')}<button type="submit" ${busyAction?'disabled':''}>Search</button></form><div class="knowledge-list">${view?.matches?.length?renderKnowledgeTableHtml(view.matches):busyAction?'<p role="status">Loading knowledge…</p>':!view?.counts?'<p class="context-muted">Knowledge could not be loaded. Choose Refresh to retry.</p>':`<p class="context-muted">${view?.counts?.local||view?.counts?.versioned?'No knowledge matches these filters. Clear the search or choose All layers.':'No knowledge yet. Ask your agent to remember a project fact, or finish a work session to begin local learning.'}</p>`}</div><div class="actions">${view?.offset?knowledgeButton('previous','Previous'):''}${view?.nextOffset!==null&&view?.nextOffset!==undefined?knowledgeButton('next','Next'):''}${knowledgeButton('list','Refresh')}</div><p class="context-muted">${view?.total??0} matching records${view?.total?` · Showing ${view.offset+1}–${view.offset+view.matches.length}`:''}</p>`;
   }
-  host.innerHTML=`<main class="shell knowledge-shell"><section class="skills-hero">${brand('Knowledge','project intelligence')}</section><section class="panel"><p class="context-muted">Local is Git-ignored working state, accessible to your agent. Versioned is Git-shareable, not necessarily committed or pushed. Review repository changes before sharing.</p><div class="knowledge-summary"><span>Shared / Versioned Knowledge: <b>${view?.counts?.versioned??'—'}</b></span><span>Local Knowledge: <b>${view?.counts?.local??'—'}</b></span><span><b>${view?.counts?.recommended??'—'}</b> available for sharing review</span></div><div class="actions">${knowledgeButton('back',instructionReturn?'Back to omitted instructions':'Back to status')}${view?.counts?.local?knowledgeButton('promotions','Sync Memory'):''}</div>${message?`<p class="message" role="status" aria-live="polite">${escapeHtml(message)}</p>`:''}${body}</section></main>`;
+  host.innerHTML=`<main class="shell knowledge-shell"><section class="skills-hero">${brand('Knowledge','project intelligence')}</section><section class="panel"><p class="context-muted">Local is Git-ignored working state, accessible to your agent. Versioned is Git-shareable, not necessarily committed or pushed. Review repository changes before sharing.</p><div class="knowledge-summary"><span>Shared / Versioned Knowledge: <b>${view?.counts?.versioned??'—'}</b></span><span>Local Knowledge: <b>${view?.counts?.local??'—'}</b></span><span><b>${view?.counts?.recommended??'—'}</b> available for sharing review</span></div><div class="actions">${knowledgeButton('back',instructionReturn?'Back to omitted instructions':'Back to status')}${view?.counts?.local?knowledgeButton('promotions','Curate Memory'):''}</div>${message?`<p class="message" role="status" aria-live="polite">${escapeHtml(message)}</p>`:''}${body}</section></main>`;
   host.querySelectorAll<HTMLButtonElement>('button[data-knowledge-action]').forEach(button=>button.addEventListener('click',()=>void knowledgeAction(button.dataset.knowledgeAction!,button.dataset.id)));
   host.querySelector<HTMLFormElement>('#knowledge-search-form')?.addEventListener('submit',event=>{
     event.preventDefault(); const data = new FormData(event.currentTarget as HTMLFormElement);
@@ -640,7 +648,9 @@ function renderPlugins() {
   }));
 }
 let syncOptions={improve:true,share:true,repairLinks:true};
-let syncPoll=0,syncPollEpoch=0;
+let syncPoll=0,syncPollEpoch=0,syncContextEpoch=0,syncRequestEpoch=0;
+let syncClient:SyncClientEvidence|undefined;
+const syncBlocked=()=>syncClient?.stage==='action'&&!syncClient.confirmedState;
 let syncPromotionSelection: {workflow: string; ids: Set<string>} | null = null;
 function renderMemorySync() {
   const w=memorySyncView, m=memorySyncPresentation(w);
@@ -648,22 +658,24 @@ function renderMemorySync() {
   if(w.state==='awaiting_promotion_selection'&&syncPromotionSelection?.workflow!==selectionKey)
     syncPromotionSelection={workflow:selectionKey,ids:new Set(w.promotionCandidates.map((c:any)=>c.id))};
   const selectedPromotions=w.promotionCandidates.filter((c:any)=>syncPromotionSelection?.ids.has(c.id));
-  const button=(action:string,label:string,primary=false)=>`<button data-memory-sync="${action}" ${primary?'class="primary"':''} ${busyAction?'disabled':''}>${label}</button>`;
+  const button=(action:string,label:string,primary=false)=>`<button data-memory-sync="${action}" ${primary?'class="primary"':''} ${busyAction||syncBlocked()&&!['inspect','back'].includes(action)?'disabled':''}>${label}</button>`;
   const jobs='';
-  const selected=w.state==='awaiting_selection'?`<fieldset class="memory-sharing"><label class="memory-choice"><input type="checkbox" id="sync-improve-choice" ${syncOptions.improve?'checked':''}> <strong>Improve memory</strong></label><p>Process, compress and organize memory.</p>${w.brokenLinks?`<label class="memory-choice"><input type="checkbox" id="sync-repair-links-choice" ${syncOptions.repairLinks?'checked':''}> <strong>Fix ${w.brokenLinks} broken ${w.brokenLinks===1?'link':'links'}</strong></label><p>Review and remove links to missing memories. Original records are saved in history.</p>`:''}<label class="memory-choice"><input type="checkbox" id="sync-promotion-choice" ${syncOptions.share?'checked':''}> <strong>Share knowledge</strong></label><p>Review Local knowledge for Versioned files. Your agent can also change these files; review the Git diff before commit/push.</p></fieldset><div class="actions"><button data-memory-sync="select" class="primary" ${busyAction||!syncOptions.improve&&!syncOptions.share&&!(w.brokenLinks&&syncOptions.repairLinks)?'disabled':''}>Start Sync</button></div>`:'';
+  const selected=w.state==='awaiting_selection'?`<fieldset class="memory-sharing"><label class="memory-choice"><input type="checkbox" id="sync-improve-choice" ${syncOptions.improve?'checked':''}> <strong>Improve memory</strong></label><p>Process, compress and organize memory.</p>${w.brokenLinks?`<label class="memory-choice"><input type="checkbox" id="sync-repair-links-choice" ${syncOptions.repairLinks?'checked':''}> <strong>Fix ${w.brokenLinks} broken ${w.brokenLinks===1?'link':'links'}</strong></label><p>Review and remove links to missing memories. Original records are saved in history.</p>`:''}<label class="memory-choice"><input type="checkbox" id="sync-promotion-choice" ${syncOptions.share?'checked':''}> <strong>Share knowledge</strong></label><p>Review Local knowledge for Versioned files. Your agent can also change these files; review the Git diff before commit/push.</p></fieldset><div class="actions"><button data-memory-sync="select" class="primary" ${busyAction||syncBlocked()||!syncOptions.improve&&!syncOptions.share&&!(w.brokenLinks&&syncOptions.repairLinks)?'disabled':''}>Start curation</button></div>`:'';
   let clarification='';
   if(w.clarification){
     const g=curationView.graphical,q=selectedQuestion();
-    const reviewButton=(action:string,label:string)=>`<button data-review="${escapeHtml(action)}" ${busyAction?'disabled':''}>${escapeHtml(label)}</button>`;
+    const reviewButton=(action:string,label:string)=>`<button data-review="${escapeHtml(action)}" ${busyAction||syncBlocked()?'disabled':''}>${escapeHtml(label)}</button>`;
     if(q&&!g.analysisPending){questionId=q.question.id;clarification=clarificationQuestionHtml(q,g,curationView.plan,reviewButton,true);}
     else if(g.analysisFailed)clarification=`<h2>I couldn't finish analyzing this answer.</h2><p>Your saved answers are retained. You can defer this question and continue.</p><div class="actions">${g.canRetryAnalysis?reviewButton('retry_analysis','Try again'):''}${reviewButton('pending-later','Answer later')}</div>`;
-    else if(g.analysisPending)clarification=`<h2>Reviewing your answer…</h2><p>Your answer is saved.</p>${reviewDispatch?`<p role="status">${escapeHtml(reviewDispatch)}</p>`:''}${reviewButton('continue-chat','Continue analysis in chat')}${reviewButton('pending-later','Answer later')}`;
+    else if(g.analysisPending)clarification=`<h2>${(w.operation??memorySyncOperation(w)).phase==='submitted'?'Answer submitted · validation pending':'Answer saved · awaiting agent analysis'}</h2><p>Your answer is saved.</p>${reviewDispatch?`<p role="status">${escapeHtml(reviewDispatch)}</p>`:''}${reviewButton('continue-chat','Continue analysis in chat')}${reviewButton('pending-later','Answer later')}`;
     else if(q){questionId=q.question.id;clarification=clarificationQuestionHtml(q,g,curationView.plan,reviewButton,true);}
   }else if(curationView?.syncWorkflowId===w.id)curationView=null;
-  const promotion=w.state==='awaiting_promotion_selection'?`${w.promotionCandidates.length?`<div class="actions">${button('promotions-all','Select all')}${button('promotions-none','Deselect all')}</div>`:''}${w.promotionCandidates.map((c:any)=>`<label class="project-skill memory-choice"><input type="checkbox" data-sync-promotion="${escapeHtml(c.id)}" ${syncPromotionSelection?.ids.has(c.id)?'checked':''} ${busyAction?'disabled':''}> ${escapeHtml(c.title)}</label>`).join('')||'<p>No Local Knowledge is waiting for sharing review.</p>'}<div class="actions">${w.promotionCandidates.length?`<button data-memory-sync="promotions" class="primary" ${busyAction||!selectedPromotions.length?'disabled':''}>Review selected knowledge</button>`:'' }${button('complete','Finish without sharing')}</div>`:'';
+  const promotion=w.state==='awaiting_promotion_selection'?`${w.promotionCandidates.length?`<div class="actions">${button('promotions-all','Select all')}${button('promotions-none','Deselect all')}</div>`:''}${w.promotionCandidates.map((c:any)=>`<label class="project-skill memory-choice"><input type="checkbox" data-sync-promotion="${escapeHtml(c.id)}" ${syncPromotionSelection?.ids.has(c.id)?'checked':''} ${busyAction?'disabled':''}> ${escapeHtml(c.title)}</label>`).join('')||'<p>No Local Knowledge is waiting for sharing review.</p>'}<div class="actions">${w.promotionCandidates.length?`<button data-memory-sync="promotions" class="primary" ${busyAction||syncBlocked()||!selectedPromotions.length?'disabled':''}>Review selected knowledge</button>`:'' }${button('complete','Finish without sharing')}</div>`:'';
   const sections=m.sections.map(section=>`<section class="memory-review"><h3>${escapeHtml(section.title===w.review?.preview?.summary?.label?m.reviewAreaLabel:section.title)}</h3>${section.items.map(i=>`<article>${i.title?`<h4>${escapeHtml(i.title)}</h4>`:''}<div class="context-content">${escapeHtml(i.body)}</div>${i.notes.map(n=>`<p class="context-muted">${escapeHtml(n)}</p>`).join('')}</article>`).join('')}</section>`).join('');
   const review=w.state==='awaiting_review'?`<div class="actions">${button('approve',w.review.kind==='promotion'?'Share reviewed knowledge':'Approve reviewed changes',true)}${button('skip','Skip this review')}</div>`:'';
-  host.innerHTML=`<main class="shell skills-shell memory-sync"><section class="skills-hero">${brand('Sync Memory','improve and share')}${w.state==='awaiting_selection'?'':`<h2 role="status" aria-live="polite">${escapeHtml(m.graphicalHeadline)}</h2><p class="lead compact">${MEMORY_COPY.purpose}</p>`}</section><section class="panel">${m.notes.map(n=>`<p>${escapeHtml(n)}</p>`).join('')}${m.warnings.map(n=>`<p class="knowledge-warning" role="status">${escapeHtml(n)}</p>`).join('')}${m.metrics.length?`<div class="metrics">${m.metrics.map(v=>metric(v.value,v.label)).join('')}</div>`:''}${jobs}${selected}${clarification}${sections}${promotion}${review}${w.state==='semantic_work'?`<div class="actions">${button('agent','Continue improving memory',true)}${button('skip','Continue with other knowledge')}</div>`:''}${message?`<p class="message" role="status">${escapeHtml(message)}</p>`:''}<details class="memory-details"><summary>Details and diagnostics</summary>${['semantic_work','awaiting_clarification'].includes(w.state)?`<p>Continue in chat</p><pre class="context-content">${escapeHtml(w.clarification?.graphical?.continuationJobId?continuationMessage(w.clarification.graphical.continuationJobId):syncContinuationMessage(w))}</pre>`:''}<pre class="context-content">${escapeHtml(JSON.stringify({...w,semantic:undefined},null,2))}</pre>${w.jobs.filter((j:any)=>j.status==='failed').map((j:any,i:number)=>`<button data-sync-retry="${escapeHtml(j.id)}" ${busyAction?'disabled':''}>Retry incomplete analysis ${i+1}</button>`).join('')}</details><div class="actions">${['semantic_work','awaiting_clarification','applying'].includes(w.state)?button('inspect','Check progress'):''}${w.state==='stale'||w.state==='completed'?button('restart','Re-analyze memory'):''}${button('back','Back to Prodero')}</div></section></main>`;
+  const revisits=(w.deferredQuestions??[]).map((q:any,index:number)=>{const descriptor=(w.operation??memorySyncOperation(w)).actions.find((a:any)=>a.id===(q.expired?`refresh:${q.candidateId}:${q.questionId}`:`revisit:${q.questionId}`));return descriptor?`<button data-sync-revisit="${index}" ${busyAction||syncBlocked()?'disabled':''}>${escapeHtml(descriptor.label)}</button>`:'';}).join('');
+  host.innerHTML=`<main class="shell skills-shell memory-sync"><section class="skills-hero">${brand('Curate Memory','improve and share')}${w.state==='awaiting_selection'?'':`<h2 role="status" aria-live="polite">${escapeHtml(m.graphicalHeadline)}</h2><p class="lead compact">${MEMORY_COPY.purpose}</p>`}</section><section class="panel">${m.notes.map(n=>`<p>${escapeHtml(n)}</p>`).join('')}${m.warnings.map(n=>`<p class="knowledge-warning" role="status">${escapeHtml(n)}</p>`).join('')}${m.metrics.length?`<div class="metrics">${m.metrics.map(v=>metric(v.value,v.label)).join('')}</div>`:''}${jobs}${selected}${clarification}${sections}${promotion}${review}${revisits?`<div class="actions">${revisits}</div>`:''}${w.state==='semantic_work'?`<div class="actions">${button('agent','Continue improving memory',true)}${button('skip','Continue with other knowledge')}</div>`:''}${syncClientNotice(syncClient)?`<p class="message" role="status">${escapeHtml(syncClientNotice(syncClient))}</p>`:''}${message?`<p class="message" role="status">${escapeHtml(message)}</p>`:''}<details class="memory-details"><summary>Details and diagnostics</summary>${['semantic_work','awaiting_clarification'].includes(w.state)?`<p>Continue in chat</p><pre class="context-content">${escapeHtml(w.clarification?.graphical?.continuationJobId?continuationMessage(w.clarification.graphical.continuationJobId):syncContinuationMessage(w))}</pre>`:''}<pre class="context-content">${escapeHtml(JSON.stringify({...w,semantic:undefined},null,2))}</pre>${(w.operation??memorySyncOperation(w)).actions.filter((a:any)=>a.id.startsWith('retry:')).map((a:any,i:number)=>`<button data-sync-retry="${escapeHtml(a.arguments.request.candidateId)}" ${busyAction||syncBlocked()?'disabled':''}>Retry incomplete analysis ${i+1}</button>`).join('')}</details><div class="actions">${button('inspect','Check progress')}${w.state==='stale'||w.state==='completed'?button('restart','Re-analyze memory'):''}${button('back','Back to Prodero')}</div></section></main>`;
+  host.querySelectorAll<HTMLButtonElement>('[data-sync-revisit]').forEach(b=>b.addEventListener('click',()=>void memorySyncAction('revisit',{index:Number(b.dataset.syncRevisit)})));
   host.querySelectorAll<HTMLButtonElement>('[data-memory-sync]').forEach(b=>b.addEventListener('click',()=>void memorySyncAction(b.dataset.memorySync!)));
   host.querySelectorAll<HTMLInputElement>('#sync-improve-choice,#sync-promotion-choice,#sync-repair-links-choice').forEach(e=>e.addEventListener('change',()=>{syncOptions={repairLinks:host.querySelector<HTMLInputElement>('#sync-repair-links-choice')?.checked??syncOptions.repairLinks,improve:host.querySelector<HTMLInputElement>('#sync-improve-choice')!.checked,share:host.querySelector<HTMLInputElement>('#sync-promotion-choice')!.checked};render();}));
   host.querySelectorAll<HTMLInputElement>('[data-sync-promotion]').forEach(e=>e.addEventListener('change',()=>{if(!syncPromotionSelection)return;if(e.checked)syncPromotionSelection.ids.add(e.dataset.syncPromotion!);else syncPromotionSelection.ids.delete(e.dataset.syncPromotion!);render();}));
@@ -672,31 +684,36 @@ function renderMemorySync() {
   host.querySelectorAll<HTMLButtonElement>('[data-sync-retry]').forEach(b=>b.addEventListener('click',()=>void memorySyncAction('retry',{candidateId:b.dataset.syncRetry})));
 }
 /** Ignore delayed host echoes from an older step; keep one authoritative Sync surface. */
-function adoptMemorySync(next:any) {
-  if(memorySyncView?.id===next.id&&memorySyncView.revision>=next.revision)return false;
-  if(memorySyncView?.id!==next.id)syncOptions={improve:true,share:true,repairLinks:true};
+function adoptMemorySync(next:any,authoritative=false) {
+  if(memorySyncView?.root===next.root&&memorySyncView?.id===next.id&&(memorySyncView.revision>next.revision||!authoritative&&memorySyncView.revision===next.revision))return false;
+  if(memorySyncView?.root!==next.root||memorySyncView?.id!==next.id){syncContextEpoch++;syncOptions={improve:true,share:true,repairLinks:true};syncClient=undefined;syncPoll=0;}
   memorySyncView=next;
   if(next.clarification)curationView={...next.clarification,syncWorkflowId:next.id};
   else if(curationView?.syncWorkflowId===next.id)curationView=null;
   return true;
 }
-const syncContinuationMessage=(w:any)=>`Continue the started Prodero Sync Memory workflow ${w.id} for project ${w.root}. Inspect, then prepare the next candidate. If prepare returns a curation job, retrieve and submit it with prodero_curation_reasoning_prepare/propose, then inspect this same Sync workflow and continue independent work. For legacy transformation bundles use memory_sync prepare/propose. At awaiting_clarification, awaiting_promotion_selection or human_review_required, follow next.tool and next.arguments to present the saved human step once before stopping; never approve or publish for me. Do not start a session or scan other memory.`;
+const syncContinuationMessage=(w:any)=>`Continue the started Prodero Curate Memory workflow ${w.id} for project ${w.root}. Inspect, then prepare the next candidate. If prepare returns a curation job, retrieve and submit it with prodero_curation_reasoning_prepare/propose, then inspect this same Sync workflow and continue independent work. For legacy transformation bundles use memory_sync prepare/propose. At awaiting_clarification, awaiting_promotion_selection or human_review_required, follow next.tool and next.arguments to present the saved human step once before stopping; never approve or publish for me. Do not start a session or scan other memory.`;
 async function requestMemorySyncAgent() {
-  const w=memorySyncView;
-  const dispatch=app.sendMessage({role:'user',content:[{type:'text',text:syncContinuationMessage(w)}]});
-  const response=await(typeof setTimeout==='function'?Promise.race([dispatch,new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('Host continuation timed out')),5000))]):dispatch);
-  if(response.isError)throw new Error('Host could not resume the agent. Ask the agent to continue this Sync Memory workflow.');
-  message='Your agent is reviewing memory. You can leave and continue later.';
-
+  const w=memorySyncView,epoch=syncContextEpoch,current=()=>epoch===syncContextEpoch&&memorySyncView?.root===w.root&&memorySyncView?.id===w.id;
+  syncClient={workflowId:w.id,stage:'handoff',certainty:'requested',confirmedState:true};render();
+  try{
+    const dispatch=app.sendMessage({role:'user',content:[{type:'text',text:syncContinuationMessage(w)}]});
+    const response=await(typeof setTimeout==='function'?Promise.race([dispatch,new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('Host continuation timed out')),5000))]):dispatch);
+    if(response===undefined||response===null||response.isError)throw new Error('Host continuation unconfirmed');
+    if(current())syncClient={workflowId:w.id,stage:'handoff',certainty:'acknowledged',confirmedState:true};
+  }catch{if(current())syncClient=syncClientFailure(w.id,'handoff',undefined,true);}
 }
-async function memorySyncAction(action:string,extra:Record<string,unknown>={},continueAgent=false) {
+
+async function memorySyncAction(action:string,extra:Record<string,unknown>={},continueAgent=false,automatic=false) {
   if(busyAction)return;
-  if(action==='back'){syncPollEpoch++;curationView=null;const root=memorySyncView.root;memorySyncView=null;knowledgeView=null;await loadStatus(root);return;}
+  if(action==='back'){syncContextEpoch++;syncPollEpoch++;curationView=null;const root=memorySyncView.root;memorySyncView=null;knowledgeView=null;await loadStatus(root);return;}
   const w=memorySyncView;
   if(action==='promotions-all'||action==='promotions-none'){
     syncPromotionSelection={workflow:JSON.stringify([w.root,w.id]),ids:new Set(action==='promotions-all'?w.promotionCandidates.map((c:any)=>c.id):[])};
     render();return;
   }
+  if(syncBlocked()&&!['inspect','back'].includes(action))return;
+  if(!automatic&&action==='inspect'){syncPoll=0;if(syncClient)syncClient.pollPaused=false;}
   const request:any={action,workflowId:w.id,revision:w.revision,...extra};
   if(action==='select'){request.improve=host.querySelector<HTMLInputElement>('#sync-improve-choice')?.checked??syncOptions.improve;request.share=host.querySelector<HTMLInputElement>('#sync-promotion-choice')?.checked??syncOptions.share;request.repairLinks=Boolean(w.brokenLinks)&&(host.querySelector<HTMLInputElement>('#sync-repair-links-choice')?.checked??syncOptions.repairLinks);if(!request.improve&&!request.share&&!request.repairLinks)return;}
   if(action==='promotions'){request.ids=w.promotionCandidates.filter((c:any)=>syncPromotionSelection?.ids.has(c.id)).map((c:any)=>c.id);if(!request.ids.length)return;}
@@ -704,29 +721,56 @@ async function memorySyncAction(action:string,extra:Record<string,unknown>={},co
   if(action==='skip'&&w.review?.kind!=='link-repair')request.candidateId=w.jobs.find((j:any)=>j.selected&&['pending','semantic_work','awaiting_review'].includes(j.status))?.id;
   if(action==='inspect'){delete request.revision;}
   if(action==='restart'){request.action='start';request.restart=true;delete request.workflowId;delete request.revision;}
+  const selection={...syncOptions,promotionIds:syncPromotionSelection?.workflow===JSON.stringify([w.root,w.id])?w.promotionCandidates.filter((c:any)=>syncPromotionSelection!.ids.has(c.id)).map((c:any)=>c.id):w.promotionCandidates.map((c:any)=>c.id)};
+  if(action==='select')Object.assign(selection,{improve:request.improve,share:request.share,repairLinks:request.repairLinks});
+  const operation=memorySyncOperation(w,selection),key=action==='retry'?`retry:${String(extra.candidateId)}`:action==='restart'?'restart':action;
+  const descriptor=operation.actions.find(a=>a.id===key);
+  if(!['agent','revisit'].includes(action)&&!descriptor)return;
+  const epoch=syncContextEpoch,requestEpoch=++syncRequestEpoch,current=()=>epoch===syncContextEpoch&&requestEpoch===syncRequestEpoch&&memorySyncView?.root===w.root&&memorySyncView?.id===w.id;
+  let rejectedResponse:unknown;
   busyAction='memory-sync';message='';render();
   try{
-    if(action==='agent'){await requestMemorySyncAgent();syncPoll=0;pollMemorySync();return;}
-    const response=await app.callServerTool({name:PRODERO_TOOLS.memorySync,arguments:{projectRoot:w.root,request}});
-    const payload=parseToolResult(response);if(response.isError||!payload?.ok)throw new Error(payload?.message??payload?.error??'Memory Sync action failed; refresh before retry.');
-    adoptMemorySync(payload.result);
+    if(action==='agent'){await requestMemorySyncAgent();if(current()){syncPoll=0;pollMemorySync();}return;}
+    if(action==='revisit'){
+      const q=w.deferredQuestions?.[Number(extra.index)];if(!q)throw new Error('Deferred question changed. Check saved progress.');
+      const id=q.expired?`refresh:${q.candidateId}:${q.questionId}`:`revisit:${q.questionId}`,bound=operation.actions.find(a=>a.id===id);
+      if(!bound)throw new Error('Saved question action changed.');
+      const invocation=bound.app??bound;
+      const response=await app.callServerTool({name:invocation.tool,arguments:invocation.arguments});
+      if(response.isError){rejectedResponse=response;throw new Error('Saved question action rejected');}
+      if(!current())return;
+      const inspected=await app.callServerTool({name:PRODERO_TOOLS.memorySync,arguments:{projectRoot:w.root,request:{action:'inspect',workflowId:w.id}}});
+      if(!current())return;
+      const saved=parseToolResult(inspected);if(inspected.isError||!saved?.ok||saved.result?.root!==w.root||saved.result?.id!==w.id)throw new Error('Check saved progress to confirm this question was reopened.');
+      adoptMemorySync(saved.result,true);return;
+    }
+    const response=await app.callServerTool({name:descriptor!.tool,arguments:descriptor!.arguments});
+    const payload=parseToolResult(response);if(response.isError||!payload?.ok){rejectedResponse=response;throw new Error('Sync rejected');}
+    if(!current())return;
+    if(payload.result?.root!==w.root||action!=='restart'&&payload.result?.id!==w.id)throw new Error('Sync response does not match the saved workflow.');
+    if(!adoptMemorySync(payload.result,true))return;
+    if(action!=='inspect')syncClient=undefined;else if(syncClient)syncClient.confirmedState=true;
     if(memorySyncView.state==='semantic_work'&&(['select','approve','skip','retry'].includes(action)||continueAgent))await requestMemorySyncAgent();
   }catch {
-    // Core may have invalidated the saved review while refusing the action.
-    // Read its authoritative state once; never retry an approval automatically.
+    // Preserve a screened Core cause; raw transport errors are never displayed.
+    // Inspect once and never replay a mutation or approval automatically.
+    if(!current())return;
+    let confirmed=false;
     try {
+      if(action==='inspect')throw new Error('Inspect already attempted.');
       const response=await app.callServerTool({name:PRODERO_TOOLS.memorySync,arguments:{projectRoot:w.root,request:{action:'inspect',workflowId:w.id}}});
       const payload=parseToolResult(response);
-      if(!response.isError&&payload?.ok)adoptMemorySync(payload.result);
-    }catch { /* Keep the existing surface when the host is unavailable. */ }
-    message=memorySyncView?.state==='stale'?'':memorySyncView?.state==='semantic_work'?'Your progress is saved. Ask your current agent to continue Sync Memory.':'Unable to finish this step. Your saved progress is retained. Try again.';
+      if(current()&&!response.isError&&payload?.ok&&payload.result.root===w.root&&payload.result.id===w.id&&payload.result.revision>=w.revision){confirmed=adoptMemorySync(payload.result,true);}
+    }catch { /* The action outcome remains unknown. */ }
+    if(current())syncClient=action==='inspect'&&syncClient?{...syncClient,confirmedState:syncClient.confirmedState}:syncClientFailure(w.id,'action',rejectedResponse,confirmed);
   }finally{busyAction=null;render();}
-  if(action!=='inspect')syncPoll=0;pollMemorySync();
+  if(current()){if(action!=='inspect')syncPoll=0;pollMemorySync();}
 }
 function pollMemorySync(){
- const epoch=++syncPollEpoch,id=memorySyncView?.id;
- if(!memorySyncView||!['semantic_work','awaiting_clarification'].includes(memorySyncView.state)||memorySyncView.clarification?.graphical?.activeQuestionCount&&!memorySyncView.clarification.graphical.analysisPending||syncPoll>=12||typeof setTimeout!=='function')return;
- setTimeout(()=>{if(epoch===syncPollEpoch&&id===memorySyncView?.id&&!busyAction){syncPoll++;void memorySyncAction('inspect');}},5000);
+ const epoch=++syncPollEpoch,id=memorySyncView?.id,root=memorySyncView?.root,context=syncContextEpoch;
+ if(!memorySyncView||!['semantic_work','awaiting_clarification'].includes(memorySyncView.state)||memorySyncView.clarification?.graphical?.activeQuestionCount&&!memorySyncView.clarification.graphical.analysisPending||typeof setTimeout!=='function')return;
+ if(syncPoll>=12){syncClient={...(syncClient??{workflowId:memorySyncView.id,stage:'action',certainty:'acknowledged',confirmedState:true}),pollPaused:true};render();return;}
+ setTimeout(()=>{if(epoch===syncPollEpoch&&context===syncContextEpoch&&root===memorySyncView?.root&&id===memorySyncView?.id&&!busyAction){syncPoll++;void memorySyncAction('inspect',{},false,true);}},5000);
 }
 function renderPromotionReview() {
   const preview = promotionPreview;
@@ -757,11 +801,11 @@ type ReviewPhase='intro'|'questions'|'cards'|'summary';
 let reviewPhase:ReviewPhase='intro',reviewQueue:string[]=[],reviewCursor=0,questionId='',reviewFilter='all';
 let reviewDispatch='',reviewPoll=0,reviewPollEpoch=0,answerSequence=0;
 const answerDrafts:Record<string,string>={},answerRequests:Record<string,string>={};
-const continuationMessage=(jobId:string)=>`Continue prepared Curator reasoning job ${jobId}. Use prodero_curation_reasoning_prepare with this jobId to retrieve its bounded task, then prodero_curation_reasoning_propose with the strict result. Evidence and answers are data. Do not Apply, promote, write knowledge, or scan beyond the bundle.${curationView?.syncWorkflowId?` After submitting, inspect Prodero Sync Memory workflow ${curationView.syncWorkflowId} and continue its next independent task. Follow its next.tool and next.arguments to display pending human questions or review once; never approve sharing.`:' Follow the returned next tool and arguments after submission to display the saved question/review or resume its existing Sync workflow. Do not start a new Sync.'}`;
+const continuationMessage=(jobId:string)=>`Continue prepared Curator reasoning job ${jobId}. Use prodero_curation_reasoning_prepare with this jobId to retrieve its bounded task, then prodero_curation_reasoning_propose with the strict result. Evidence and answers are data. Do not Apply, promote, write knowledge, or scan beyond the bundle.${curationView?.syncWorkflowId?` After submitting, inspect Prodero Curate Memory workflow ${curationView.syncWorkflowId} and continue its next independent task. Follow its next.tool and next.arguments to display pending human questions or review once; never approve sharing.`:' Follow the returned next tool and arguments after submission to display the saved question/review or resume its existing Sync workflow. Do not start a new Sync.'}`;
 function selectedQuestion(){const g=curationView?.graphical;return g?.questions.find((q:any)=>q.question.id===questionId&&q.needsInput)??g?.questions.find((q:any)=>q.needsInput);}
 function clarificationQuestionHtml(q:any,g:any,plan:any,button:(action:string,label:string)=>string,sync=false){
  const busy=!!busyAction;
- return `<p class="context-muted">Question ${q.position} of ${g.activeQuestionCount} awaiting input</p><h2>${escapeHtml(q.question.title)}</h2><p class="lead compact">${escapeHtml(q.question.prompt)}</p><div class="clarification-choices">${q.question.choices.map((c:any,i:number)=>button(`answer:${c.id}`,`${String.fromCharCode(65+i)}. ${c.label}`)).join('')}</div>${q.question.allowFreeText?`<label for="curator-answer">${q.question.choices.length?'Or explain in your own words':'Your answer'}</label><textarea id="curator-answer" rows="4" maxlength="8192" ${busy?'disabled':''}>${escapeHtml(answerDrafts[q.question.id]??'')}</textarea>${button('answer-free','Save answer')}`:''}<div class="actions">${button('question-later','Answer later')}${sync?'':button('summary','Review ready changes')+button('all','View all changes')}</div><details class="memory-details"><summary>Details</summary><p>${escapeHtml(q.why)}</p>${plan.proposals.filter((v:any)=>q.sourceIds.includes(v.id)).map((v:any)=>`<section><h3>${escapeHtml(v.before.title)}</h3><div class="curation-content">${escapeHtml(v.before.content)}</div></section>`).join('')}<p>${q.limitations.map(escapeHtml).join(' · ')}</p></details>`;
+ return `<p class="context-muted">Question ${q.position} of ${g.activeQuestionCount} awaiting input</p><h2>${escapeHtml(q.question.title)}</h2><p class="lead compact">${escapeHtml(q.question.prompt)}</p><div class="clarification-choices">${q.question.choices.map((c:any,i:number)=>button(`answer:${c.id}`,`${String.fromCharCode(65+i)}. ${c.label}`)).join('')}</div>${q.question.allowFreeText?`<label for="curator-answer">${q.question.choices.length?'Or explain in your own words':'Your answer'}</label><textarea id="curator-answer" rows="4" maxlength="8192" ${busy?'disabled':''}>${escapeHtml(answerDrafts[q.question.id]??'')}</textarea>${button('answer-free','Save answer')}`:''}<div class="actions">${q.relatedQuestions?.length>1?`<p>${escapeHtml(q.relatedQuestions.map((q:any)=>q.title).join('; '))} are deferred together.</p>`:''}${button('question-later',q.relatedQuestions?.length>1?`Defer ${q.relatedQuestions.length} related questions`:'Answer later')}${sync?'':button('summary','Review ready changes')+button('all','View all changes')}</div><details class="memory-details"><summary>Details</summary><p>${escapeHtml(q.why)}</p>${plan.proposals.filter((v:any)=>q.sourceIds.includes(v.id)).map((v:any)=>`<section><h3>${escapeHtml(v.before.title)}</h3><div class="curation-content">${escapeHtml(v.before.content)}</div></section>`).join('')}<p>${q.limitations.map(escapeHtml).join(' · ')}</p></details>`;
 }
 function renderKnowledgeReview(){
  const data=curationView,review=data.review,plan=data.plan,p=data.applied?.projection??data.projection,g=data.graphical,units=p?.items??[],busy=!!busyAction;
@@ -824,6 +868,7 @@ function pollCuration(){
 async function knowledgeReviewAction(action:string){
  if(busyAction)return;
  const data=curationView,review=data.review,root=data.root,g=data.graphical,sync=Boolean(data.syncWorkflowId&&data.syncWorkflowId===memorySyncView?.id);
+ if(sync&&syncBlocked()&&!['back','reload','poll'].includes(action))return;
  if(action==='back'){reviewPollEpoch++;return curationAction({tool:PRODERO_TOOLS.open,arguments:{projectRoot:root}});}
  if(action==='remaining'&&data.applied?.successor){curationView={...data,applied:undefined};return knowledgeReviewAction('reload');}
  if(action==='all'||action.startsWith('filter:')){reviewFilter=action==='all'?'all':action.slice(7);reviewQueue=reviewFilter==='all'?data.projection.items.map((u:any)=>u.id):g?.filters[reviewFilter]??[];reviewCursor=0;reviewPhase='cards';message='';render();return;}
@@ -1004,21 +1049,21 @@ async function act(action: string) {
   if (action === "knowledge") { knowledgeView = { root: state?.project.root }; knowledgeRoot = state?.project.root; lifecycle=null; await knowledgeAction("list"); return; }
   if (action === "skills") { await skillsAction("list"); return; }
   if (busyAction) return;
-  busyAction = action; message = action === "init" ? "Initializing project intelligence…" : action === "sync" ? "Analyzing Sync Memory…" : "Checking the Prodero release…"; render();
+  busyAction = action; message = action === "init" ? "Initializing project intelligence…" : action === "sync" ? "Analyzing Curate Memory…" : "Showing update instructions…"; render();
   try {
     const root = state?.project.root;
     if (action === "init") { const initialized = parseToolResult(await app.callServerTool({ name: PRODERO_TOOLS.initialize, arguments: root ? { projectRoot: root } : {} })); if (initialized?.status) state = initialized.status as StatusPayload; lifecycle = null; message = "Prodero initialized."; }
     else if (action === "sync") {
       const reanalyze=state?.project.memoryOverview?.workflow?.state==='stale';
       const synced = parseToolResult(await app.callServerTool({ name: reanalyze?PRODERO_TOOLS.memorySync:PRODERO_TOOLS.sync, arguments: {...(root?{projectRoot:root}:{}),...(reanalyze?{request:{action:'start',restart:true}}:{})} }));
-      if(!synced?.ok)throw new Error('Sync Memory could not start');
+      if(!synced?.ok)throw new Error('Curate Memory could not start');
       adoptMemorySync(synced.result);lifecycle=null;message='';
     }
     else {
-      const result = parseToolResult(await app.callServerTool({ name: PRODERO_TOOLS.update, arguments: root ? { projectRoot: root } : {} }));
-      message = result?.message ?? "Update request completed.";
-      if (result?.update && state) state.update = result.update;
-      if (result?.restartRequired && state) state.update = { ...state.update, available: false, status: "restart-required" };
+      const response = await app.callServerTool({ name: PRODERO_TOOLS.update, arguments: root ? { projectRoot: root } : {} });
+      const result = parseToolResult(response);
+      if(response.isError)throw new Error(result?.message ?? response.content?.find(c=>c.type==='text')?.text ?? 'Update instructions unavailable.');
+      message = result?.instructionOnly === true ? result.message : UPDATE_INSTRUCTIONS;
     }
   } catch (error) { message = error instanceof Error ? error.message : String(error); }
   finally { busyAction = null; render(); }

@@ -14,12 +14,12 @@ test('ASCII catalogue stays aligned, wraps long titles and strips controls/fence
  const lines=result.split('\n').slice(1,-1);assert.equal(new Set(lines.map(l=>l.length)).size,1);assert.equal(lines[0].length,95);
  assert.equal(renderKnowledgeTable([]),'No knowledge matches these filters.');
 });
-test('list defaults to table while expanded inspection keeps bodies and exact details',()=>{
+test('list defaults to letter catalogue while expanded inspection keeps bodies and exact details',()=>{
  const result={root:'/tmp/project',counts:{local:1,versioned:0,recommended:0},total:1,options:{offset:0},matches:[{...row,contentPreview:'Detailed preserved body'}]};
  const vm=buildViewModel({action:'knowledge',result});const text=renderText(vm);
- assert.match(text,/Enter a record number \(for example 1\)/);assert.match(text,/Showing 1-1 of 1/);assert.doesNotMatch(text,/Detailed preserved body/);assert.match(renderText(vm,false,true),/Detailed preserved body/);
+ assert.match(text,/Enter a letter to open its record/);assert.match(text,/Showing 1-1 of 1/);assert.match(text,/Detailed preserved body/);assert.match(renderText(vm,false,true),/Detailed preserved body/);
  const detail=buildViewModel({action:'knowledge',result:{...result,detail:{...result.matches[0],revision:'abc',content:'Full knowledge statement'}}});
- assert.equal(detail.knowledgeTable,undefined);assert.match(renderText(detail),/Full knowledge statement/);assert.match(renderText(detail),/Revision: abc/);assert.match(renderText(detail),/Revision: abc[\s\S]*\n-------------\n\n• Edits preserve/);assert.ok(renderText(detail).indexOf('Full knowledge statement')<renderText(detail).indexOf('-------------'));
+ assert.equal(detail.knowledgeTable,undefined);assert.match(renderText(detail),/Full knowledge statement/);assert.match(renderText(detail),/Revision: abc/);assert.match(renderText(detail),/Revision: abc[\s\S]*-------------[\s\S]*Edits preserve/);assert.ok(renderText(detail).indexOf('Full knowledge statement')<renderText(detail).indexOf('-------------'));
  assert.match(PRESENTATION_REPLY,/Claude Code.*prodero_text/);
 });
 test('MCP text and UI fallback supply tables with exact page-local row bindings; pagination retains filters',async t=>{
@@ -31,14 +31,15 @@ test('MCP text and UI fallback supply tables with exact page-local row bindings;
  const first=await call(T.knowledge,args);assert.equal(first.isError,undefined);assert.match(first.content[0].text,/```text/);
  const op=JSON.parse(first.content[1].text).proderoOperation;assert.equal(op.knowledgeRows.length,2);
  assert.deepEqual(op.numberedActions.slice(0,2).map(a=>a.number),[1,2]);
- assert.deepEqual(op.numberedActions[0].arguments,op.knowledgeRows[0].arguments);
+ assert.equal(op.numberedActions[0].label,'Search knowledge');assert.equal(op.numberedActions[0].input.field,'query');assert.deepEqual(op.entryActions[0].arguments,op.knowledgeRows[0].arguments);
  assert.equal(op.numberedActions[2].number,3);
- assert.match(first.content[0].text,/3\. Inspect knowledge by ID/);
+ assert.match(first.content[0].text,/1 > Search knowledge/);assert.deepEqual(op.knowledgeRows.map(r=>r.key),['A','B']);
  assert.doesNotMatch(first.content[0].text,/^1\. /m);assert.equal(op.knowledgeRows[0].id,first.structuredContent.result.matches[0].id);
  assert.deepEqual(op.knowledgeRows[0].arguments,{projectRoot:f.root,...first.structuredContent.result.options,id:first.structuredContent.result.matches[0].id});
+ const searched=await call(op.numberedActions[0].tool,{...op.numberedActions[0].arguments,query:'driving'});assert.equal(searched.isError,undefined);assert.equal(searched.structuredContent.result.options.query,'driving');
  const next=first.structuredContent.presentation.actions.find(a=>a.label==='Next page');assert.equal(next.arguments.layer,'local');assert.equal(next.arguments.offset,2);
- const second=await call(T.knowledge,next.arguments);assert.match(second.content[0].text,/Showing 3-4 of 4/);const rows=JSON.parse(second.content[1].text).proderoOperation.knowledgeRows;assert.equal(rows[0].key,'1');assert.deepEqual(JSON.parse(second.content[1].text).proderoOperation.numberedActions[0].arguments,rows[0].arguments);assert.notEqual(rows[0].id,op.knowledgeRows[0].id);
- const inspected=await call(T.knowledge,rows[0].arguments);assert.equal(inspected.structuredContent.result.detail.id,rows[0].id);assert.match(inspected.content[0].text,/Knowledge detail/);
+ const second=await call(T.knowledge,next.arguments);assert.match(second.content[0].text,/Showing 3-4 of 4/);const rows=JSON.parse(second.content[1].text).proderoOperation.knowledgeRows;assert.equal(rows[0].key,'A');assert.deepEqual(JSON.parse(second.content[1].text).proderoOperation.entryActions[0].arguments,rows[0].arguments);assert.notEqual(rows[0].id,op.knowledgeRows[0].id);
+ const inspected=await call(T.knowledge,rows[0].arguments);assert.equal(inspected.structuredContent.result.detail.id,rows[0].id);assert.match(inspected.content[0].text,/Knowledge detail/);assert.deepEqual(JSON.parse(inspected.content[1].text).proderoOperation.entryActions,[]);
  const detailActions=JSON.parse(inspected.content[1].text).proderoOperation.numberedActions;
  const back=detailActions[0];assert.equal(back.label,'Back to knowledge list');assert.equal(back.number,1);
  assert.deepEqual(back.arguments,next.arguments);assert.equal(back.arguments.id,undefined);

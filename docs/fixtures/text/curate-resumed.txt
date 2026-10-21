@@ -1,0 +1,87 @@
+```text
+╭─ >_ PRODERO ──────────────────── /04
+│ prodero-bundle-fixture-3KYkZN ·
+│ project memory
+│
+├─ CURATE MEMORY ─────────────────────
+│ Review shared-memory changes
+│ Review required · not approval.
+│ Before · current memories  4
+│ After · current memories  2
+│ Estimated tokens · before → after
+│ 142 → 131
+│ Versioned Knowledge is
+│ Git-shareable project state that
+│ your agent can change. Curator does
+│ not commit or push; review the
+│ repository diff before doing so.
+│ Local and shared changes will be
+│ saved together after approval.
+│ 2 Local memories will be
+│ represented in the new shared
+│ knowledge; the originals stay in
+│ history.
+│ Please review the proposed wording.
+│ Prodero checks data integrity but
+│ cannot guarantee that every meaning
+│ was preserved.
+│ Your place and saved answers are
+│ retained. Leave and return with
+│ Continue curation.
+│ Skip or Answer later retains
+│ original knowledge and saved
+│ answers, then continues other
+│ selected work.
+├─ src/driving ───────────────────────
+│
+├─ Shared-memory changes ─────────────
+│
+├─ Proposed current knowledge ────────
+│ Driving integration and tire loads
+│
+│   ───────────────────────────
+│
+│ Driving replay and slip verification
+│
+│ Review the proposed changes?
+╰─────────────────────────────────────
+```
+
+```text
+src/driving:
+4 memories consolidated; 0 memories replaced by newer project state; 0 previous memories remain current.
+4 previous memories will be preserved in history.
+```
+
+```text
+Shared-memory changes:
+2 new current memories; 2 memories consolidated; 0 memories replaced by newer project state.
+2 previous shared memories preserved in Versioned archive files.
+```
+
+```text
+Proposed current knowledge:
+Driving integration and tire loads
+Evaluate traction at a fixed 60 Hz step. Calculate tire forces before integrating chassis velocity. Under braking, normal load shifts toward the front axle; calculate tire force limits using updated per-wheel normal loads.
+state · path · src/driving · Shared / Versioned
+
+   ───────────────────────────
+
+Driving replay and slip verification
+Replay identical steering and throttle traces for regressions. Compare final pose and wheel-slip histories. Record longitudinal and lateral slip separately: slip traces reveal oscillations concealed by average speed metrics.
+lesson · path · src/driving · Shared / Versioned
+```
+
+```text
+Available actions:
+
+  1 > Approve reviewed changes
+      Explicit approval required.
+  2 > Skip this review
+  3 > Check progress
+  4 > Show details
+
+Reply with a number or the command name.
+```
+
+Approve these exact changes?

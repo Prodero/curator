@@ -7,6 +7,8 @@ import path from "node:path";
 import { z } from "zod";
 import { PRODERO_SCHEMA_VERSION, PRODERO_VERSION } from "./constants.js";
 import { writeFileAtomic } from "./storage.js";
+import {MANUAL_UPDATE_COMMAND, UPDATE_INSTRUCTIONS} from '../update-instructions.js';
+export {MANUAL_UPDATE_COMMAND} from '../update-instructions.js';
 
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const versionSchema = z.string().regex(semverPattern, "Expected a valid semantic version");
@@ -27,7 +29,6 @@ export interface ReleaseSource {
   latest(signal?: AbortSignal): Promise<unknown | null>;
   stage(release: ReleaseMetadata, signal?: AbortSignal): Promise<StagedRelease>;
 }
-export const MANUAL_UPDATE_COMMAND = "npm install --global @prodero/curator@latest";
 export interface UpdateCheck {
   manualUpdateCommand?: string; developmentOnly?: boolean;
   current: string; latest: string | null; available: boolean; source: string;
@@ -37,6 +38,11 @@ export interface UpdateCheck {
 export interface UpdateResult {
   ok: boolean; status: "manual-update" | "current" | "restart-required" | "failed" | "interrupted" | "unavailable" | "invalid";
   installedVersion: string; availableVersion: string | null; source: string; restartRequired: boolean; message: string;
+}
+/** MCP/App instructions are inert for every release source, including dev adapters. */
+export function updateInstructions(source: Pick<ReleaseSource, 'id'> = {id:'npm'}, installedVersion = PRODERO_VERSION) {
+  return {ok:true, action:'update-instructions' as const, instructionOnly:true as const, status:'manual-update' as const,
+    installedVersion, availableVersion:null, source:source.id, restartRequired:false, command:MANUAL_UPDATE_COMMAND, message:UPDATE_INSTRUCTIONS};
 }
 export class ReleaseSourceUnavailableError extends Error {}
 
@@ -112,7 +118,7 @@ async function runLocalBuild(root: string, signal?: AbortSignal): Promise<void> 
   });
 }
 
-/** One-click adapter for an MCP runtime launched from a development checkout. */
+/** Legacy internal development build adapter. Never invoked by MCP update instructions. */
 export class LocalCheckoutReleaseSource implements ReleaseSource {
   readonly id = "local-checkout";
   readonly installedReleaseId: string;
@@ -248,7 +254,7 @@ export async function installLatest(source: ReleaseSource = configuredReleaseSou
   if (source instanceof NpmReleaseSource || source instanceof UnconfiguredReleaseSource) {
     const check = await checkForUpdate(source, installedVersion);
     return { ok: true, status: "manual-update", installedVersion, availableVersion: check.latest, source: source.id, restartRequired: false,
-      message: `${check.error ? `${check.error} ` : ""}Run: ${MANUAL_UPDATE_COMMAND}. Then restart your MCP host. This tool has not installed or changed anything. Project knowledge remains in the project .prodero directory.` };
+      message: `${check.error ? `${check.error} ` : ""}${UPDATE_INSTRUCTIONS}` };
   }
   let raw: unknown | null;
   try { raw = await source.latest(AbortSignal.timeout(2_500)); }

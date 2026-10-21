@@ -39,6 +39,10 @@ Classes are structural, compatible-semantic and review-required. The latter is
 blocked until a migration-specific review resolver exists; `approved:true` never
 substitutes for semantic decisions. The knowledge registry contains the ordered compatible-semantic `knowledge-policy-1-2` and `knowledge-applicability-2-3` transitions. The current target is knowledge schema 3; see [Knowledge Schema v2](KNOWLEDGE-SCHEMA-V2.md) and [Applicability](APPLICABILITY.md).
 
+## Package installation stays separate
+
+`prodero update` updates only the verified npm package after terminal confirmation. It does not enumerate or migrate projects or change the selected dev checkout. After user restart/reconnect, Open/Prepare offer this existing migration gate only when project/knowledge formats require it. Chat update indicators and `prodero_update` provide terminal instructions, never package installation.
+
 ## Planning, approval and continuation
 
 `planProjectMigration` reads metadata without creating directories, sessions, caches

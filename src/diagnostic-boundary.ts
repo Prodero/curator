@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { renderTextError } from './text-layout.js';
 import { publicDiagnostic } from "./core/diagnostics.js";
 
 // Preserve only known protocol states, with fixed public prose. Never forward
@@ -31,18 +32,18 @@ export function installDiagnosticBoundary(server: McpServer): void {
         const state=raw.structuredContent;
         if(state?.action==='curation-review-error'&&typeof state.code==='string'&&Object.hasOwn(reviewMessages,state.code)){
           const message=reviewMessages[state.code];
-          return {isError:true,content:[{type:'text',text:message}],structuredContent:{ok:false,action:'curation-review-error',code:state.code,error:message,message,...(state.code==='dependency_blocked'?{details:safeDependencyDetails(state.details)}:{})}};
+          return {isError:true,content:[{type:'text',text:renderTextError(message)}],structuredContent:{ok:false,action:'curation-review-error',code:state.code,error:message,message,...(state.code==='dependency_blocked'?{details:safeDependencyDetails(state.details)}:{})}};
         }
         const message = raw.structuredContent?.error ?? raw.content?.find(item => item.type === "text")?.text;
         const safe = publicDiagnostic(message);
         // Drop arbitrary plugin error payloads too: they may contain rejected input.
-        return { isError: true, content: [{ type: "text", text: safe }], structuredContent: { ok: false, error: safe, message: safe, ...(safe.startsWith("POLICY_REVIEW_REQUIRED:")?{policyTransition:{decision:"review_required",blocking:true,preserved:true}}:{}) } };
+        return { isError: true, content: [{ type: "text", text: renderTextError(safe) }], structuredContent: { ok: false, error: safe, message: safe, ...(safe.startsWith("POLICY_REVIEW_REQUIRED:")?{policyTransition:{decision:"review_required",blocking:true,preserved:true}}:{}) } };
       }
       return result;
     } catch (error) {
       if(error && typeof error==='object' && 'code' in error && typeof error.code==='string' && Object.hasOwn(reviewMessages,error.code)){
         const message=reviewMessages[error.code];
-        return {isError:true,content:[{type:'text',text:message}],structuredContent:{ok:false,action:'curation-review-error',code:error.code,error:message,message}};
+        return {isError:true,content:[{type:'text',text:renderTextError(message)}],structuredContent:{ok:false,action:'curation-review-error',code:error.code,error:message,message}};
       }
       throw new Error(publicDiagnostic(error));
     }

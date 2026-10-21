@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import * as contracts from '../../dist/contracts.js';
 import * as snapshots from '../../dist/core/context-snapshot.js';
+import { PRODERO_VERSION } from '../../dist/core/constants.js';
 
 // Run the production UI and its disclosure handlers, without a host connection.
 export async function lifecycleUi({ callServerTool, requestAnimationFrame, setTimeout, sendMessage, cardDisclosure } = {}) {
@@ -22,8 +23,8 @@ export async function lifecycleUi({ callServerTool, requestAnimationFrame, setTi
         dataset: { curation:id }, addEventListener: (_,callback) => buttons.set(`curation-${id}`,callback),
       }));
       return [...this.innerHTML.matchAll(/<button[^>]*data-action="([^"]+)"/g)]
-        .filter(([, action]) => selector.includes(`data-action="${action}"`))
-        .map(([, action]) => ({ addEventListener: (_, callback) => buttons.set(action, callback) }));
+        .filter(([, action]) => selector==='button[data-action]' || selector.includes(`data-action="${action}"`))
+        .map(([, action]) => ({ dataset:{action}, addEventListener: (_, callback) => buttons.set(action, callback) }));
     },
   };
   const buttons = new Map();
@@ -37,7 +38,7 @@ export async function lifecycleUi({ callServerTool, requestAnimationFrame, setTi
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const document = { querySelector: () => host };
   vm.runInNewContext(code, {
-    exports: {}, document, requestAnimationFrame, setTimeout,
+    exports: {}, document, requestAnimationFrame, setTimeout, __PRODERO_VERSION__: PRODERO_VERSION,
     require: (id) => id === './card-disclosure.js' ? {mountCardDisclosure:()=>cardDisclosure} : id === '@modelcontextprotocol/ext-apps' ? { App: AppStub } : id.includes('applicability-label') ? applicabilityLabels : id.includes('contracts') ? contracts : id.includes('context-snapshot') ? snapshots : id.includes('presentation') ? presentation : {},
   });
   return {

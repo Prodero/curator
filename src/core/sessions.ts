@@ -1,4 +1,4 @@
-import { writeFileExclusive } from "./storage.js";
+import { writeFileExclusive, CANONICAL_ID_PATTERN } from "./storage.js";
 import {validateApplicability,inferApplicability,buildTaskContext,type TaskContext} from "./applicability.js";
 import { assertPathScope } from "./path-scope.js";
 import { assertNoSecrets } from "./secrets.js";
@@ -196,8 +196,8 @@ export function validateEntries(entries: SessionObservationInput[]): void {
       skillInputSchema.parse({ title: entry.title ?? "Candidate", description: entry.description ?? "Candidate", content, scope: entry.scopeRef ?? "project", triggers: entry.triggers ?? [] });
       if (entry.proposedReason && entry.proposedReason.length > 1_000) throw new Error("Skill proposal reasons may not exceed 1,000 characters.");
     }
-    if (entry.supersedes?.some((id) => !/^mem_[a-zA-Z0-9_]+$/.test(id))) throw new Error("Superseded Prodero memory ids are malformed.");
-    if (entry.relations?.some((relation) => !["related_to", "depends_on", "implements"].includes(relation.type) || !/^mem_[a-zA-Z0-9_]+$/.test(relation.target))) throw new Error("Prodero memory relationships are malformed.");
+    if (entry.supersedes?.some((id) => !CANONICAL_ID_PATTERN.test(id))) throw new Error("Superseded Prodero memory ids are malformed.");
+    if (entry.relations?.some((relation) => !["related_to", "depends_on", "implements"].includes(relation.type) || !CANONICAL_ID_PATTERN.test(relation.target))) throw new Error("Prodero memory relationships are malformed.");
     if (content.length > 10_000) throw new Error("A Prodero session observation may not exceed 10,000 characters.");
   }
 }

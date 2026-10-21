@@ -1,0 +1,3 @@
+/** Shared copy only: safe to bundle into the App; no execution or host access. */
+export const MANUAL_UPDATE_COMMAND = 'prodero update';
+export const UPDATE_INSTRUCTIONS = 'Finish the current work and close your MCP hosts. In a terminal, run prodero update and review its plan before approving installation. After the terminal reports completion, restart and reconnect your hosts. Open Prodero again and review any project knowledge migration separately. This chat action only shows instructions; it has not installed or staged a runtime, refreshed project integration, or changed your development runtime selection.';

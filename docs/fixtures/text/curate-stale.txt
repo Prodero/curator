@@ -1,0 +1,30 @@
+```text
+╭─ >_ PRODERO ──────────────────── /04
+│ prodero-bundle-fixture-3KYkZN ·
+│ project memory
+│
+├─ CURATE MEMORY ─────────────────────
+│ Re-analyze memory
+│ Project memory changed since this
+│ curation started. Re-analyze before
+│ continuing.
+│ Your place and saved answers are
+│ retained. Leave and return with
+│ Continue curation.
+│ Re-analyze starts a fresh workflow
+│ from current project data. Changes
+│ already saved remain in place.
+│
+│ Re-analyze memory?
+╰─────────────────────────────────────
+```
+
+```text
+Available actions:
+
+  1 > Re-analyze memory
+  2 > Check progress
+  3 > Show details
+
+Reply with a number or the command name.
+```

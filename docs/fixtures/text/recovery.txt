@@ -1,0 +1,19 @@
+```text
+╭─ >_ PRODERO ──────────────────── /04
+│ Curator · project memory
+│
+├─ CURATE MEMORY ─────────────────────
+│ Approved changes · verify result
+│
+│ Check saved progress before
+│ retrying; do not repeat approval.
+╰─────────────────────────────────────
+```
+
+```text
+Available actions:
+
+  1 > Check progress
+
+Reply with a number or the command name.
+```

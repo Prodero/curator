@@ -111,7 +111,7 @@ test("promotion and dismissal preserve provenance and survive replay without aut
   assert.deepEqual(dismissed.derivedFrom, second.derivedFrom);
   assert.equal((await createSkillCandidate(root, input, { ...provenance, derivedFrom: "sess_source#obs_rejected" })).skill.status, "dismissed");
   await assert.rejects(reviewProjectSkill(root, dismissed.id, "promote"), /Only candidate/);
-  assert.deepEqual((await resolveProjectContext(root, "MCP")).skills.map((s) => s.id), [active.id]);
+  assert.deepEqual((await resolveProjectContext(root, "Verify MCP tool contracts")).skills.map((s) => s.id), [active.id]);
   const status = await getProjectStatus(root);
   assert.equal(status.skillCount, 1);
   assert.equal(status.skillCandidateCount, 0);
@@ -124,10 +124,10 @@ test("promotion and dismissal preserve provenance and survive replay without aut
 test("title, description, triggers and scope select active skills deterministically without filename ranking", async (t) => {
   const root = await fixture(t);
   const skills = [];
-  for (const [field, text] of [["title", "Albatross"], ["description", "Kingfisher"], ["triggers", ["Nightingale"]], ["scope", "src/pelican"]]) {
-    skills.push(await createProjectSkill(root, { title: "Procedure", description: "Useful checks", triggers: [], scope: "project", content: "Perform steps. Secretbody", [field]: text }));
+  for (const [field, text] of [["title", "Albatross"], ["description", "Kingfisher sensor"], ["triggers", ["Nightingale acoustics"]], ["scope", "src/pelican"]]) {
+    skills.push(await createProjectSkill(root, { title: "Check procedure", description: "Useful checks", triggers: [], scope: "project", content: "Perform steps. Secretbody", [field]: text }));
   }
-  for (const [index, query] of ["albatross", "kingfisher", "nightingale", "pelican"].entries()) {
+  for (const [index, query] of ["albatross", "check kingfisher sensor", "check nightingale acoustics", "check src/pelican"].entries()) {
     const context = await resolveProjectContext(root, query);
     assert.deepEqual(context.skills.map((s) => s.id), [skills[index].id]);
     assert.ok(context.skills[0].signals.length);
@@ -146,12 +146,12 @@ test("skill retrieval bounds item count and tokens, skips oversized matches, acc
   const root = await fixture(t);
   await createProjectSkill(root, { ...input, title: "MCP huge", content: "Oversized procedure. ".repeat(900) });
   for (let i = 0; i < 7; i++) await createProjectSkill(root, { ...input, title: `MCP procedure ${i}` });
-  const context = await getContext(root, "MCP");
+  const context = await getContext(root, "Verify MCP tool contracts");
   assert.equal(context.skills.length, 4);
   assert.ok(context.metrics.selectedSkillsTokens <= 1500);
   assert.equal(context.selection.omittedSkillsByBudget + context.selection.omittedSkillsByItemLimit, 4);
   assert.ok(!context.skills.some((skill) => skill.title === "MCP huge"));
-  const bounded = await getContext(root, "MCP", { contextBudgetTokens: 100 });
+  const bounded = await getContext(root, "Verify MCP tool contracts", { contextBudgetTokens: 100 });
   assert.ok(bounded.metrics.contextTokens <= 100);
   assert.ok(bounded.selection.omittedSkillsByBudget > 0);
   assert.equal(bounded.metrics.contextTokens, bounded.metrics.selectedSkillsTokens);
@@ -163,12 +163,12 @@ test("legacy Markdown skills stay compatible while invalid statuses fail closed"
   const [legacy] = await listProjectSkills(root);
   assert.equal(legacy.status, "active");
   assert.equal(legacy.origin, "legacy");
-  assert.equal((await resolveProjectContext(root, "legacy")).skills.length, 1);
+  assert.equal((await resolveProjectContext(root, "Legacy verification")).skills.length, 1);
   await fs.writeFile(path.join(root, ".prodero/skills/old-metadata.md"), "---\nid: old-metadata\nkind: skill\nstatus: active\nscope: project\n---\n\n# Legacy metadata\n\nRun established checks.\n");
   assert.equal((await getProjectSkill(root, "old-metadata")).origin, "legacy");
   await fs.writeFile(path.join(root, ".prodero/skills/old-candidate.md"), "---\nid: old-candidate\nkind: skill\nstatus: candidate\n---\n\n# Legacy candidate\n\nRun proposed checks.\n");
   assert.equal((await getProjectSkill(root, "old-candidate")).status, "candidate");
-  assert.ok(!(await resolveProjectContext(root, "legacy")).skills.some((skill) => skill.id === "old-candidate"));
+  assert.ok(!(await resolveProjectContext(root, "Legacy verification")).skills.some((skill) => skill.id === "old-candidate"));
   const active = await createProjectSkill(root, input);
   assert.throws(() => parseSkill(renderSkill(active).replace("status: active", "status: unknown"), `${active.id}.md`), /Invalid project skill/);
   assert.throws(() => parseSkill(renderSkill(active), "wrong.md"), /Invalid project skill ID/);

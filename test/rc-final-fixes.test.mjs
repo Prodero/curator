@@ -81,7 +81,7 @@ for(const target of ['.prodero/config.json','.prodero/.transactions/pending.json
 
 test('RC-04 public parser/schema diagnostics omit arbitrary source excerpts',()=>{for(const raw of ['Unexpected token x, "private arbitrary malformed input" is not valid JSON','Input validation error: received "private arbitrary malformed input"'])assert.ok(!publicDiagnostic(raw).includes('private arbitrary'));});
 
-test('RC-06 low-level Sync excludes active sessions; explicit Sync Memory recovers observations and stays Git-clean',async t=>{
+test('RC-06 low-level Sync excludes active sessions; explicit Curate Memory recovers observations and stays Git-clean',async t=>{
  const root=await fixture(t);await git(root,'init','-q');await core.initializeProject(root);await git(root,'add','.');await git(root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','baseline');
  const prepared=await core.prepareProject(root,{task:'Sync contract'});await recordSessionObservations(root,prepared.session.id,[{type:'decision',content:'Juniper fixture checks require reproducible UTC timestamps.'}]);const client=await connect(t,root);
  assert.equal(JSON.parse((await exec(process.execPath,[cli,'sync-sessions','--root',root],{env})).stdout).sessions,0);assert.equal((await core.listKnowledge(root)).length,0);const started=(await call(client,'sync')).structuredContent.result;assert.equal(started.state,'awaiting_selection');assert.equal(started.recovery.sessions,1);assert.ok(started.jobs.every(j=>!j.selected));
@@ -100,6 +100,11 @@ test('RC-04 returned update diagnostics sanitize JSON and schema errors outside 
  for(const value of [secret,JSON.stringify({formatVersion:1,release:{version:secret}})]){
   await fs.writeFile(manifest,value);
   for(const result of [await checkForUpdate(source),await installLatest(source)]){assert.ok(!JSON.stringify(result).includes(secret));assert.match(JSON.stringify(result),/PRODERO_INVALID_(JSON|ARGUMENT)/);}
-  for(const command of ['check-update','update']){const {stdout,stderr}=await exec(process.execPath,[cli,command],{env:{...env,PRODERO_RELEASE_SOURCE:'dev',PRODERO_DEV_UPDATE:'1',PRODERO_RELEASE_MANIFEST:manifest,PRODERO_UPDATE_STATE_DIR:path.join(root,'state')}});assert.ok(!(stdout+stderr).includes(secret));assert.match(stdout,/PRODERO_INVALID_(JSON|ARGUMENT)/);}
+  const cliEnv={...env,PRODERO_RELEASE_SOURCE:'dev',PRODERO_DEV_UPDATE:'1',PRODERO_RELEASE_MANIFEST:manifest,PRODERO_UPDATE_STATE_DIR:path.join(root,'state')};
+  const {stdout,stderr}=await exec(process.execPath,[cli,'check-update'],{env:cliEnv});assert.ok(!(stdout+stderr).includes(secret));assert.match(stdout,/PRODERO_INVALID_(JSON|ARGUMENT)/);
+  await assert.rejects(exec(process.execPath,[cli,'update'],{env:cliEnv}),error=>{
+   assert.equal(error.code,1);const output=String(error.stdout??'')+String(error.stderr??'');assert.match(output,/NPM_UPDATE_CONFIRMATION/);assert.ok(!output.includes(secret));assert.doesNotMatch(output,/PRODERO_INVALID_(JSON|ARGUMENT)/);return true;
+  });
+  assert.equal(await fs.readFile(manifest,'utf8'),value);await assert.rejects(fs.access(path.join(root,'state')),{code:'ENOENT'});
  }
 });

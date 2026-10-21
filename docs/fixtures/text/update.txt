@@ -1,0 +1,9 @@
+```text
+╭─ >_ PRODERO ──────────────────── /10
+│ Prodero · terminal update
+│
+├─ Update instructions ───────────────
+│ Run prodero update in a terminal
+│ after closing hosts.
+╰─────────────────────────────────────
+```

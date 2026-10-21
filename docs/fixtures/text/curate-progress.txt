@@ -1,0 +1,33 @@
+```text
+╭─ >_ PRODERO ──────────────────── /04
+│ prodero-bundle-fixture-NobwGv ·
+│ project memory
+│
+├─ CURATE MEMORY ─────────────────────
+│ Analysis queued
+│ Analysis is queued. Continue with
+│ the prepared evidence; you may be
+│ asked about missing project facts.
+│ Your place and saved answers are
+│ retained. Leave and return with
+│ Continue curation.
+│ Skip or Answer later retains
+│ original knowledge and saved
+│ answers, then continues other
+│ selected work.
+│
+│ Continue analysis using the
+│ prepared evidence.
+╰─────────────────────────────────────
+```
+
+```text
+Available actions:
+
+  1 > Continue improving memory
+  2 > Continue with other knowledge
+  3 > Check progress
+  4 > Show details
+
+Reply with a number or the command name.
+```

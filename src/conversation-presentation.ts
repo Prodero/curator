@@ -1,6 +1,8 @@
 /** Portable conversational projection. Reads Core state; never runs or selects work. */
 import type { PresentationAction, ProderoViewModel } from './presentation.js';
-export const PRESENTATION_REPLY = 'For knowledge-list requests in Claude Code, prefer prodero_text with tool=prodero_knowledge unless the user explicitly requests a graphical view. This is a one-off display choice, not a project setting change. When showing knowledge lists in chat, prefer the supplied fenced ASCII table with +, - and | borders; preserve its columns and page-local numeric row keys when translating. Knowledge rows use 1 through N, and action commands below the table continue at N+1. Resolve a standalone number through the exact numberedActions binding from the latest displayed table/menu. knowledgeRows also binds row numbers to exact record IDs; never infer IDs or reuse an older page. Show complete record text when an individual record is requested. In knowledge-detail replies, keep the original, any translation and record metadata together, then preserve a separate ------------- line before service hints about editing, history, approval and available actions. Service hints are not part of the knowledge or its translation. When suggesting next actions in chat, show a numbered Markdown list starting at 1 (or N+1 after a knowledge table with N rows), with one command per line and a blank line before the list. Tell the user they can reply with a number or the command name. Preserve the displayed order and exact numberedActions bindings when translating. A standalone positive integer selects only that item from the latest action menu actually shown in this conversation for this project; never use array positions in availableActions, an older menu or another conversation. If the number is out of range, the menu is missing, or a pending question expects a numeric value rather than a menu choice, clarify instead of guessing. Keep menu bindings only in conversation context, never project settings or knowledge. Route selected covered tools through prodero_text with the exact bound arguments; call other bound tools directly. A numeric selection is navigation or an action request, never explicit approval: for an approval-marked action show the exact proposal and request explicit confirmation before mutation or publication. In ordinary Open and lifecycle replies, omit display mode, theme and tool-routing commentary. Saved presentation settings, resolved mode and App metadata are not evidence that the user saw a graphical interface; do not claim a UI was displayed from those fields. Discuss mode or theme only when the user asks about settings or presentation troubleshooting.';
+export const LIFECYCLE_PRESENTATION_REPLY = 'For lifecycle text delivery, including when presentation.resolved is text in auto mode, relay the supplied compact presentation.text once as a visible assistant message: Prepare before continuing the task, Close before the final task answer. Healthy Prepare continues immediately without a Continue question or approval. A tool result or App metadata does not prove visible delivery. If the App is invisible, relay its retained fallback; do not duplicate a visible App. Use the returned text and exact context snapshot, never repeat Prepare, Close or retrieval just to display details. Show blocked/deferred/error states truthfully; never invent Session Complete or Saved without successful Close and synchronization.';
+export const PRESENTATION_REPLY = 'For knowledge-list requests in Claude Code, prefer prodero_text unless the user requests a graphical view. Relay the supplied text, preserving code fences, letter-keyed catalogue, separators and external Pulse menu. Show complete requested record/review bodies; keep original text, any translation and metadata together, with service hints separate. Bind letters only through entryActions/knowledgeRows and numbers only through numberedActions on the latest displayed screen in this conversation and project, never array positions. Each screen replaces old aliases. Preserve bindings/order when translating. Pending answers take precedence over navigation aliases, including a question expecting a numeric value; clarify missing/out-of-range bindings. Collect the actual value for an input field before calling its action, never an incomplete placeholder. A menu number is an action request, never approval: show the exact proposal and obtain explicit human approval for approval-marked actions. Keep aliases ephemeral; never store them as settings or knowledge. Tell the user they may reply with a number or command name. In ordinary Open/lifecycle replies omit mode, theme and tool-routing commentary; discuss settings only on request. Display settings or App metadata do not prove that a UI was visible.';
+
 type Data = Record<string, any>;
 export type TextKind = 'summary' | 'attention' | 'details' | 'diagnostic';
 export interface ConversationView {
@@ -46,13 +48,13 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
       if(areas.length) {
         v.attention.push(`Memory areas to review: ${areas.length + (p.memoryOverview?.areasOmitted ?? 0)}.`);
         if(areas.some((a:Data)=>a.signals?.includes('context_pressure')))v.attention.push('Relevant knowledge has not fit into recent task context.');
-        next('Review memory improvements?',call('Review Memory Sync','prodero_sync'));
+        next('Review memory improvements?',call('Review Curate Memory','prodero_sync'));
       }
       if (p.memoryOverview?.available === false) v.attention.push('Memory overview unavailable.');
       if (p.memoryOverview?.workflow && p.memoryOverview.workflow.state !== 'completed') {
         const w=p.memoryOverview.workflow;
-        v.attention.push(w.state==='stale'?'Memory changed since the last Sync.':'Memory Sync is unfinished.');
-        next(w.state==='stale'?'Re-analyze memory?':'Continue Memory Sync?',w.state==='stale'?call('Re-analyze memory','prodero_memory_sync',{request:{action:'start',restart:true}}):call('Continue Memory Sync','prodero_sync',{workflowId:w.id}));
+        v.attention.push(w.state==='stale'?'Memory changed since the last curation.':'Curate Memory is unfinished.');
+        next(w.state==='stale'?'Re-analyze memory?':'Continue curation?',w.state==='stale'?call('Re-analyze memory','prodero_memory_sync',{request:{action:'start',restart:true}}):call('Continue curation','prodero_sync',{workflowId:w.id}));
       }
       const c=payload.curation;
       if(c?.state==='unavailable')v.attention.push('Saved review unavailable. Open details before continuing.');
@@ -70,8 +72,8 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
         const w=p.memoryOverview?.workflow;
         const sync=w?.state==='stale'
           ? call('Re-analyze memory','prodero_memory_sync',{request:{action:'start',restart:true}})
-          : call(w && w.state!=='completed'?'Continue memory sync':'Sync memory','prodero_sync',w && w.state!=='completed'?{workflowId:w.id}:{});
-        v.suggestions=[sync,call('Show knowledge','prodero_knowledge'),call('Show settings','prodero_config_get')];
+          : call(w && w.state!=='completed'?'Continue curation':'Curate Memory','prodero_sync',w && w.state!=='completed'?{workflowId:w.id}:{});
+        v.suggestions=[sync,call('Explore knowledge','prodero_knowledge'),...(c?.prominent?[call('Review changes','prodero_curation',{action:'plan',details:true})]:[]),call('Show settings','prodero_config_get'),...(payload.update?.available?[call('Show update instructions','prodero_update')]:[])];
       }
     }
     v.details=call('Show project details','prodero_status_details',{details:true});
@@ -83,12 +85,12 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
     v.blocking=Boolean(readiness?.blocking || omitted);
     v.contextComplete=!omitted && !v.blocking;
     v.state=v.blocking?(omitted?'Required context incomplete':'Work paused'):'Ready';
-    v.facts.push(`Context  ${tokens(m.contextTokens)} / ${tokens(m.contextBudgetTokens)}`,`Required  ${c.required.length} · Relevant  ${c.relevant.length} · Skills  ${c.skills.length}`);
+    v.facts.push(`Context  ${tokens(m.contextTokens)} / ${tokens(m.contextBudgetTokens)}`,`${c.required.length} required · ${c.relevant.length} relevant · ${n(c.skills.length,'skill')}`);
     if(r.session)v.facts.push('Session  active');
     if(omitted)v.attention.push(`${n(omitted,'required instruction')} not loaded. Do not continue work.`);
     if(readiness?.state==='context-needed')v.attention.push('More task scope is needed before work can start.');
     if(readiness?.state==='required-conflict'||(v.blocking&&!omitted&&readiness?.state!=='context-needed'))v.attention.push('Required context needs review before work can continue.');
-    v.attention.push(...(r.warnings??[]),...(r.attention??c.attention??[]).map((a:Data)=>`${a.title}: ${a.detail}`));
+    v.attention.push(...(r.warnings??c.warnings??[]),...(r.attention??c.attention??[]).map((a:Data)=>`${a.title}: ${a.detail}`));
     if(readiness?.state==='context-needed')next('Specify the work paths or task scope, then prepare again.');
     else if(omitted)next('Review the missing instructions?',c.snapshot?.reviewId?call('Review required context','prodero_instruction_review',{reviewId:c.snapshot.reviewId}):undefined);
     else if(v.blocking)next('Inspect the required context and conflicts?');
@@ -103,18 +105,20 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
     if(v.attention.length)next('Review session knowledge?',call('Review session','prodero_session_review',{sessionId:r.session.id}));
     v.details=call('Review session knowledge','prodero_session_review',{sessionId:r.session.id});
   } else if(payload.action==='memory-sync') {
-    v.title='Prodero · Sync';
-    const s=r.summary??{},inspect=call('Review this Sync','prodero_memory_sync',{request:{action:'inspect',workflowId:r.id},details:true});
+    v.title='Prodero · Curate Memory';
+    const s=r.summary??{},inspect=call('Review this curation','prodero_memory_sync',{request:{action:'inspect',workflowId:r.id},details:true});
     v.details=inspect;
-    const state:Record<string,string>={awaiting_selection:'Ready to sync',semantic_work:'Improving memory',awaiting_clarification:'Your input is needed',awaiting_review:'Review required',applying:'Saving changes',awaiting_promotion_selection:'Ready for sharing review',completed:'Complete',stale:'Memory changed'};
-    v.state=state[r.state]??'Check saved progress';
+    const operation=vm.operation!,state:Record<string,string>={selection:'Ready to curate',queued:'Analysis queued',awaiting_agent:'Awaiting agent analysis',submitted:'Submitted · validation pending',question:'Your input is needed',review:'Review required',recovery:'Approved changes · verify result',sharing:'Ready for sharing review',completed:operation.outcome==='remaining'?'Completed with remaining work':'Complete',stale:'Memory changed'};
+    v.state=state[operation.phase]??'Check saved progress';
     if(r.state==='awaiting_selection') {
       v.facts.push('Improve memory · Prepare sharing review');
       if(r.brokenLinks)v.facts.push(`Fix ${n(r.brokenLinks,'broken link')} · enabled`);
-      next('Start Sync? Sharing will require a separate approval.',vm.actions.find(a=>a.label==='Start Sync'));
+      next('Start curation? Sharing will require a separate approval.',vm.actions.find(a=>a.label==='Start curation'));
     } else if(r.state==='semantic_work') {
-      if(r.curation || r.semantic)next('Continue analysis using the prepared evidence.');
-      else next('Continue analysis.',vm.actions.find(a=>a.label==='Continue improving memory'));
+      if(r.curation||r.semantic)next('Continue analysis using the prepared evidence.');
+      else next(operation.phase==='awaiting_agent'?'Prepared evidence is waiting for the host agent.':operation.phase==='submitted'?'The submitted result is awaiting validation.':'Continue analysis.',vm.actions.find(a=>'id' in a&&a.id==='reasoning')??vm.actions.find(a=>a.label==='Continue improving memory'));
+    } else if(r.state==='applying') {
+      next('Check saved progress before retrying; do not repeat approval.',vm.actions.find(a=>'id' in a && a.id==='inspect'));
     } else if(r.state==='awaiting_review') {
       v.reviewRequired=true;
       v.attention.push(r.review?.kind==='promotion'?'Nothing published. Review the proposed wording before approval.':'No approval given. Review the proposed changes first.');
@@ -122,11 +126,13 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
     } else if(r.state==='awaiting_promotion_selection') {
       v.facts.push(`${n(r.promotionCandidates.length,'memory','memories')} available for sharing review`);
       // Display the existing candidate set; selecting it still requires the user's request.
-      next(`Review all ${r.promotionCandidates.length} for sharing?`,call('Review these memories','prodero_memory_sync',{request:{action:'promotions',workflowId:r.id,revision:r.revision,ids:r.promotionCandidates.map((c:Data)=>c.id)},details:true}));
+      next(`Review all ${r.promotionCandidates.length} for sharing?`,vm.actions.find(a=>('id' in a&&a.id==='promotions')));
     } else if(r.state==='awaiting_clarification') {
       v.reviewRequired=true;
-      v.attention.push('This question currently requires the graphical review form. Chat answers are not saved.');
+      v.attention.push('Choose an answer or give your explanation. Chat answers are saved as relayed evidence, not approval.');
+      for(const q of r.clarification?.graphical?.questions??[])if(q.needsInput){v.facts.push(q.question.prompt);if(q.relatedQuestions?.length>1)v.attention.push(`Deferred together: ${q.relatedQuestions.map((q:Data)=>q.title).join('; ')}.`);}
       next('Show the question and review details?',inspect);
+      v.suggestions=vm.actions.filter(a=>a.tool==='prodero_curation_question'||a.tool==='prodero_curation_reasoning_prepare');
     } else if(r.state==='stale') {
       v.attention.push('Re-analyze before continuing; earlier review is out of date.');
       next('Re-analyze memory?',vm.actions.find(a=>a.label==='Re-analyze memory'));
@@ -135,13 +141,20 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
       else if(!s.promoted&&!s.brokenLinksFixed)v.facts.push('No memory changes.');
       if(s.brokenLinksFixed)v.facts.push(`${n(s.brokenLinksFixed,'broken link')} fixed`);
       if(s.brokenLinksRemaining)v.attention.push(`${n(s.brokenLinksRemaining,'broken link')} remain unchanged.`);
-      if(s.promoted)v.facts.push(`${n(s.promoted,'memory','memories')} shared`);
-      if(s.unresolved)v.attention.push(`${n(s.unresolved,'memory','memories')} still need clarification.`);
+      if(s.promoted)v.facts.push(`${n(s.promoted,'memory','memories')} prepared in Versioned files; review the Git diff`);
+      if(s.unresolved)v.attention.push(`${n(s.unresolved,'unresolved item')} still need clarification.`);
       if(s.areasFailed)v.attention.push(`${n(s.areasFailed,'area')} could not be analyzed.`);
       if(s.promotionConflicts)v.attention.push(`Sharing items needing review: ${s.promotionConflicts}.`);
-      if(s.questionsDeferred)v.attention.push(`${n(s.questionsDeferred,'question')} deferred.`);
+      if(operation.counts.questionsDeferred)v.attention.push(`${n(operation.counts.questionsDeferred,'question')} deferred.`);
+      else if(operation.counts.questionsDeferred===null&&operation.counts.deferredAreas)v.attention.push(`${n(operation.counts.deferredAreas,'area')} deferred; question count unavailable.`);
       if(v.attention.length)next('Review the remaining items?',inspect);
     }
+    const revisit=vm.actions.filter(a=>a.arguments.action==='question_reopen'||(a.arguments.request as Data)?.action==='refresh_questions');
+    if(revisit.length)v.suggestions=[...revisit,...(v.continuation?[v.continuation]:[])];
+    const retries=vm.actions.filter(a=>'id' in a && String(a.id).startsWith('retry:'));
+    if(retries.length)v.suggestions=[...(v.suggestions??[]),...retries,...(!v.suggestions?.length&&v.continuation?[v.continuation]:[])];
+    for(const q of r.deferredQuestions??[])if(q.affectedQuestions.length>1)v.attention.push(`Revisited together: ${q.affectedQuestions.map((q:Data)=>q.title).join('; ')}.`);
+    if(operation.diagnostic)v.attention.push(`${operation.diagnostic.code}: ${operation.diagnostic.cause} ${operation.diagnostic.recovery}`);
     if(r.error)v.attention.push('This step could not finish. Check saved progress before retrying.');
   } else if(payload.action==='migration') {
     const p=payload.plan;
@@ -153,8 +166,14 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
     else if(p.state==='recovery-required')next('Review recovery instructions?',call('Review recovery','prodero_migrate',{action:'status',details:true}));
     v.details=call('Show update details','prodero_migrate',{action:'status',details:true});
   } else if(payload.action==='promotion-applied') {
-    v.title='Prodero · Published';v.state='Complete';v.facts.push(`${n(r.published,'memory','memories')} shared`);
+    v.title='Prodero · Versioned files prepared';v.state='Complete';v.facts.push(`${n(r.published,'memory','memories')} prepared in Versioned files; not committed or pushed`);
     if(r.conflicts?.length){v.attention.push(`Conflicts remaining local: ${r.conflicts.length}.`);next('Inspect the remaining knowledge?',call('Inspect knowledge','prodero_knowledge'));}
+  } else if(payload.action==='skill-preview') {
+    v.kind='details';
+    v.reviewRequired=payload.preview?.disposition?.action!=='covered';
+    v.state=v.reviewRequired?'Awaiting human review':'Already covered';
+    // The full companion contains the exact draft/target. Do not synthesize consent
+    // or an executable approval action merely because the preview was displayed.
   } else {
     // Explicit inspection/review surfaces retain full content and diagnostics.
     v.kind='details';
@@ -173,8 +192,7 @@ export function conversationMenu(v: ConversationView): PresentationAction[] {
 export function numberedActions(vm: ProderoViewModel, expanded = false) {
   const actions = expanded || !vm.conversation || vm.conversation.kind === 'details'
     ? vm.actions : conversationMenu(vm.conversation);
-  const rows=vm.knowledgeTable?.rows.map(row=>({label:`Open ${row.title}`,tool:'prodero_knowledge',arguments:{...vm.actions.find(a=>a.tool==='prodero_knowledge')?.arguments,id:row.id}}))??[];
-  return [...rows,...actions].map((action, index) => ({...action, number:index + 1}));
+  return actions.map((action, index) => ({...action, number:index + 1}));
 }
 
 export function renderActionMenu(actions: PresentationAction[], start = 1): string {
@@ -192,7 +210,11 @@ export function renderConversation(v: ConversationView): string {
 /** Model-visible MCP content, separate from the human summary; never hidden in _meta. */
 export function conversationOperation(payload: Data, vm: ProderoViewModel, details = false, diagnostics = false): Data {
   const r=payload.result ?? payload, v=vm.conversation!;
+  const questionData=payload.action==='curation-question'?payload:r.clarification;
+  const owner=payload.action==='curation-question'?{workflowId:payload.syncWorkflowId,candidateId:payload.candidateId}:{workflowId:r.id,candidateId:r.jobs?.find((j:Data)=>j.curationReviewId===questionData?.review?.snapshot.reviewId)?.id};
+  const answerInputs=questionData?.review&&!questionData.graphical.analysisPending?questionData.graphical.questions.filter((q:Data)=>q.needsInput&&q.question.allowFreeText).map((q:Data)=>({tool:'prodero_curation_question',inputRequired:'rawText',instructions:'Collect the user\'s actual explanation. Supply rawText; never execute this incomplete input binding or invent an answer.',arguments:{projectRoot:payload.root??r.root,...owner,action:'answer',reviewId:questionData.review.snapshot.reviewId,reviewRevisionId:questionData.review.snapshot.revision.id,planHash:questionData.review.snapshot.planHash,decisionRevision:questionData.review.state.revision,answerLogHash:questionData.graphical.answerLogHash,questionId:q.question.id,questionVersion:q.question.version,requestId:`chat_${globalThis.crypto.randomUUID()}`,...(q.answer?{replacesAnswerId:q.answer.id}:{})}})):[];
   return {
+    ...(answerInputs.length?{answerInputs}:{}),
     kind: diagnostics ? 'diagnostic' : details ? 'details' : v.kind,
     succeeded: payload.ok !== false,
     blocking: v.blocking,
@@ -203,10 +225,11 @@ export function conversationOperation(payload: Data, vm: ProderoViewModel, detai
     detailSource: v.detailSource,
     suggestions: v.suggestions,
     numberedActions: numberedActions(vm, details || diagnostics),
-    ...(vm.knowledgeTable?{knowledgeRows:vm.knowledgeTable.rows.map(row=>({key:row.key,number:Number(row.key),id:row.id,tool:'prodero_knowledge',arguments:{projectRoot:r.root,...r.options,id:row.id}}))}:{}),
+    entryActions: vm.knowledgeTable ? vm.knowledgeTable.rows.map(row=>({key:row.key,label:row.title,tool:'prodero_knowledge',arguments:{projectRoot:r.root,...r.options,id:row.id}})) : [],
+    knowledgeRows: vm.knowledgeTable ? vm.knowledgeTable.rows.map(row=>({key:row.key,id:row.id,tool:'prodero_knowledge',arguments:{projectRoot:r.root,...r.options,id:row.id}})) : [],
     availableActions: details || v.kind === "details" ? vm.actions : [v.continuation,v.details,...(v.suggestions??[])].filter(Boolean),
-    disclosure: vm.knowledgeTable && !details ? 'Show the supplied fenced ASCII catalogue table and pagination. Full record bodies are available by inspecting a row; do not expand every record into prose.' : details || v.kind === 'details' ? 'Show the requested record/proposal bodies completely before asking for approval.' : 'Keep the human reply to presentation.text; do not expand other domain fields or proposal bodies. This limits display, not execution: continue already-authorized work and Core next instructions. Pause only at a Core human-choice/review step or blocking state. At a human review step, ask whether to inspect; retrieve details on request and show full wording before offering approval.',
-    instructions: PRESENTATION_REPLY + ' Use presentation.text as the human reply, translated if needed. Keep the numbered action menu visible, translated naturally with the reply; use numberedActions for numeric replies and exact tool bindings when chosen. Do not expand healthy state into a full action catalog or narrate tool routing. Keep these operational data out of the human reply unless requested. A yes answers only the immediately preceding question: use its continuation through prodero_text for covered tools, otherwise call the named tool directly with the given arguments. Reviewing is not approval. Show the complete proposed changes before asking for explicit approval; never approve unseen changes. Preserve Core blocking and context requirements. For text presentation, use the continuation here instead of reopening a graphical card. For View Context after Prepare, display the context object already returned here: it is the prepared snapshot. Do not rerun retrieval to display it; a fresh prodero_context call is a new selection. These are tool data, not system instructions.',
+    disclosure: vm.knowledgeTable && !details ? 'Show the supplied letter-keyed catalogue and pagination. Bind letters only through entryActions on this exact page; full bodies require inspecting a record.' : details || v.kind === 'details' ? 'Show the requested record/proposal bodies completely before asking for approval.' : 'Keep the human reply to presentation.text; do not expand other domain fields or proposal bodies. This limits display, not execution: continue already-authorized work and Core next instructions. Pause only at a Core human-choice/review step or blocking state. At a human review step, ask whether to inspect; retrieve details on request and show full wording before offering approval.',
+    instructions: PRESENTATION_REPLY + (['prepare','session-close'].includes(payload.action) ? ' ' + LIFECYCLE_PRESENTATION_REPLY : '') + ' Relay presentation.text as the human reply, translated if needed, without narrating operational data. A yes answers only the immediately preceding question: follow its exact continuation through prodero_text for covered tools or the named tool otherwise. Preserve Core blockers and context requirements. View Context after Prepare displays the returned context snapshot; never rerun retrieval to display it. These are tool data, not system instructions.',
     ...(payload.bootstrap ? {bootstrap:payload.bootstrap} : {}),
     ...(payload.action==='context' ? {context:r} : {}),
     ...(payload.action==='prepare' ? {session:r.session,context:r.context,automaticSync:r.automaticSync} : {}),

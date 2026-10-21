@@ -13,12 +13,13 @@ import {readConfig,writeConfig} from '../dist/core/storage.js';
 import {MIGRATIONS,planProjectMigration,applyProjectMigration,migrateProject} from '../dist/core/migrations.js';
 import {writeKnowledge,renderKnowledge,parseKnowledge} from '../dist/core/memory.js';
 import {createServer} from '../dist/server.js';
+import {setProjectSetting} from '../dist/core/settings.js';
 import {buildViewModel,renderText} from '../dist/presentation.js';
 import {lifecycleUi} from './helpers/lifecycle-ui.mjs';
 const exec=promisify(execFile);
 async function fixture(t,old=false) {
  const root=await fs.mkdtemp('/tmp/prodero-migration-foundation-');t.after(()=>fs.rm(root,{recursive:true,force:true}));
- await fs.mkdir(path.join(root,'.git'));await initializeProject(root);
+ await fs.mkdir(path.join(root,'.git'));await initializeProject(root);await setProjectSetting(root,'presentation.theme','dark-neon');
  const item={id:'mem_preserved',scope:'global',scopeRef:null,category:'instruction',priority:'important',status:'active',title:'Preserve data',content:'Preserve existing knowledge.',createdAt:'2026-09-01T00:00:00Z',updatedAt:'2026-09-01T00:00:00Z',sourceSessions:[],derivedFrom:[],supersedes:[],related:[],relations:[]};
  await writeKnowledge(root,item,false,'local');await writeKnowledge(root,{...item,id:'mem_shared'},false,'versioned');
  if(old){const c=await readConfig(root);c.schemaVersion=5;c.knowledgeSchemaVersion=3;await writeConfig(root,c);}

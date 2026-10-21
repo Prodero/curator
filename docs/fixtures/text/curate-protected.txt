@@ -1,0 +1,56 @@
+```text
+╭─ >_ PRODERO ──────────────────── /04
+│ prodero-bundle-fixture-NxCM44 ·
+│ project memory
+│
+├─ CURATE MEMORY ─────────────────────
+│ Review memory changes
+│ Review required · not approval.
+│ Before · current memories  4
+│ After · current memories  4
+│ Estimated tokens · before → after
+│ 138 → 138
+│ 1 project invariant was preserved
+│ unchanged.
+│ 1 project decision was preserved
+│ unchanged.
+│ Review protected knowledge without
+│ changing its applicability.
+│ Please review the proposed wording.
+│ Prodero checks data integrity but
+│ cannot guarantee that every meaning
+│ was preserved.
+│ Your place and saved answers are
+│ retained. Leave and return with
+│ Continue curation.
+│ Skip or Answer later retains
+│ original knowledge and saved
+│ answers, then continues other
+│ selected work.
+├─ src/driving ───────────────────────
+│
+├─ Proposed current knowledge ────────
+│
+│ Review the proposed changes?
+╰─────────────────────────────────────
+```
+
+```text
+src/driving:
+0 memories consolidated; 0 memories replaced by newer project state; 4 previous memories remain current.
+0 previous memories will be preserved in history.
+```
+
+```text
+Available actions:
+
+  1 > Approve reviewed changes
+      Explicit approval required.
+  2 > Skip this review
+  3 > Check progress
+  4 > Show details
+
+Reply with a number or the command name.
+```
+
+Approve these exact changes?

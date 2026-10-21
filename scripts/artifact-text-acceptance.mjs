@@ -1,0 +1,86 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import {createRequire} from 'node:module';
+import {pathToFileURL} from 'node:url';
+import {execFileSync} from 'node:child_process';
+// Usage: node scripts/artifact-text-acceptance.mjs /absolute/isolated/prefix
+// All projects are newly created synthetic temporary repositories. No host setup/update.
+if(process.argv.length!==3)throw new Error('Usage: node scripts/artifact-text-acceptance.mjs /absolute/isolated/prefix');
+const prefix=path.resolve(process.argv[2]),base=await fs.mkdtemp(path.join(os.tmpdir(),'curator-artifact-text-'));
+const pkg=path.join(prefix,'lib/node_modules/@prodero/curator'),bin=path.join(pkg,'bin/prodero');
+const packageIdentity=JSON.parse(await fs.readFile(path.join(pkg,'package.json'),'utf8'));
+const require=createRequire(path.join(pkg,'package.json'));
+const imp=async p=>import(pathToFileURL(path.join(pkg,p)).href);
+const {Client}=await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/index.js')).href);
+const {StdioClientTransport}=await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/stdio.js')).href);
+const {buildViewModel,renderText}=await imp('dist/presentation.js');
+const root=path.join(base,'fixture-2'),other=path.join(base,'other-fixture-2');
+for(const r of [root,other]){await fs.mkdir(r,{recursive:true});execFileSync('git',['init','-q',r]);}
+const env={...process.env,PRODERO_RELEASE_SOURCE:'none',NODE_PATH:''};
+assert.equal(execFileSync(bin,['--version'],{env,encoding:'utf8'}).trim(),packageIdentity.version);
+let client,transport;const errors=[],checks=[],transcript=[];
+async function connect(selectedRoot=root){transport=new StdioClientTransport({command:bin,args:['mcp','--root',selectedRoot],cwd:base,env,stderr:'pipe'});transport.stderr?.on('data',b=>errors.push(String(b)));client=new Client({name:'isolated-artifact-acceptance',version:'1'},{capabilities:{extensions:{'io.modelcontextprotocol/ui':{mimeTypes:['text/html;profile=mcp-app']}}}});await client.connect(transport);assert.equal(client.getServerVersion().version,packageIdentity.version);}
+async function call(name,args={}){const r=await client.callTool({name,arguments:args});transcript.push({name,args,result:r});assert.notEqual(r.isError,true,JSON.stringify(r));return r;}
+const text=(tool,args={})=>call('prodero_text',{tool,arguments:args});
+const op=r=>JSON.parse(r.content[1].text).proderoOperation;
+const bound=a=>text(a.tool,a.arguments);
+try{
+ await connect();
+ const tools=(await client.listTools()).tools;assert.ok(tools.some(t=>t.name==='prodero_text'));assert.equal(tools.find(t=>t.name==='prodero_text')._meta,undefined);
+ const instructions=await call('prodero_instructions_read');assert.match(instructions.content[0].text,/Curate Memory/);checks.push('artifact instructions and text gateway discovery');
+ for(const {uri} of (await client.listResources()).resources){const r=await client.readResource({uri});assert.match(r.contents[0].text,/<html/i);assert.doesNotMatch(r.contents[0].text,/(?:src|href)=["'](?:\/Users\/|\/src\/|http:\/\/localhost)/);}checks.push('packaged MCP App resources load without checkout URLs');
+ await call('prodero_initialize');await client.close();await connect(other);await call('prodero_initialize');await client.close();await connect();
+ for(let i=0;i<4;i++)await call('prodero_remember',{content:`Synthetic harbor acceptance fact ${i}. Keep replay trace ${i} isolated.`,title:`Harbor fixture ${i}`,kind:'fact',scope:'global'});
+ const initial=await text('prodero_open');assert.equal(op(initial).numberedActions.find(a=>a.number===2).tool,'prodero_knowledge');
+ const list=await text('prodero_knowledge',{limit:2,layer:'local'}),a=op(list).entryActions[0];assert.equal(a.key,'A');assert.equal(a.arguments.id,list.structuredContent.result.matches[0].id);
+ const next=op(list).numberedActions.find(a=>a.label==='Next page');assert.ok(next);const second=await bound(next),secondA=op(second).entryActions[0];assert.equal(secondA.key,'A');assert.notEqual(secondA.arguments.id,a.arguments.id);
+ const detail=await bound(secondA);assert.equal(detail.structuredContent.result.detail.id,secondA.arguments.id);assert.deepEqual(op(detail).entryActions,[]);assert.ok(detail.content[0].text.includes(detail.structuredContent.result.detail.content));
+ const back=op(detail).numberedActions.find(a=>a.number===1);assert.equal(back.label,'Back to knowledge list');const returned=await bound(back);assert.deepEqual(returned.structuredContent.result.matches.map(r=>r.id),second.structuredContent.result.matches.map(r=>r.id));
+ const search=op(returned).numberedActions.find(a=>a.input?.field==='query');assert.ok(search);const found=await text(search.tool,{...search.arguments,query:'Harbor'});assert.equal(found.structuredContent.result.options.query,'Harbor');checks.push('stdio exact A/page replacement/detail/back and numeric search with actual input');
+ const ready=await text('prodero_prepare',{task:'Inspect synthetic harbor fixtures',agent:'artifact-acceptance'});assert.equal(op(ready).blocking,false);assert.deepEqual(op(ready).numberedActions,[]);assert.match(ready.content[0].text,/Ready · continuing/);assert.deepEqual(op(ready).context,ready.structuredContent.result.context);
+ const snapshot=structuredClone(ready.structuredContent);const beforeCalls=transcript.length,expanded=renderText(buildViewModel(snapshot),false,true);assert.ok(expanded.length>ready.content[0].text.length);assert.equal(transcript.length,beforeCalls);assert.deepEqual(snapshot,ready.structuredContent);await call('prodero_session_close',{sessionId:ready.structuredContent.result.session.id});checks.push('healthy Prepare continues with no menu; expanded exact returned snapshot without retrieval');
+ const uiReady=await call('prodero_prepare',{task:'Inspect App lifecycle fallback',presentationGroup:'fixture_lifecycle'});assert.equal(uiReady.structuredContent.presentation.resolved,'ui');assert.match(uiReady.structuredContent.presentation.text,/Context Ready/);assert.deepEqual(uiReady.structuredContent.presentation.operational.numberedActions,[]);assert.ok(uiReady.content.some(c=>c.annotations?.audience?.includes('assistant')&&c.text.includes(uiReady.structuredContent.presentation.text)));
+ const uiClosed=await call('prodero_session_close',{sessionId:uiReady.structuredContent.result.session.id,presentationGroup:'fixture_lifecycle'});assert.match(uiClosed.structuredContent.presentation.text,/Session closed[\s\S]*Saved/);checks.push('App-resolved Prepare/Close retain compact fallback and exact operation without duplicate Core calls');
+ const shared=path.join(root,'.prodero/config.json'),sharedBefore=await fs.readFile(shared),statBefore=await fs.stat(shared);
+ await call('prodero_config_set',{key:'presentation.theme',value:'light'});await call('prodero_config_set',{key:'presentation.mode',value:'text'});
+ assert.deepEqual(await fs.readFile(shared),sharedBefore);assert.equal((await fs.stat(shared)).mtimeMs,statBefore.mtimeMs);
+ await client.close();await connect(other);assert.equal((await call('prodero_config_get')).structuredContent.projectSettings.presentation.theme,'prodero');
+ await client.close();await connect();assert.equal((await call('prodero_config_get')).structuredContent.projectSettings.presentation.theme,'light');
+ await call('prodero_config_set',{key:'presentation.theme',reset:true});assert.deepEqual(await fs.readFile(shared),sharedBefore);assert.equal((await fs.stat(shared)).mtimeMs,statBefore.mtimeMs);checks.push('local theme/mode isolate roots, persist reconnect, reset without shared rewrite');
+ const update=await call('prodero_update');assert.equal(update.structuredContent.instructionOnly,true);assert.equal(update.structuredContent.command,'prodero update');assert.deepEqual(await fs.readFile(shared),sharedBefore);assert.match(update.content[0].text,/terminal/i);checks.push('update tool is read-only terminal instructions');
+ const id=secondA.arguments.id,preview=(await text('prodero_promotion_preview',{ids:[id],details:true})).structuredContent.preview;assert.ok(preview.actions.length);
+ const rejected=await client.callTool({name:'prodero_text',arguments:{tool:'prodero_promote',arguments:{preview,approved:false}}});assert.equal(rejected.isError,true);
+ assert.equal((await text('prodero_knowledge',{layer:'versioned'})).structuredContent.result.matches.length,0);
+ const promoted=await text('prodero_promote',{preview,approved:true});assert.ok(promoted.structuredContent.result.published>0);checks.push('full fixture promotion preview; approved:false rejects; exact synthetic preview applies only after explicit fixture approval');
+ const {readKnowledgeInventory}=await imp('dist/core/knowledge-provenance.js'),{writeKnowledge}=await imp('dist/core/memory.js');
+ const {loadKnowledgeGraph}=await imp('dist/core/knowledge-graph.js'),{previewMemoryLinkRepair}=await imp('dist/core/memory-link-repair.js');
+ const template=(await readKnowledgeInventory(root)).find(r=>r.storage==='current').item;
+ await writeKnowledge(root,{...template,id:'legacy-harbor-target',status:'superseded'},false,'local');
+ await writeKnowledge(root,{...template,id:'mem_harbor_link_source',related:['legacy-harbor-target','mem_harbor_missing'],supersedes:[],relations:[]},false,'local');
+ await loadKnowledgeGraph(root);const graphPath=path.join(root,'.prodero/.cache/knowledge-graph.json'),old=JSON.parse(await fs.readFile(graphPath,'utf8'));old.version=1;old.brokenReferences.push('mem_harbor_link_source:related_to:legacy-harbor-target');await fs.writeFile(graphPath,JSON.stringify(old));
+ const inventoryBefore=await readKnowledgeInventory(root),graph=await loadKnowledgeGraph(root),repair=await previewMemoryLinkRepair(root);
+ assert.equal(JSON.parse(await fs.readFile(graphPath,'utf8')).version,2);assert.equal(graph.diagnostics.cacheState,'stale');assert.equal(repair.count,1);assert.deepEqual(repair.changes[0].links,[{type:'related_to',target:'mem_harbor_missing'}]);assert.deepEqual(await readKnowledgeInventory(root),inventoryBefore);checks.push('artifact graph invalidates v1 cache and repair preview preserves valid legacy links without canonical writes');
+ const installer={title:'Build and install Harbor package',description:'Build Harbor and install the package with npm.',scope:'Harbor package',triggers:['Build and install Harbor'],content:'Build and verify the synthetic package before installation.'};
+ await call('prodero_skill_create',installer);
+ const audit=(await call('prodero_recall',{query:'Explain Harbor npm package metadata'})).structuredContent.result;
+ const installContext=(await call('prodero_recall',{query:'install Harbor package'})).structuredContent.result;
+ assert.equal(audit.skills.length,0);assert.ok(installContext.skills.some(s=>s.title===installer.title));checks.push('packaged stdio recall excludes topic-only installer and preserves explicit install intent');
+ const {createSkillCandidate}=await imp('dist/core/skills.js');
+ const procedure='1. Create a disposable Harbor queue.\n2. Retain the original journal.\n3. Verify recovery without changing live memory.';
+ const candidate=(await createSkillCandidate(root,{title:'Verify Harbor journal recovery',description:'Verify isolated Harbor journal recovery.',scope:'global',triggers:['journal recovery'],content:procedure},{sessionId:'sess_artifact_fixture',derivedFrom:'sess_artifact_fixture#obs_recovery',proposedReason:'Synthetic artifact verification.'})).skill;
+ const skillResult=await text('prodero_skill_preview',{id:candidate.id});
+ assert.equal(skillResult.structuredContent.approval.surface,'chat');assert.equal(skillResult.structuredContent.presentation.resolved,'text');assert.ok(skillResult.content[0].text.includes(procedure));assert.equal(skillResult.structuredContent.presentation.text,skillResult.content[0].text);
+ const skillPreview=skillResult.structuredContent.preview;
+ assert.equal((await client.callTool({name:'prodero_text',arguments:{tool:'prodero_skill_review',arguments:{id:candidate.id,action:'promote',approved:false,preview:skillPreview}}})).isError,true);
+ assert.equal((await text('prodero_skill_review',{id:candidate.id,action:'promote',approved:true,preview:skillPreview})).structuredContent.skill.status,'active');
+ checks.push('packaged Skill Preview honors local text over shared auto with Apps; gateway retains full exact draft and human approval guard');
+ await writeKnowledge(root,{...template,id:'legacy-harbor-current',status:'active',supersedes:[],related:[],relations:[]},false,'local');
+ await writeKnowledge(root,{...template,id:'legacy-harbor-replace',status:'active',supersedes:[],related:[],relations:[]},false,'local');
+ const replaced=(await call('prodero_remember',{replaceId:'legacy-harbor-replace',content:'Synthetic Harbor journal recovery preserves the amber queue.',relationships:[{type:'depends_on',target:'legacy-harbor-current'}]})).structuredContent.result;
+ assert.equal(replaced.replacedId,'legacy-harbor-replace');assert.ok(replaced.item.supersedes.includes('legacy-harbor-replace'));assert.ok(replaced.item.relations.some(r=>r.target==='legacy-harbor-current'));
+ assert.equal((await call('prodero_forget',{id:'legacy-harbor-current'})).structuredContent.result.forgotten,true);
+ checks.push('packaged MCP legacy replace and relationship selectors preserve history; Local legacy Forget succeeds');
+ await fs.writeFile(path.join(base,'receipt.json'),JSON.stringify({passed:true,package:pkg,dependencyMode:'caller-provided isolated artifact dependencies; no resolution/install by this harness',checks,stderr:errors},null,2));console.log(JSON.stringify({passed:true,evidenceDirectory:base,checks},null,2));
+}finally{await fs.writeFile(path.join(base,'transcript.json'),JSON.stringify(transcript,null,2));await client?.close();}

@@ -112,7 +112,7 @@ test("MCP registers Prodero tools, status, and the App resource", async () => {
     for (const name of [PRODERO_TOOLS.prepare, PRODERO_TOOLS.sessionClose]) {
       assert.equal(tools.tools.find((tool) => tool.name === name)?._meta?.ui?.resourceUri, PRODERO_LIFECYCLE_RESOURCE_URI);
     }
-    assert.equal(tools.tools.find((tool) => tool.name === PRODERO_TOOLS.sync)?._meta?.ui?.resourceUri, PRODERO_RESOURCE_URI, "Sync Memory opens the workflow");
+    assert.equal(tools.tools.find((tool) => tool.name === PRODERO_TOOLS.sync)?._meta?.ui?.resourceUri, PRODERO_RESOURCE_URI, "Curate Memory opens the workflow");
     assert.equal(tools.tools.find((tool) => tool.name === PRODERO_TOOLS.context)?._meta?.ui, undefined, "tiny context lookup does not force lifecycle UI");
     assert.equal(client.getInstructions(), PRODERO_MCP_INSTRUCTIONS);
     assert.match(client.getInstructions() ?? "", /immediately call prodero_config_get/);
@@ -199,7 +199,7 @@ test("MCP registers Prodero tools, status, and the App resource", async () => {
     assert.doesNotMatch(resource.contents[0].text, /Retry details/);
     assert.doesNotMatch(resource.contents[0].text, /hydrateAfterVisiblePaint/);
     assert.doesNotMatch(resource.contents[0].text, /queueMicrotask/, "microtasks cannot guarantee that the loading shell was painted");
-    assert.match(resource.contents[0].text, /Sync Memory/);
+    assert.match(resource.contents[0].text, /Curate Memory/);
     assert.match(resource.contents[0].text, /full context window or billing usage/);
     assert.doesNotMatch(resource.contents[0].text, /total model tokens|provider cost/i);
   } finally {

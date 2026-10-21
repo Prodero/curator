@@ -115,5 +115,5 @@ test("MCP and the existing App expose review-before-publish promotion", async ()
     assert.equal(published.structuredContent.result.published, 1);
   } finally { await client.close(); await server.close(); }
   const ui = await fs.readFile(new URL("../src/ui/main.ts", import.meta.url), "utf8");
-  assert.match(ui, /Local Knowledge/); assert.match(ui, /Sync Memory/); assert.match(ui, /PRODERO_TOOLS\.memorySync/); assert.match(ui, /PRODERO_TOOLS\.promote/);
+  assert.match(ui, /Local Knowledge/); assert.match(ui, /Curate Memory/); assert.match(ui, /PRODERO_TOOLS\.memorySync/); assert.match(ui, /PRODERO_TOOLS\.promote/);
 });

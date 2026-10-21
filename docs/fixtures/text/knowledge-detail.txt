@@ -1,0 +1,43 @@
+```text
+╭─ >_ PRODERO ──────────────────── /02
+│ Curator · project memory
+│
+├─ Knowledge ─────────────────────────
+│ Local  1
+│ Versioned  2
+│ Available for sharing review  0
+│ Matches  6
+├─ Knowledge detail ──────────────────
+│ Node 22 runtime
+╰─────────────────────────────────────
+```
+
+```text
+Knowledge detail:
+Node 22 runtime
+Run project tools with Node 22.
+ID: mem_runtime
+Revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+versioned · state · normal · global · active
+```
+
+```text
+-------------
+Edits preserve identity and history. Retirement is not secure erase. Repository maintenance modifies Git-shareable files through the review workflow. Approval arguments do not authenticate human consent; review the Git diff before commit/push.
+```
+
+```text
+Available actions:
+
+  1 > Back to knowledge list
+  2 > Review an edit or retirement
+      Explicit approval required.
+      Collect edit/retire and
+      required fields. Show the
+      complete proposal before asking
+      for approval.
+  3 > Curate Memory
+  4 > Back to Prodero
+
+Reply with a number or the command name.
+```

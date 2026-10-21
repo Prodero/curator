@@ -11,6 +11,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../dist/server.js";
 import * as contracts from "../dist/contracts.js";
 import * as snapshots from "../dist/core/context-snapshot.js";
+import { PRODERO_VERSION } from "../dist/core/constants.js";
 
 // Small DOM adapter: execute the real UI handlers against real MCP/Core operations.
 // Layout/paint is intentionally outside this contract test.
@@ -78,7 +79,7 @@ test("Skills pagination only sends valid offsets, stops on the last page and all
   }
   const source = await fs.readFile(new URL("../src/ui/main.ts", import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const sandbox = vm.createContext({ exports: {}, require: (id) => id === "./card-disclosure.js" ? {mountCardDisclosure:()=>undefined} : id === "@modelcontextprotocol/ext-apps" ? { App: AppStub } : id.includes("contracts") ? contracts : id.includes("context-snapshot") ? snapshots : id.includes("presentation") ? presentation : {}, document: { querySelector: () => host }, FormData: FormDataStub });
+  const sandbox = vm.createContext({ exports: {}, __PRODERO_VERSION__: PRODERO_VERSION, require: (id) => id === "./card-disclosure.js" ? {mountCardDisclosure:()=>undefined} : id === "@modelcontextprotocol/ext-apps" ? { App: AppStub } : id.includes("contracts") ? contracts : id.includes("context-snapshot") ? snapshots : id.includes("presentation") ? presentation : {}, document: { querySelector: () => host }, FormData: FormDataStub });
   vm.runInContext(code, sandbox);
   const settle = async () => {
     for (let i = 0; i < 200 && vm.runInContext("busyAction !== null", sandbox); i++) await new Promise((resolve) => setTimeout(resolve, 5));
@@ -143,7 +144,7 @@ test("existing App opens Skills, promotes/dismisses candidates, saves explicit s
   }
   const source = await fs.readFile(new URL("../src/ui/main.ts", import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const sandbox = vm.createContext({ exports: {}, require: (id) => id === "./card-disclosure.js" ? {mountCardDisclosure:()=>undefined} : id === "@modelcontextprotocol/ext-apps" ? { App: AppStub } : id.includes("contracts") ? contracts : id.includes("context-snapshot") ? snapshots : id.includes("presentation") ? presentation : {}, document: { querySelector: () => host }, FormData: FormDataStub, requestAnimationFrame: (callback) => callback(), setTimeout });
+  const sandbox = vm.createContext({ exports: {}, __PRODERO_VERSION__: PRODERO_VERSION, require: (id) => id === "./card-disclosure.js" ? {mountCardDisclosure:()=>undefined} : id === "@modelcontextprotocol/ext-apps" ? { App: AppStub } : id.includes("contracts") ? contracts : id.includes("context-snapshot") ? snapshots : id.includes("presentation") ? presentation : {}, document: { querySelector: () => host }, FormData: FormDataStub, requestAnimationFrame: (callback) => callback(), setTimeout });
   vm.runInContext(code, sandbox);
   app.ontoolresult(await call(contracts.PRODERO_TOOLS.statusDetails));
   assert.match(host.innerHTML, /<strong>0<\/strong><span>active skills<\/span><small>2 candidates<\/small>/);
@@ -233,7 +234,7 @@ test('reconnected stdio MCP App reviews a synthetic cache candidate entirely thr
   }
   const source = await fs.readFile(new URL('../src/ui/main.ts', import.meta.url), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const sandbox = vm.createContext({ exports: {}, require: id => id === './card-disclosure.js' ? {mountCardDisclosure:()=>undefined} : id === '@modelcontextprotocol/ext-apps' ? { App: AppStub } : id.includes('contracts') ? contracts : id.includes('context-snapshot') ? snapshots : id.includes('presentation') ? presentation : {}, document: { querySelector: () => host }, FormData: FormDataStub, requestAnimationFrame: cb => cb(), setTimeout });
+  const sandbox = vm.createContext({ exports: {}, __PRODERO_VERSION__: PRODERO_VERSION, require: id => id === './card-disclosure.js' ? {mountCardDisclosure:()=>undefined} : id === '@modelcontextprotocol/ext-apps' ? { App: AppStub } : id.includes('contracts') ? contracts : id.includes('context-snapshot') ? snapshots : id.includes('presentation') ? presentation : {}, document: { querySelector: () => host }, FormData: FormDataStub, requestAnimationFrame: cb => cb(), setTimeout });
   vm.runInContext(code, sandbox);
   const settle = async () => {
     for (let i = 0; i < 300 && vm.runInContext('busyAction !== null || statusRequest !== null', sandbox); i++) await new Promise(resolve => setTimeout(resolve, 5));

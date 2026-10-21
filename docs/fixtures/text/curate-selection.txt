@@ -1,0 +1,41 @@
+```text
+╭─ >_ PRODERO ──────────────────── /04
+│ prodero-bundle-fixture-1WEGSJ ·
+│ project memory
+│
+├─ CURATE MEMORY ─────────────────────
+│ Your place and saved answers are
+│ retained. Leave and return with
+│ Continue curation.
+├─ Curation options ──────────────────
+│ Improve memory · enabled
+│
+│   ───────────────────────────
+│
+│ Share knowledge · enabled
+│
+│ Start curation? Sharing will
+│ require a separate approval.
+╰─────────────────────────────────────
+```
+
+```text
+Curation options:
+Improve memory · enabled
+Process, compress and organize memory.
+
+   ───────────────────────────
+
+Share knowledge · enabled
+Review Local knowledge for Versioned files. Your agent can also change these files; review the Git diff before commit/push.
+```
+
+```text
+Available actions:
+
+  1 > Start curation
+  2 > Check progress
+  3 > Show details
+
+Reply with a number or the command name.
+```

@@ -73,23 +73,26 @@ A protocol runner is not a real host. Independently connect a primary host to th
 
 ## Install the artifact for review
 
-Before the first npm publication, install the generated tarball instead of a registry release:
+For an unpublished candidate, install the reviewed tarball into an isolated prefix rather than requesting its version from the registry. The current candidate version is 0.2.0; this command is an example for a separately authorized isolated environment, not a request to replace the working installation:
 
 ```sh
-npm install --global /absolute/path/prodero-curator-0.1.0.tgz
-prodero install
+npm install --global --prefix /absolute/isolated/prefix --omit=dev --ignore-scripts /absolute/path/prodero-curator-0.2.0.tgz
 ```
 
 Use the isolated host environment described above for automated verification. For a deliberate real-host check, review the installer’s configuration changes and restart the selected coding agent. Open a synthetic project and type `prodero`. The tarball includes the compiled server, Apps and plugin resources; no source checkout or development dependencies are needed.
 
 ## Final human publication checklist
 
-1. Independently audit the RC, review diffs, run the full gate on the exact committed tree and obtain green declared CI matrix runs. Record artifact SHA-256 and primary-host evidence.
+1. Finalize version, changelog/date and README in the intended release tree before freezing the candidate. Independently audit it, review diffs, run the full gate on the exact committed tree and obtain green declared CI matrix runs. Record artifact SHA-256 and primary-host evidence. Any packaged-content edit afterwards requires a new tarball and matching checks.
 2. Review the intended public Git tree **and history** for private content. Ignoring runtime files today does not remove old commits. Decide explicitly what history to publish; never rewrite it automatically.
 3. Confirm ownership of npm scope `@prodero`, package/repository identity `@prodero/curator` / `prodero/curator`, and permission to release. A registry 404 does not establish scope ownership.
 4. Create/configure the intended public repository only with explicit approval. Enable Issues and private vulnerability reporting; verify the links and update any identity/channel changes in docs and package metadata.
-5. Confirm version `0.1.0`, MIT license, changelog date, preview limitations and exact artifact contents. Obtain explicit approval for publication.
-6. Authenticate npm with the account's required 2FA/provenance policy. Publish the **reviewed tarball**, not an unreviewed rebuild: `npm publish /absolute/path/prodero-curator-0.1.0.tgz --access public`.
-7. Verify external `npm install --global @prodero/curator@0.1.0`, `prodero --version` and `prodero check-update`. Only with separate approval create/push the `v0.1.0` tag and release notes or announcements.
+5. Confirm candidate version `0.2.0`, MIT license, final changelog date, preview limitations, README registry example and exact artifact contents. If any edit is still needed, return to step 1 and certify the new artifact. Obtain explicit approval for publication.
+6. Authenticate npm with the account's required 2FA/provenance policy. Publish the **reviewed tarball**, not an unreviewed rebuild: `npm publish /absolute/path/prodero-curator-0.2.0.tgz --access public`.
+7. Verify external `npm install --global @prodero/curator@0.2.0`, `prodero --version` and `prodero check-update`. Only with separate approval create/push the `v0.2.0` tag and release notes or announcements.
 
 The automated gate does not publish or push and does not change the source repository history. It creates an isolated disposable test commit in its temporary checkout. Package upgrades do not move project knowledge. Back up the full `.prodero` directory before preview upgrades; `.cache` is disposable, migration recovery backups are not.
+
+## Terminal updater acceptance
+
+Test the installed `prodero update VERSION` in an isolated prefix after explicit terminal acknowledgment, including non-TTY refusal/`--yes`, actual npm failures and fresh CLI/MCP verification. Record artifact/hash/version, scripts policy and unchanged synthetic project/host state. Published-release upgrade, fixture-modified candidate→published transition and same-version behavior are distinct claims. A direct npm install or the existing synthetic patch smoke does not alone exercise the updater. Never use the 0.0.0 placeholder as a functional baseline or update the maintainer’s working npm installation during automated checks. Chat/MCP checks must assert instruction-only behavior even with development release sources.

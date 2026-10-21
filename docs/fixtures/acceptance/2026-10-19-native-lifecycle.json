@@ -1,0 +1,48 @@
+{
+  "source": "Anonymized summary of supported codex_app read_thread evidence; no raw host runtime files",
+  "threadId": "example-native-thread",
+  "title": "Example consumer-project task (placeholder)",
+  "turnId": "example-native-turn",
+  "turnStatus": "completed",
+  "toolResultsAvailable": false,
+  "calls": [
+    {
+      "tool": "prodero_config_get",
+      "status": "completed"
+    },
+    {
+      "tool": "prodero_prepare",
+      "status": "completed",
+      "presentationGroup": "example-presentation-group",
+      "purpose": "review"
+    },
+    {
+      "tool": "prodero_session_record",
+      "status": "completed",
+      "sessionId": "example-native-session"
+    },
+    {
+      "tool": "prodero_session_close",
+      "status": "completed",
+      "sessionId": "example-native-session",
+      "presentationGroup": "example-presentation-group"
+    }
+  ],
+  "visibleLifecycleAssistantMessage": false,
+  "proderoTextCalls": 0,
+  "currentReadOnlySettings": {
+    "detailsOmitted": true,
+    "historicalModeProven": false
+  },
+  "deviceEvidence": "Native-host display was reported; original device metadata is omitted. The thread API does not establish device or actual iframe visibility.",
+  "limits": [
+    "completed tool status does not expose result body or Core success",
+    "current settings do not establish historical negotiated capabilities/resolution",
+    "no consumer-project memory/session operation performed in this investigation"
+  ],
+  "privacy": {
+    "identifiers": "All thread, turn, session and presentation identifiers and the title are illustrative placeholders, not actual native evidence identifiers.",
+    "omitted": "Original project identity, device, Home counts and settings values are omitted. Historical observed call/status and visibility findings are retained."
+  },
+  "homeCountsOmitted": true
+}

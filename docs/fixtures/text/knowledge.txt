@@ -1,0 +1,41 @@
+```text
+╭─ >_ PRODERO ──────────────────── /02
+│ Curator · project memory
+│
+├─ KNOWLEDGE ─────────────────────────
+│ Showing 1-3 of 6
+│
+│ A · Node 22 runtime
+│   Versioned
+│   Run project tools with Node 22.
+│
+│   ───────────────────────────
+│
+│ B · Knowledge layers
+│   Versioned
+│   Local stays in this checkout.
+│   Versioned can be shared via Git.
+│
+│   ───────────────────────────
+│
+│ C · CLI update workflow
+│   Local
+│   In a terminal: prodero update.
+│
+│ Enter a letter to open its record.
+╰─────────────────────────────────────
+```
+
+```text
+Available actions:
+
+  1 > Search knowledge
+      What should I search for?
+  2 > Show Local knowledge
+  3 > Show Versioned knowledge
+  4 > Next page
+  5 > Curate Memory
+  6 > Back to Prodero
+
+Reply with a number or the command name.
+```

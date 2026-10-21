@@ -1,19 +1,36 @@
 /** Sync orchestration adapter. Questions, answers and jobs belong to Curator. */
-import {createCurationReview,resumeCurationReview,latestCurationReview} from './curation-review.js';
+import {createCurationReview,resumeCurationReview,latestCurationReview,loadCurationReview,assertCurationHead,CurationReviewError} from './curation-review.js';
 import {planKnowledgeCuration} from './knowledge-curation.js';
 import {graphicalReviewPayload} from './curation-graphical.js';
-import {prepareSemanticCuration} from './curation-semantic-jobs.js';
+import {prepareSemanticCuration,inspectSemanticCuration,curationAnswers} from './curation-semantic-jobs.js';
 import {prepareMemoryTransformation,validateMemoryTransformationProposal,type MemoryTransformationProposal} from './memory-transformation-proposal.js';
 import {previewMemoryTransformation} from './memory-transformation.js';
-import {scopeEffect} from './curation-semantic-contract.js';
+import {scopeEffect,semanticHash} from './curation-semantic-contract.js';
+import {deterministicBaseline} from './curation-revision.js';
+
+/** Explicit expiry refresh carries staged semantics and non-approval decisions
+ * into a fresh revision. It neither reopens a question nor records an apply. */
+export async function refreshSyncQuestions(root:string,sourceIds:string[],input:{reviewId:string;reviewRevisionId:string;planHash:string;decisionRevision:number;answerLogHash:string}){
+ const review=await loadCurationReview(root,input.reviewId,{allowExpired:true}),revision=review.snapshot.revision!;
+ await assertCurationHead(root,review);
+ if(revision.id!==input.reviewRevisionId||review.snapshot.planHash!==input.planHash||review.state.revision!==input.decisionRevision||semanticHash(await curationAnswers(root,revision.lineageId))!==input.answerLogHash)throw new CurationReviewError('review_changed','This saved question changed. Inspect current progress.');
+ const payload=await graphicalReviewPayload(root,review),baseline=deterministicBaseline(revision);
+ if(payload.projection.lifecycle!=='stale')throw new CurationReviewError('review_changed','This review has not expired. Inspect its current questions.');
+ if((await planKnowledgeCuration(root,{memorySyncSources:sourceIds})).planId!==baseline.planId)throw new CurationReviewError('semantic_stale','Knowledge or evidence changed. Re-analyze before refreshing this question.');
+ const next=await createCurationReview(root,{parent:review,operationId:`question_refresh_${semanticHash([revision.id,input.decisionRevision,input.answerLogHash])}`,applied:[]},sourceIds);
+ return graphicalReviewPayload(root,next);
+}
 import {sameApplicability} from './applicability.js';
 
-export async function prepareSyncCuration(root:string,sourceIds:string[],reviewId?:string){
+export async function prepareSyncCuration(root:string,sourceIds:string[],reviewId?:string,retry=false){
  const previous=reviewId?undefined:await latestCurationReview(root,(await planKnowledgeCuration(root,{memorySyncSources:sourceIds})).planId);
  const review=reviewId?await resumeCurationReview(root,reviewId):previous??await createCurationReview(root,undefined,sourceIds);
  const payload=await graphicalReviewPayload(root,review),g=payload.graphical!;
  if(g.activeQuestionCount||g.deferredQuestionIds.length)return {reviewId:review.snapshot.reviewId,payload};
- const job=await prepareSemanticCuration(root,{reviewId:review.snapshot.reviewId,reviewRevisionId:review.snapshot.revision!.id,componentId:review.snapshot.revision!.dependencies.groups[0].component,requestId:`sync_${review.snapshot.reviewId}`,reason:'initial',limits:{maxItems:24}});
+ // Replaying Prepare after Retry must return its live attempt, not the old initial request.
+ if(g.continuationJobId)return {reviewId:review.snapshot.reviewId,payload,job:await inspectSemanticCuration(root,g.continuationJobId)};
+ const failed=retry?g.jobs.find(j=>!j.suspended&&['rejected','stale'].includes(j.status)):undefined;
+ const job=await prepareSemanticCuration(root,{reviewId:review.snapshot.reviewId,reviewRevisionId:review.snapshot.revision!.id,componentId:failed?.componentId??review.snapshot.revision!.dependencies.groups[0].component,requestId:failed?`sync_retry_${failed.id}`:`sync_${review.snapshot.reviewId}`,reason:failed?(failed.status==='rejected'?'validation_correction':'resume'):'initial',...(failed?failed.status==='rejected'?{correctionForJobId:failed.id}:{resumeForJobId:failed.id}:{}),limits:{maxItems:24}});
  return {reviewId:review.snapshot.reviewId,payload,job};
 }
 

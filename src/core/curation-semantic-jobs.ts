@@ -10,12 +10,12 @@ import { loadMemoryCatalog } from './memory-index.js';
 import { planKnowledgeCuration } from './knowledge-curation.js';
 import { loadCurationReview, assertCurationHead, publishSemanticReview, CurationReviewError, type CurationReview } from './curation-review.js';
 import { deterministicBaseline, revisionIssues } from './curation-revision.js';
-import { SEMANTIC_CONTRACT, SEMANTIC_VALIDATOR, SEMANTIC_INSTRUCTIONS, semanticProposalSchema, semanticLimitsSchema, semanticHash as hash, semanticClauses, measuredTokens, validateSemanticProposal, materializeSemanticPlan, SemanticValidationError, type SemanticLimits, type SemanticBundle, type AnswerEvent, type AcceptedSemanticAnalysis } from './curation-semantic-contract.js';
+import { SEMANTIC_CONTRACT, SEMANTIC_VALIDATOR, SEMANTIC_INSTRUCTIONS, semanticProposalSchema, semanticLimitsSchema, semanticHash as hash, semanticAttemptInputHash, semanticClauses, measuredTokens, validateSemanticProposal, materializeSemanticPlan, SemanticValidationError, type SemanticLimits, type SemanticBundle, type AnswerEvent, type AcceptedSemanticAnalysis } from './curation-semantic-contract.js';
 export const SEMANTIC_RETENTION={maxJobs:64,maxBytes:2*1024*1024,maxAnswers:128};
 export const jobStatuses=['prepared','awaiting_reasoning','submitted','validated','rejected','stale','failed'] as const;
 type JobStatus=typeof jobStatuses[number];
 const adapterSchema=z.object({host:z.string().max(120).optional(),model:z.string().max(120).optional()}).strict();
-export const semanticPrepareSchema=z.object({reviewId:z.string().regex(/^review_[a-zA-Z0-9_]+$/),reviewRevisionId:z.string().regex(/^revision_[a-f0-9]{64}$/),componentId:z.string().regex(/^component_[a-f0-9]{24}$/),requestId:z.string().min(1).max(100),reason:z.enum(['initial','new_evidence','answer','validation_correction','resume']).default('initial'),correctionForJobId:z.string().regex(/^semantic_job_[a-f0-9]{40}$/).optional(),limits:semanticLimitsSchema.partial().optional(),adapter:adapterSchema.optional()}).strict();
+export const semanticPrepareSchema=z.object({reviewId:z.string().regex(/^review_[a-zA-Z0-9_]+$/),reviewRevisionId:z.string().regex(/^revision_[a-f0-9]{64}$/),componentId:z.string().regex(/^component_[a-f0-9]{24}$/),requestId:z.string().min(1).max(100),reason:z.enum(['initial','new_evidence','answer','validation_correction','resume']).default('initial'),correctionForJobId:z.string().regex(/^semantic_job_[a-f0-9]{40}$/).optional(),resumeForJobId:z.string().regex(/^semantic_job_[a-f0-9]{40}$/).optional(),limits:semanticLimitsSchema.partial().optional(),adapter:adapterSchema.optional()}).strict();
 interface JobInput {jobId:string;projectIdentity:string;reviewId:string;reviewRevisionId:string;lineageId:string;decisionRevision:number;bundleId:string;bundleHash:string;bundle:SemanticBundle;contractVersion:string;validatorVersion:string;requestId:string;reason:string;inputHash:string;semanticInputHash:string;createdAt:string;expiresAt:string;correction:number;previousJobId?:string;adapter?:z.infer<typeof adapterSchema>;}
 interface JobEvent {sequence:number;at:string;status:JobStatus;previousHash:string;hash:string;outputHash?:string;proposal?:unknown;reason?:string;resultReviewId?:string;resultRevisionId?:string;}
 export interface SemanticJob {version:1;input:JobInput;inputSeal:string;events:JobEvent[];}
@@ -58,7 +58,7 @@ export async function appendCurationAnswer(root:string,input:{reviewId:string;re
     if(!!input.choiceId===!!input.rawText||input.rawText&&(!issue.question.allowFreeText||Buffer.byteLength(input.rawText)>8192))return reject('semantic_invalid','Invalid answer.');
     const choice=input.choiceId?issue.question.choices.find(c=>c.id===input.choiceId):undefined;if(input.choiceId&&!choice)return reject('semantic_invalid','Unknown answer choice.');
     const events=await curationAnswers(root,revision.lineageId),prior=events.find(e=>e.requestId===input.requestId);
-    if(prior){if(prior.questionId!==input.questionId||prior.choice?.id!==input.choiceId||prior.rawText!==input.rawText)return reject('review_changed','Answer request changed.');return prior;}
+    if(prior){if(prior.reviewRevisionId!==input.reviewRevisionId||prior.questionId!==input.questionId||prior.questionVersion!==input.questionVersion||prior.choice?.id!==input.choiceId||prior.rawText!==input.rawText||prior.replacesAnswerId!==input.replacesAnswerId||prior.origin!==input.origin)return reject('review_changed','Answer request changed.');return prior;}
     if(input.answerLogHash!==undefined&&input.answerLogHash!==hash(events))return reject('review_changed','Another answer was saved. Reload this review.');
     if(events.length>=SEMANTIC_RETENTION.maxAnswers)return reject('semantic_limit','Answer history reached its limit.');
     if(events.some(e=>e.questionId===input.questionId&&!events.some(a=>a.replacesAnswerId===e.id))&&!input.replacesAnswerId)return reject('review_changed','Replacing an answer requires its exact prior event.');
@@ -87,22 +87,67 @@ async function makeBundle(root:string,review:CurationReview,componentId:string,l
   bundle.id=`bundle_${hash(bundle)}`;return bundle;
 }
 function response(job:SemanticJob){const {bundle,...input}=job.input;const history=job.events.map(({proposal,...event})=>event);return {jobId:job.input.jobId,status:last(job).status,job:{...job,input,events:history},task:{instructions:SEMANTIC_INSTRUCTIONS,proposalSchema:zodToJsonSchema(semanticProposalSchema,{$refStrategy:'none'}),data:bundle},acceptance:'staged_candidate_only' as const,validation:last(job).reason,resultReviewId:last(job).resultReviewId};}
+const passCount=(history:SemanticJob[],lineageId:string)=>history.filter(j=>j.input.lineageId===lineageId&&j.input.reason!=='validation_correction').length;
+const passLimit=(history:SemanticJob[],lineageId:string,limits:SemanticLimits)=>Math.min(limits.maxPasses,...history.filter(j=>j.input.lineageId===lineageId).map(j=>j.input.bundle.limits.maxPasses));
+function boundedRecoveryLimits(previous:SemanticJob,requested?:Partial<SemanticLimits>):SemanticLimits{
+ const limits=semanticLimitsSchema.parse({...previous.input.bundle.limits,...requested});
+ return Object.fromEntries(Object.entries(limits).map(([key,value])=>[key,Math.min(value,previous.input.bundle.limits[key as keyof SemanticLimits])])) as SemanticLimits;
+}
+const semanticInputIdentity=(bundle:SemanticBundle)=>hash([bundle.expectedSources,bundle.sources,bundle.evidence,bundle.answers,bundle.signals,bundle.missingFacts,bundle.completeness,SEMANTIC_CONTRACT,SEMANTIC_VALIDATOR]);
+/** Retry affordances use the same persisted budgets as preparation. Expiry is
+ * independent of decision revision; neither may reset a correction allowance. */
+export function semanticRetryState(job:SemanticJob,review:CurationReview,history:SemanticJob[]){
+ const room=history.length<SEMANTIC_RETENTION.maxJobs,status=semanticJobStatus(job,review);
+ return {canRetry:room&&status==='rejected'&&job.input.decisionRevision===review.state.revision&&job.input.correction<job.input.bundle.limits.maxCorrections,
+  canResume:room&&status==='stale'&&['prepared','awaiting_reasoning','submitted','stale'].includes(last(job).status)&&passCount(history,job.input.lineageId)<passLimit(history,job.input.lineageId,job.input.bundle.limits)};
+}
 export async function prepareSemanticCuration(root:string,raw:z.input<typeof semanticPrepareSchema>){
   const input=semanticPrepareSchema.parse(raw);return reviewLock(root,async()=>{
-    const review=await current(root,input.reviewId,input.reviewRevisionId),limits=semanticLimitsSchema.parse(input.limits??{}),bundle=await makeBundle(root,review,input.componentId,limits),history=await semanticJobs(root);
-    const semanticInputHash=hash([bundle.expectedSources,bundle.sources,bundle.evidence,bundle.answers,bundle.signals,bundle.missingFacts,bundle.completeness,SEMANTIC_CONTRACT,SEMANTIC_VALIDATOR]);
+    const review=await current(root,input.reviewId,input.reviewRevisionId),history=await semanticJobs(root);
+    const targetId=input.reason==='validation_correction'?input.correctionForJobId:input.reason==='resume'?input.resumeForJobId:undefined;
+    const target=targetId?history.find(j=>j.input.jobId===targetId):undefined;
+    if(targetId&&(!target||target.input.lineageId!==review.snapshot.revision!.lineageId||target.input.bundle.componentId!==input.componentId))return reject('semantic_invalid','Recovery job does not belong to this component.');
+    let limits=semanticLimitsSchema.parse(input.limits??{});
+    if(target)limits=boundedRecoveryLimits(target,input.limits);
+    let bundle=await makeBundle(root,review,input.componentId,limits),semanticInputHash=semanticInputIdentity(bundle);
+    const matches=history.filter(j=>j.input.semanticInputHash===semanticInputHash&&j.input.lineageId===bundle.lineageId&&j.input.bundle.componentId===bundle.componentId&&!history.some(next=>next.input.previousJobId===j.input.jobId)).sort((a,b)=>b.input.createdAt.localeCompare(a.input.createdAt));
+    let same=target??matches.find(j=>j.input.reviewRevisionId===input.reviewRevisionId&&j.input.decisionRevision===review.state.revision)??matches[0];
+    if(input.reason==='resume'&&!same){
+      // Older callers have no explicit predecessor field. Resolve a unique leaf
+      // against full source/answer bindings, then inherit omitted input limits.
+      // A changed answer is a fresh analysis, not recovery of that old attempt.
+      const candidates=history.filter(j=>j.input.lineageId===bundle.lineageId&&j.input.bundle.componentId===input.componentId&&['prepared','awaiting_reasoning','submitted','stale'].includes(last(j).status)&&!history.some(next=>next.input.previousJobId===j.input.jobId)&&hash(j.input.bundle.expectedSources)===hash(bundle.expectedSources)&&j.input.bundle.answerLogHash===bundle.answerLogHash);
+      if(candidates.length>1)return reject('semantic_stale','Recovery is ambiguous. Reload the review and retry the exact analysis job.');
+      if(candidates.length){same=candidates[0];limits=boundedRecoveryLimits(same,input.limits);bundle=await makeBundle(root,review,input.componentId,limits);semanticInputHash=semanticInputIdentity(bundle);if(semanticInputHash!==same.input.semanticInputHash)return reject('semantic_stale','Reasoning evidence changed. Prepare a fresh analysis.');}
+    }
     const priorRequest=history.find(j=>j.input.requestId===input.requestId&&j.input.lineageId===bundle.lineageId);
     if(priorRequest){if(priorRequest.input.semanticInputHash!==semanticInputHash||priorRequest.input.reviewRevisionId!==input.reviewRevisionId)return reject('review_changed','Reasoning request changed.');return response(priorRequest);}
-    const matches=history.filter(j=>j.input.semanticInputHash===semanticInputHash&&j.input.lineageId===bundle.lineageId).sort((a,b)=>b.input.createdAt.localeCompare(a.input.createdAt));
-    const same=matches.find(j=>j.input.reviewRevisionId===input.reviewRevisionId&&j.input.decisionRevision===review.state.revision)??matches[0];
-    let correction=0;
+    let correction=0,previous:SemanticJob|undefined;
     if(input.reason==='validation_correction'){
-      const previous=history.find(j=>j.input.jobId===input.correctionForJobId);if(!previous||last(previous).status!=='rejected'||previous.input.semanticInputHash!==semanticInputHash||previous.input.correction>=previous.input.bundle.limits.maxCorrections)return reject('semantic_limit','No correction retry remains.');correction=previous.input.correction+1;
-      const retry=history.find(j=>j.input.previousJobId===previous.input.jobId);if(retry)return response(retry);
-    }else if(same&&!(input.reason==='resume'&&['prepared','awaiting_reasoning','submitted','stale'].includes(last(same).status)&&(same.input.reviewRevisionId!==input.reviewRevisionId||same.input.decisionRevision!==review.state.revision)))return response(same);
-    if(history.length>=SEMANTIC_RETENTION.maxJobs||correction===0&&history.filter(j=>j.input.lineageId===bundle.lineageId&&j.input.correction===0).length>=Math.min(limits.maxPasses,...history.filter(j=>j.input.lineageId===bundle.lineageId).map(j=>j.input.bundle.limits.maxPasses)))return reject('semantic_limit','Reasoning budget reached; pending history was preserved.');
-    const createdAt=new Date().toISOString(),inputHash=hash([bundle.id,review.state.revision,bundle.answerLogHash,SEMANTIC_VALIDATOR,correction]),jobId=`semantic_job_${hash([bundle.lineageId,inputHash]).slice(0,40)}`;
-    const body:JobInput={jobId,projectIdentity:review.snapshot.projectIdentity,reviewId:input.reviewId,reviewRevisionId:input.reviewRevisionId,lineageId:bundle.lineageId,decisionRevision:review.state.revision,bundleId:bundle.id,bundleHash:hash(bundle),bundle,contractVersion:SEMANTIC_CONTRACT,validatorVersion:SEMANTIC_VALIDATOR,requestId:input.requestId,reason:input.reason,inputHash,semanticInputHash,createdAt,expiresAt:new Date(Date.now()+limits.ttlMs).toISOString(),correction,...(input.correctionForJobId?{previousJobId:input.correctionForJobId}:{}),...(input.adapter?{adapter:input.adapter}:{})};
+      previous=history.find(j=>j.input.jobId===input.correctionForJobId);if(!previous||last(previous).status!=='rejected'||previous.input.lineageId!==bundle.lineageId||previous.input.bundle.componentId!==bundle.componentId||previous.input.semanticInputHash!==semanticInputHash||previous.input.correction>=previous.input.bundle.limits.maxCorrections)return reject('semantic_limit','No correction retry remains.');
+      if(previous.input.reviewRevisionId!==input.reviewRevisionId||previous.input.decisionRevision!==review.state.revision)return reject('semantic_stale','Reasoning decisions changed. Reload this review.');
+      correction=previous.input.correction+1;
+      const previousId=previous.input.jobId,retry=history.find(j=>j.input.previousJobId===previousId);if(retry)return response(retry);
+    }else if(same){
+      if(target&&same.input.semanticInputHash!==semanticInputHash)return reject('semantic_stale','Reasoning evidence or answers changed. Prepare a fresh analysis.');
+      const successor=history.find(j=>j.input.previousJobId===same.input.jobId);
+      if(target&&successor)return response(successor);
+      if(input.reason!=='resume'||!['prepared','awaiting_reasoning','submitted','stale'].includes(last(same).status)||semanticJobStatus(same,review)!=='stale')return response(same);
+      previous=same;correction=previous.input.correction;
+    }
+    if(previous){
+      // Recovery may tighten limits but cannot silently expand the previous budget.
+      limits=boundedRecoveryLimits(previous,input.limits);
+      bundle=await makeBundle(root,review,input.componentId,limits);
+      semanticInputHash=semanticInputIdentity(bundle);
+      if(semanticInputHash!==previous.input.semanticInputHash)return reject('semantic_stale','Reasoning evidence or answers changed. Prepare a fresh analysis.');
+    }
+    if(correction>limits.maxCorrections)return reject('semantic_limit','No correction retry remains within the requested limits.');
+    if(history.length>=SEMANTIC_RETENTION.maxJobs||input.reason!=='validation_correction'&&passCount(history,bundle.lineageId)>=passLimit(history,bundle.lineageId,limits))return reject('semantic_limit','Reasoning budget reached; pending history was preserved.');
+    // A TTL-only resume has identical sources/revision. Bind it to its predecessor
+    // so it gets a distinct immutable job instead of overwriting expired history.
+    const createdAt=new Date().toISOString(),inputHash=semanticAttemptInputHash(bundle,review.state.revision,correction,input.reason==='resume'?previous?.input.jobId:undefined),jobId=`semantic_job_${hash([bundle.lineageId,inputHash]).slice(0,40)}`;
+    const body:JobInput={jobId,projectIdentity:review.snapshot.projectIdentity,reviewId:input.reviewId,reviewRevisionId:input.reviewRevisionId,lineageId:bundle.lineageId,decisionRevision:review.state.revision,bundleId:bundle.id,bundleHash:hash(bundle),bundle,contractVersion:SEMANTIC_CONTRACT,validatorVersion:SEMANTIC_VALIDATOR,requestId:input.requestId,reason:input.reason,inputHash,semanticInputHash,createdAt,expiresAt:new Date(Date.now()+limits.ttlMs).toISOString(),correction,...(previous?{previousJobId:previous.input.jobId}:{}),...(input.adapter?{adapter:input.adapter}:{})};
     const job:SemanticJob={version:1,input:body,inputSeal:hash(body),events:[]};await event(root,job,'prepared');await event(root,job,'awaiting_reasoning');return response(job);
   },{recoverLifecycle:false,waitMs:2000});
 }
@@ -130,7 +175,7 @@ export async function submitSemanticCuration(root:string,input:{jobId:string;inp
     if(Buffer.byteLength((JSON.stringify(input.proposal)??'null'))>job.input.bundle.limits.maxOutputBytes||measuredTokens(input.proposal)>job.input.bundle.limits.maxOutputTokens){await event(root,job,'rejected',{reason:'output_limit',outputHash});return response(job);}
     if(!submission)await event(root,job,'submitted',{outputHash,proposal:input.proposal});
     try{
-      const proposal=validateSemanticProposal(job.input.bundle,input.proposal),accepted:AcceptedSemanticAnalysis={jobId:job.input.jobId,inputHash:job.input.inputHash,outputHash,decisionRevision:job.input.decisionRevision,correction:job.input.correction,bundle:job.input.bundle,proposal},previous=review.snapshot.revision!.typedPlan;
+      const proposal=validateSemanticProposal(job.input.bundle,input.proposal),accepted:AcceptedSemanticAnalysis={jobId:job.input.jobId,inputHash:job.input.inputHash,outputHash,decisionRevision:job.input.decisionRevision,correction:job.input.correction,...(job.input.reason==='resume'&&job.input.previousJobId?{resumedFromJobId:job.input.previousJobId}:{}),bundle:job.input.bundle,proposal},previous=review.snapshot.revision!.typedPlan;
       const analyses=[...(previous.kind==='semantic-v2'?previous.analyses:[]),accepted],basePlan=deterministicBaseline(review.snapshot.revision!),plan=materializeSemanticPlan(basePlan,analyses);
       const next=await publishSemanticReview(root,review,{kind:'semantic-v2',validator:SEMANTIC_VALIDATOR,basePlan,analyses,plan},job.input.jobId);
       await event(root,job,'validated',{outputHash,resultReviewId:next.snapshot.reviewId,resultRevisionId:next.snapshot.revision!.id,reason:proposal.sources.every(s=>s.disposition!=='proposed')?'terminal_no_rewrite':'structurally_validated_candidate'});
@@ -138,7 +183,7 @@ export async function submitSemanticCuration(root:string,input:{jobId:string;inp
     }catch(error){if(error instanceof SemanticValidationError||error instanceof z.ZodError){await event(root,job,'rejected',{reason:error instanceof SemanticValidationError?error.reason:'malformed_output',outputHash});return response(job);}if(error instanceof CurationReviewError&&['review_retention_full','review_too_large','semantic_limit'].includes(error.code)){await event(root,job,'failed',{reason:'staging_capacity',outputHash});return response(job);}throw error;}
   },{recoverLifecycle:false,waitMs:2000});
 }
-export function semanticJobStatus(job:SemanticJob,review:CurationReview){const status=last(job).status;return ['prepared','awaiting_reasoning','submitted'].includes(status)&&(job.input.decisionRevision!==review.state.revision||Date.now()>Date.parse(job.input.expiresAt))?'stale':status;}
+export function semanticJobStatus(job:SemanticJob,review:CurationReview){const status=last(job).status;return ['prepared','awaiting_reasoning','submitted'].includes(status)&&(job.input.reviewRevisionId!==review.snapshot.revision?.id||job.input.decisionRevision!==review.state.revision||Date.now()>Date.parse(job.input.expiresAt))?'stale':status;}
 /** Unchanged supporting records must not keep a decided component's job active. */
 export function semanticJobSuspended(job:SemanticJob,review:CurationReview){
   const sourceIds=new Set(job.input.bundle.dependencies.groups.flatMap(g=>g.proposalIds));

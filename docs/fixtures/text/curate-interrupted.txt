@@ -1,0 +1,50 @@
+```text
+╭─ >_ PRODERO ──────────────────── /01
+│ prodero-bundle-fixture-3KYkZN ·
+│ project memory
+│
+├─ Project Intelligence ──────────────
+│ Project
+│ prodero-bundle-fixture-3KYkZN
+│ Git  Available
+│ AGENTS.md  Found
+│ Knowledge  4
+│ Local Knowledge  2
+│ Shared / Versioned Knowledge  2
+│ Active skills  0
+│ Sessions  0
+│ 1 area can be improved
+│ Prodero remembers automatically.
+│ Sessions save useful knowledge into
+│ Local Knowledge when they close.
+│ Curate Memory keeps that memory
+│ useful and shareable.
+│ Some relevant knowledge has not fit
+│ into recent task context.
+│ Curate Memory is in progress.
+│ Continue when you are ready.
+├─ Memory ────────────────────────────
+│ src/driving
+│
+│ Continue curation?
+╰─────────────────────────────────────
+```
+
+```text
+Memory:
+src/driving
+4 related memories · 2 Local / 2 Shared
+Some relevant knowledge did not fit into 2 recent sessions.
+Related memories are spread across several records used together.
+```
+
+```text
+Available actions:
+
+  1 > Show project knowledge
+  2 > Show project skills
+  3 > Continue curation
+  4 > Check for updates
+
+Reply with a number or the command name.
+```

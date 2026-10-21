@@ -1,0 +1,65 @@
+TAP version 13
+# Subtest: memory UX states render one responsive card at 390px in project themes
+ok 1 - memory UX states render one responsive card at 390px in project themes
+  ---
+  duration_ms: 3230.312542
+  ...
+# Subtest: memory UX states render one responsive card at 820px in project themes
+ok 2 - memory UX states render one responsive card at 820px in project themes
+  ---
+  duration_ms: 1071.921042
+  ...
+# Subtest: unknown Apply outcome never replays approval and only a saved-state inspect restores actions
+ok 3 - unknown Apply outcome never replays approval and only a saved-state inspect restores actions
+  ---
+  duration_ms: 161.0985
+  ...
+# Subtest: question preserves the raw numeric answer draft after a rejected save and never treats it as approval
+ok 4 - question preserves the raw numeric answer draft after a rejected save and never treats it as approval
+  ---
+  duration_ms: 132.435666
+  ...
+# Subtest: healthy Context Ready expands its supplied snapshot locally without an extra Continue step or RPC
+ok 5 - healthy Context Ready expands its supplied snapshot locally without an extra Continue step or RPC
+  ---
+  duration_ms: 139.14
+  ...
+# Subtest: available update indicator requests terminal instructions once without host execution or a false installed result
+ok 6 - available update indicator requests terminal instructions once without host execution or a false installed result
+  ---
+  duration_ms: 107.606166
+  ...
+# Subtest: visual picker applies every palette to status, knowledge, lifecycle, promotion and skills; only local preferences change
+ok 7 - visual picker applies every palette to status, knowledge, lifecycle, promotion and skills; only local preferences change
+  ---
+  duration_ms: 1879.88275
+  ...
+# Subtest: default screenshot matches original CSS within bounded native-edge raster rounding
+ok 8 - default screenshot matches original CSS within bounded native-edge raster rounding
+  ---
+  duration_ms: 1271.31875
+  ...
+# Subtest: local reset is reachable, preserves the current draft and reveals the built-in fallback without shared writes
+ok 9 - local reset is reachable, preserves the current draft and reveals the built-in fallback without shared writes
+  ---
+  duration_ms: 184.814542
+  ...
+# Subtest: live System changes, host override, legacy/denied browser storage independence and form preservation
+ok 10 - live System changes, host override, legacy/denied browser storage independence and form preservation
+  ---
+  duration_ms: 350.008458
+  ...
+# Subtest: neon atmospheres have distinct near-black surface hierarchies without active controls
+ok 11 - neon atmospheres have distinct near-black surface hierarchies without active controls
+  ---
+  duration_ms: 1113.866625
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10162.226583
