@@ -80,7 +80,7 @@ Recovery snapshots can contain **the entire previous host configuration, includi
 
 ## Experimental Claude limitations
 
-Claude Code 2.1.52 recognized the generated user-scope MCP server and connected to stdio in isolation. The real `prodero` model invocation could not run without login, so the adapter remains experimental. It is included in default detection/installation but is not a supported-host certification. No Claude Desktop adapter is provided.
+Historical Claude Code 2.1.52 checks verified generated user-scope registration and an isolated stdio connection but stopped at login. On 2026-10-23, native Claude Code 2.1.302 passed the installed 0.2.0 candidate's text lifecycle, persistent retrieval, Local editing and promotion preview in a disposable project using existing client authentication and invocation-only MCP configuration. That run did not recertify global installer registration, Claude Desktop or graphical Apps. The adapter remains experimental; see the exact candidate and evidence boundaries in [Compatibility](COMPATIBILITY.md). No Claude Desktop adapter is provided.
 
 Claude Code reads global `CLAUDE.md`, but does not automatically consume project `AGENTS.md`. Prodero project initialization is unchanged. For experimental lifecycle use, review the host's native project `CLAUDE.md` import of `@AGENTS.md` yourself; installation never writes that project file. Apps rendering depends on the host; text responses remain available.
 

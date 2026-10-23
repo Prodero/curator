@@ -2,18 +2,18 @@
 
 **Project memory for Codex and Claude Code.**
 
-> This checkout prepares **0.2.0 (unreleased)**. The registry example below is pinned to the 0.1.0 preview and does not install this candidate. For candidate review use the exact local tarball and isolated setup in [the release guide](docs/RELEASING.md); see [0.2.0 changes](CHANGELOG.md) and [verification limits](docs/COMPATIBILITY.md).
+> **0.2.0 release materials.** The npm command below requires 0.2.0 to be published. For review before publication, use the exact candidate tarball and isolated setup in [the release guide](docs/RELEASING.md). A checkout or local tarball does not establish registry availability. See [0.2.0 changes](CHANGELOG.md) and [verification limits](docs/COMPATIBILITY.md).
 
 Keep project decisions, conventions, and lessons across sessions, right inside your coding assistant.
 
 **Install in two commands → open Codex or Claude Code → type prodero.**
 
 ```sh
-npm install --global @prodero/curator@0.1.0
+npm install --global @prodero/curator@0.2.0
 prodero install
 ```
 
-Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.1.0 Public Preview.** Codex CLI is verified; Claude Code is experimental.
+Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.2.0 preview release.** Codex CLI has native text-workflow evidence; Claude Code remains experimental, with native text-workflow evidence. See the [compatibility matrix](docs/COMPATIBILITY.md).
 
 1. In the installation wizard, select **Codex** or **Claude Code**, confirm the setup and choose **Finish**.
 2. Reopen Codex or Claude Code in your repository and type **`prodero`** in chat.
@@ -68,7 +68,7 @@ The generated `.prodero/index.md` can include active **Local skill titles and pa
 
 ## Compatibility and limitations
 
-**Codex CLI is verified; Claude Code is experimental.** Codex desktop has been used during development with MCP Apps, but artifact-host UI interaction has not yet been independently verified. Cursor is detection-only, and there is no Claude Desktop installer.
+**Codex CLI 0.144.4 and Claude Code 2.1.302 passed native text workflows with the installed 0.2.0 runtime candidate.** Claude Code remains experimental. On 2026-10-23 the owner reported successful manual checks in Codex Desktop, Claude CLI and Codex Mobile. This is owner-reported acceptance; client build versions and an exact artifact/SHA binding were not supplied, so it is not independently traced per-case Apps certification. Cursor is detection-only, and there is no Claude Desktop installer.
 
 MCP Apps, workspace roots and sampling support vary by host. Text mode supports core workflows, but App-only curation review/apply is unavailable through the text gateway. See the [host/runtime matrix](docs/COMPATIBILITY.md) and [setup guide](docs/hosts.md).
 
