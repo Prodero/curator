@@ -1,6 +1,6 @@
 {
   "name": "@prodero/curator",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Local-first project intelligence and memory for coding agents.",
   "type": "module",
   "license": "MIT",

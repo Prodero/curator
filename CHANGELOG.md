@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-10-25 (Public Preview)
+
+- Corrected public documentation and release wording, including installation and compatibility guidance.
+- Documented the built-in updater's npm **10.9.x** requirement.
+- Replaced the outdated overview screenshot with the current **Curate Memory** interface using demonstration project data.
+
+This is a documentation-only patch. Application behavior and project/knowledge schemas are unchanged. Users already running 0.2.0 do not need an urgent upgrade.
+
 ## 0.2.0 — 2026-10-25 (Public Preview)
 
 - **Curate Memory** replaces the Memory Sync user-facing name, with existing MCP tool IDs and saved workflows retained. Retry/expired analysis, saved answers, deferred questions and Revisit resume reliably; partial progress and remaining work stay visible.

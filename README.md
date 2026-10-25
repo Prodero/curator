@@ -7,11 +7,11 @@ Keep project decisions, conventions, and lessons across sessions, right inside y
 **Install in two commands → open Codex or Claude Code → type prodero.**
 
 ```sh
-npm install --global @prodero/curator@0.2.0
+npm install --global @prodero/curator@0.2.1
 prodero install
 ```
 
-Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.2.0 Public Preview.** Codex CLI is tested; Claude Code remains experimental. See the [compatibility matrix](docs/COMPATIBILITY.md).
+Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.2.1 Public Preview.** Codex CLI is tested; Claude Code remains experimental. See the [compatibility matrix](docs/COMPATIBILITY.md).
 
 1. In the installation wizard, select **Codex** or **Claude Code**, confirm the setup and choose **Finish**.
 2. Reopen Codex or Claude Code in your repository and type **`prodero`** in chat.

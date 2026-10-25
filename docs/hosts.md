@@ -121,7 +121,7 @@ prodero status --json
 prodero status --root /absolute/path/to/project --json
 prodero check-update
 prodero update
-prodero update 0.2.0 --yes
+prodero update 0.2.1 --yes
 prodero install
 ```
 

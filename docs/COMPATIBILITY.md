@@ -1,6 +1,6 @@
 # Compatibility and verification
 
-Curator **0.2.0 Public Preview** was published on **2026-10-25**. This page lists supported runtimes, tested clients, verification results and known limitations. See the [changelog](../CHANGELOG.md) for the status JSON and local-preference compatibility changes.
+Curator **0.2.1 Public Preview** is a documentation-only patch for 0.2.0. Application behavior, runtime requirements, host support and project/knowledge schemas are unchanged; users already running 0.2.0 do not need an urgent upgrade. The runtime and host checks below describe 0.2.0. See the [changelog](../CHANGELOG.md) for release changes.
 
 > Contract: Local/Versioned describe Git storage and sharing, not a security boundary against the connected agent. Review and approval are workflow safeguards, not authenticated human consent. The agent may create, promote and maintain Versioned files within current authorization. Curator tools do not execute Git commit or push; coding-agent Git actions follow current user scope and host approval controls. See [Privacy](PRIVACY.md).
 
@@ -9,8 +9,8 @@ Supported runtime target: **Node 22.14.0–22.x**, npm and Git. Node 22.14.0 is 
 | Environment | Status |
 | --- | --- |
 | macOS ARM64, Node 22.14.0 | Tested locally: full tests and isolated release gate |
-| macOS / Ubuntu, Node 22.14.0 and 22.23.3 | Full four-job release matrix passed on the published release commit; see the verification results below |
-| Native Windows | Not supported in 0.2.0; filesystem/Git fixtures and process behavior are not verified |
+| macOS / Ubuntu, Node 22.14.0 and 22.23.3 | Full four-job release matrix passed on the 0.2.0 release commit; see the verification results below |
+| Native Windows | Not supported; filesystem/Git fixtures and process behavior are not verified |
 | Node 20, 24 or other majors; WSL | Not verified / outside the initial runtime contract |
 
 The built-in terminal updater additionally requires **npm 10.9.x** and an ordinary same-user global npm installation. Other installation layouts or toolchains need their package manager; see [updates](hosts.md#updates-and-advanced-project-commands).
@@ -53,7 +53,7 @@ On 2026-10-23 the maintainer reported successful manual checks in **Codex Deskto
 
 ### Published 0.2.0 identity
 
-The published package and [v0.2.0 tag](https://github.com/Prodero/curator/releases/tag/v0.2.0) identify commit **`d180a58017b9e2e32731689411b420fa899aa884`**. Its [full release matrix](https://github.com/Prodero/curator/actions/runs/39999946126) passed all four macOS/Ubuntu × Node 22.14.0/22.23.3 jobs, each with **1,453 tests and 16 installed-artifact smoke groups**. [Post-main CI](https://github.com/Prodero/curator/actions/runs/40132635896) and the [tag matrix](https://github.com/Prodero/curator/actions/runs/40175313983) also passed on that same SHA. Counts overlap and are not additive.
+Published on **2026-10-25**, the 0.2.0 package and [v0.2.0 tag](https://github.com/Prodero/curator/releases/tag/v0.2.0) identify commit **`d180a58017b9e2e32731689411b420fa899aa884`**. Its [full release matrix](https://github.com/Prodero/curator/actions/runs/39999946126) passed all four macOS/Ubuntu × Node 22.14.0/22.23.3 jobs, each with **1,453 tests and 16 installed-artifact smoke groups**. [Post-main CI](https://github.com/Prodero/curator/actions/runs/40132635896) and the [tag matrix](https://github.com/Prodero/curator/actions/runs/40175313983) also passed on that same SHA. Counts overlap and are not additive.
 
 All four release-matrix archives were identical. The public npm archive and GitHub Release asset match their **SHA-256 `54e95138e2807c27927b219b0049f0af1a9992005fda4815dd01f941067ca548`**. A clean public-registry installation reported CLI **0.2.0**, a current update check and byte-identical contents for all **148** package files.
 
