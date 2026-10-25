@@ -1,6 +1,6 @@
 # Prodero Curator versioning
 
-Use Semantic Versioning: `MAJOR.MINOR.PATCH`. This checkout prepares **v0.2.0** (`0.2.0` in package metadata), following the v0.1 Public Preview baseline. A local version bump or candidate tarball does not announce publication. Package identity comes from `package.json`; `prodero.release.json` independently owns the project and knowledge schema versions.
+Use Semantic Versioning: `MAJOR.MINOR.PATCH`. Package identity comes from `package.json`; `prodero.release.json` independently owns the project and knowledge schema versions. Published versions and their changes are listed in [the changelog](CHANGELOG.md).
 
 Versions are incremented for **releases**, not individual commits or internal development phases.
 

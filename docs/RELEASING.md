@@ -1,4 +1,4 @@
-# Release candidate gate
+# Releasing Curator
 
 From a clean checkout on Node 22.14+ (22.x):
 
@@ -73,10 +73,10 @@ A protocol runner is not a real host. Independently connect a primary host to th
 
 ## Install the artifact for review
 
-For an unpublished candidate, install the reviewed tarball into an isolated prefix rather than requesting its version from the registry. The current candidate version is 0.2.0; this command is an example for a separately authorized isolated environment, not a request to replace the working installation:
+For an unpublished release candidate, install its reviewed tarball in an isolated prefix. Keep this installation separate from your working MCP setup. Replace `X.Y.Z` and the example paths below with the intended release version and artifact locations:
 
 ```sh
-npm install --global --prefix /absolute/isolated/prefix --omit=dev --ignore-scripts /absolute/path/prodero-curator-0.2.0.tgz
+npm install --global --prefix /absolute/isolated/prefix --omit=dev --ignore-scripts /absolute/path/prodero-curator-X.Y.Z.tgz
 ```
 
 Use the isolated host environment described above for automated verification. For a deliberate real-host check, review the installer’s configuration changes and restart the selected coding agent. Open a synthetic project and type `prodero`. The tarball includes the compiled server, Apps and plugin resources; no source checkout or development dependencies are needed.
@@ -87,9 +87,9 @@ Use the isolated host environment described above for automated verification. Fo
 2. Review the intended public Git tree **and history** for private content. Ignoring runtime files today does not remove old commits. Decide explicitly what history to publish; never rewrite it automatically.
 3. Confirm ownership of npm scope `@prodero`, package/repository identity `@prodero/curator` / `prodero/curator`, and permission to release. A registry 404 does not establish scope ownership.
 4. Create/configure the intended public repository only with explicit approval. Enable Issues and private vulnerability reporting; verify the links and update any identity/channel changes in docs and package metadata.
-5. Confirm candidate version `0.2.0`, MIT license, final changelog date, preview limitations, README registry example and exact artifact contents. If any edit is still needed, return to step 1 and certify the new artifact. Obtain explicit approval for publication.
-6. Authenticate npm with the account's required 2FA/provenance policy. Publish the **reviewed tarball**, not an unreviewed rebuild: `npm publish /absolute/path/prodero-curator-0.2.0.tgz --access public`.
-7. Verify external `npm install --global @prodero/curator@0.2.0`, `prodero --version` and `prodero check-update`. Only with separate approval create/push the `v0.2.0` tag and release notes or announcements.
+5. Confirm the intended version, MIT license, final changelog date, preview limitations, README installation example and exact artifact contents. If any edit is still needed, return to step 1 and certify the new artifact. Obtain explicit approval for publication.
+6. Authenticate npm with the account's required 2FA/provenance policy. Publish the **reviewed tarball**, not an unreviewed rebuild: `npm publish /absolute/path/prodero-curator-X.Y.Z.tgz --access public`.
+7. Verify external `npm install --global @prodero/curator@X.Y.Z`, `prodero --version` and `prodero check-update`. Only with separate approval create/push the matching `vX.Y.Z` tag and release notes or announcements.
 
 The automated gate does not publish or push and does not change the source repository history. It creates an isolated disposable test commit in its temporary checkout. Package upgrades do not move project knowledge. Back up the full `.prodero` directory before preview upgrades; `.cache` is disposable, migration recovery backups are not.
 

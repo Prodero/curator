@@ -2,8 +2,6 @@
 
 **Project memory for Codex and Claude Code.**
 
-> **0.2.0 release materials.** The npm command below requires 0.2.0 to be published. For review before publication, use the exact candidate tarball and isolated setup in [the release guide](docs/RELEASING.md). A checkout or local tarball does not establish registry availability. See [0.2.0 changes](CHANGELOG.md) and [verification limits](docs/COMPATIBILITY.md).
-
 Keep project decisions, conventions, and lessons across sessions, right inside your coding assistant.
 
 **Install in two commands → open Codex or Claude Code → type prodero.**
@@ -13,7 +11,7 @@ npm install --global @prodero/curator@0.2.0
 prodero install
 ```
 
-Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.2.0 preview release.** Codex CLI has native text-workflow evidence; Claude Code remains experimental, with native text-workflow evidence. See the [compatibility matrix](docs/COMPATIBILITY.md).
+Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.2.0 Public Preview.** Codex CLI is tested; Claude Code remains experimental. See the [compatibility matrix](docs/COMPATIBILITY.md).
 
 1. In the installation wizard, select **Codex** or **Claude Code**, confirm the setup and choose **Finish**.
 2. Reopen Codex or Claude Code in your repository and type **`prodero`** in chat.
@@ -21,7 +19,9 @@ Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.2.0 preview release.** Cod
 
 For Claude Code, also create or update the project’s `CLAUDE.md` to import `@AGENTS.md`. The installer does not create that file. See the [setup guide](docs/hosts.md).
 
-![Prodero Curator overview in the coding assistant](docs/images/prodero-overview-cropped.png)
+![Curator App overview with Curate Memory](docs/images/prodero-overview-cropped.png)
+
+*Current Curator App with demonstration project data.*
 
 ## Relevant context, automatically
 
@@ -68,7 +68,7 @@ The generated `.prodero/index.md` can include active **Local skill titles and pa
 
 ## Compatibility and limitations
 
-**Codex CLI 0.144.4 and Claude Code 2.1.302 passed native text workflows with the installed 0.2.0 runtime candidate.** Claude Code remains experimental. On 2026-10-23 the owner reported successful manual checks in Codex Desktop, Claude CLI and Codex Mobile. This is owner-reported acceptance; client build versions and an exact artifact/SHA binding were not supplied, so it is not independently traced per-case Apps certification. Cursor is detection-only, and there is no Claude Desktop installer.
+Codex CLI and Claude Code were tested with text workflows. The maintainer also reported successful manual checks in Codex Desktop, Claude CLI and Codex Mobile. Claude Code remains experimental; Cursor is detection-only, and there is no Claude Desktop installer. Tested versions and the scope of these checks are listed in the [compatibility matrix](docs/COMPATIBILITY.md).
 
 MCP Apps, workspace roots and sampling support vary by host. Text mode supports core workflows, but App-only curation review/apply is unavailable through the text gateway. See the [host/runtime matrix](docs/COMPATIBILITY.md) and [setup guide](docs/hosts.md).
 
@@ -91,4 +91,4 @@ Curator is [MIT licensed](LICENSE).
 
 ### Updating the installed core
 
-Codex/Claude show an available-version indicator and terminal instructions only. Run `prodero update` in your terminal, finish active work and close the hosts when prompted, then explicitly confirm. Restart the hosts after completion. Project knowledge migration is offered separately on Open/Prepare; package update preserves saved dev selection and preferences. See [update and non-interactive options](docs/hosts.md#commands-and-status).
+Codex/Claude show an available-version indicator and terminal instructions only. Run `prodero update` in your terminal, finish active work and close the hosts when prompted, then explicitly confirm. Restart the hosts after completion. The built-in updater supports a same-user global npm installation with **npm 10.9.x**; use your package manager for other installation layouts or toolchains. Project knowledge migration is offered separately on Open/Prepare; package update preserves saved dev selection and preferences. See [update and non-interactive options](docs/hosts.md#updates-and-advanced-project-commands).

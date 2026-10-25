@@ -1,6 +1,6 @@
 # Compatibility and verification
 
-This document covers the **0.2.0** release contract and evidence recorded through 2026-10-23. A checkout, local tarball or passing test does not establish npm publication. Artifact evidence must satisfy the [release gates](RELEASING.md) on the final release tree. Supported runtime targets and project/knowledge schemas remain unchanged; see the [changelog](../CHANGELOG.md) for status JSON and local-preference compatibility changes.
+Curator **0.2.0 Public Preview** was published on **2026-10-25**. This page lists supported runtimes, tested clients, verification results and known limitations. See the [changelog](../CHANGELOG.md) for the status JSON and local-preference compatibility changes.
 
 > Contract: Local/Versioned describe Git storage and sharing, not a security boundary against the connected agent. Review and approval are workflow safeguards, not authenticated human consent. The agent may create, promote and maintain Versioned files within current authorization. Curator tools do not execute Git commit or push; coding-agent Git actions follow current user scope and host approval controls. See [Privacy](PRIVACY.md).
 
@@ -9,22 +9,22 @@ Supported runtime target: **Node 22.14.0–22.x**, npm and Git. Node 22.14.0 is 
 | Environment | Status |
 | --- | --- |
 | macOS ARM64, Node 22.14.0 | Tested locally: full tests and isolated release gate |
-| macOS / Ubuntu, Node 22.14.0 and 22.23.3 | Full four-job CI matrix passed on the runtime candidate identified below; final-tree certification requires matching exact-SHA runs |
+| macOS / Ubuntu, Node 22.14.0 and 22.23.3 | Full four-job release matrix passed on the published release commit; see the verification results below |
 | Native Windows | Not supported in 0.2.0; filesystem/Git fixtures and process behavior are not verified |
 | Node 20, 24 or other majors; WSL | Not verified / outside the initial runtime contract |
 
-CI configuration is not evidence that a remote run has passed. Record actual runs before publication.
+The built-in terminal updater additionally requires **npm 10.9.x** and an ordinary same-user global npm installation. Other installation layouts or toolchains need their package manager; see [updates](hosts.md#updates-and-advanced-project-commands).
 
 ## Hosts
 
 | Host | Status / boundary |
 | --- | --- |
 | Codex CLI | Native 0.144.4 on macOS ARM64 passed installed 0.2.0 text lifecycle, persistent retrieval, Local maintenance and promotion preview. No Apps rendering claim from a CLI test. |
-| Codex desktop | The owner reported a successful manual check on 2026-10-23. Exact-build, artifact-bound graphical acceptance is not independently traced; see the owner report below. |
+| Codex desktop | Successful manual check reported by the maintainer on 2026-10-23; detailed build and per-case Apps results were not recorded. |
 | Claude Code | Experimental adapter. Native 2.1.302 on macOS ARM64 passed installed 0.2.0 text lifecycle, persistent retrieval, Local maintenance and promotion preview. This does not certify Claude Desktop or Apps rendering. |
 | Claude Desktop | No installer adapter; not verified. |
-| Codex mobile / iPad | The owner reported a successful Codex Mobile manual check on 2026-10-23 and previously accepted iPad Context Ready / Session Complete. Build/artifact binding and individual case traces were not supplied. |
-| Cursor | Not yet verified against this RC. Workspace and Apps behavior must be checked before claiming support. |
+| Codex mobile / iPad | Successful manual check reported on 2026-10-23, with earlier iPad Context Ready / Session Complete acceptance. |
+| Cursor | Detection-only; workspace and Apps workflows are not verified. |
 | Other MCP hosts | Experimental; require standard stdio tools, optional roots and optional Apps/sampling. |
 
 Use `prodero install` for one global machine integration. New workspaces initialize directly through MCP. Negotiated host roots authorize project selection; Claude's captured host project directory selects the primary root, and supported local Codex stdio launches supply the workspace through their launch directory. `projectRoot` is a checked selector, not authority. Missing supported context fails closed; no manual allowlist, per-project registration or CLI initialization is required. Explicit `--root` remains an optional hard boundary. Both integrations use the absolute public `prodero` executable: `mcp` for the installed package and `mcp --dev` for the saved Curator checkout. The public executable captures workspace context before loading development code. Update old global integration once and reconnect; `npm --prefix` is not a supported outer launcher. Managed PATH resolves the shebang to the verified Node installation. See [host integration](hosts.md) and [workspace trust contract](PRIVACY.md).
@@ -35,11 +35,11 @@ Historical machine-integration verification used isolated HOME and the native gl
 
 Claude Code does not automatically read project `AGENTS.md`. Initialization remains unchanged; experimental Claude users need the host's documented project `CLAUDE.md` import of `@AGENTS.md` for the existing project lifecycle instructions. The installer does not create that project file or move lifecycle instructions into the global launcher. See [host integration](hosts.md). Restart hosts after package updates.
 
-## RC evidence
+## Release verification
 
-The [release gate](RELEASING.md) checks a clean installed artifact, stdio lifecycle, Local storage, reviewed synthetic sharing, restart and synthetic patch upgrade preservation. Synthetic upgrades do not certify future releases or arbitrary schema downgrades. Record results for the exact release candidate.
+The [release gate](RELEASING.md) checks a clean installed artifact, stdio lifecycle, Local storage, reviewed synthetic sharing, restart and synthetic patch upgrade preservation. Synthetic upgrades do not certify future releases or arbitrary schema downgrades.
 
-### Runtime candidate: independently observed
+### Native text checks — 2026-10-23
 
 The runtime candidate was commit `4f14a196b5325cf08c67ebeac40d21f5edb6e89f`. Its [fast CI](https://github.com/Prodero/curator/actions/runs/39653486240) passed 1,446 ordinary tests; its [full CI](https://github.com/Prodero/curator/actions/runs/39653523638) passed all four macOS/Ubuntu × Node 22.14.0/22.23.3 jobs, each with 1,453 tests and 16 installed-artifact smoke groups. These counts overlap and are not additive. The reviewed full-CI tarball SHA-256 was `c6bb29869c6fdcdff139799d01626a3f7ec57598005e5ab5d14437a76fbe9a12`.
 
@@ -47,15 +47,17 @@ On 2026-10-23 both native clients connected only to that installed 0.2.0 candida
 
 Single-session maintenance visibly delivered Context Ready and Saved once in each client. In the batched two-session scenario each client omitted some intermediate receipts; persistence and closure still succeeded. This is an observed agent-relay limitation, not demonstrated knowledge loss. Curator supplies lifecycle text but does not guarantee model/client delivery. Apps rendering, host sampling and physical approval interaction were not independently verified by these CLI runs. Separate deterministic fixtures cover publication mechanics without claiming human UI approval.
 
-### Owner-reported manual acceptance
+### Manual host checks
 
-On 2026-10-23 the owner reported successful manual Curator checks in **Codex Desktop, Claude CLI and Codex Mobile**, following the request for manual Apps acceptance. Record this as **owner-reported acceptance** for those named surfaces. The report did not supply client build versions, an exact candidate executable/hash/SHA, individual case results or an App call trace. It therefore does not establish independently traced results for Apply replay, stale-review handling or model-facing tool filtering, and does not upgrade an unverified host tier. Do not infer that the desktop used a particular dev connection or that the Claude CLI was the exact build used by the independent native test. Candidate binding can be clarified without assuming the entire manual check must be repeated. The previously accepted iPad lifecycle result remains accepted.
+On 2026-10-23 the maintainer reported successful manual checks in **Codex Desktop, Claude CLI and Codex Mobile**. Client build versions, exact artifact identity and individual case traces were not recorded. These reports are separate from the versioned native CLI runs above and do not establish per-case Apps coverage for Apply replay, stale reviews or tool filtering. The earlier iPad lifecycle check also passed by user confirmation. Claude Code remains experimental.
 
-### Final release identity
+### Published 0.2.0 identity
 
-These CI and native results identify the runtime candidate above. Release-note/README/compatibility edits change packaged bytes and produce a different tarball; they do not inherit its archive hash or exact-commit CI status. The final committed release tree requires its own matching package validation and full CI matrix, with host evidence explicitly bound or reconciled to the final artifact. No broader host support is inferred from a successful owner report.
+The published package and [v0.2.0 tag](https://github.com/Prodero/curator/releases/tag/v0.2.0) identify commit **`d180a58017b9e2e32731689411b420fa899aa884`**. Its [full release matrix](https://github.com/Prodero/curator/actions/runs/39999946126) passed all four macOS/Ubuntu × Node 22.14.0/22.23.3 jobs, each with **1,453 tests and 16 installed-artifact smoke groups**. [Post-main CI](https://github.com/Prodero/curator/actions/runs/40132635896) and the [tag matrix](https://github.com/Prodero/curator/actions/runs/40175313983) also passed on that same SHA. Counts overlap and are not additive.
 
-Passing configured remote CI jobs on the final RC commit remains required before publication. Local protocol checks do not certify other Node/OS combinations or host App rendering.
+All four release-matrix archives were identical. The public npm archive and GitHub Release asset match their **SHA-256 `54e95138e2807c27927b219b0049f0af1a9992005fda4815dd01f941067ca548`**. A clean public-registry installation reported CLI **0.2.0**, a current update check and byte-identical contents for all **148** package files.
+
+Compared with the native-tested runtime candidate above, the published artifact changes four Markdown files; the other 144 payload files, including runtime, App, plugin and instruction assets, are identical. This preserves the scope of those native checks without treating the two archive hashes as interchangeable. The frozen tag and archive describe the published package even when documentation on `main` is updated later. CI does not expand the supported Node/OS or host Apps coverage listed here.
 
 Codex setup and per-tool configuration reference: [official configuration reference](https://developers.openai.com/codex/config-reference).
 

@@ -1,8 +1,6 @@
 # Changelog
 
-## 0.2.0
-
-Release notes finalized 2026-10-23. This is the preparation date; registry publication is a separate maintainer action.
+## 0.2.0 — 2026-10-25 (Public Preview)
 
 - **Curate Memory** replaces the Memory Sync user-facing name, with existing MCP tool IDs and saved workflows retained. Retry/expired analysis, saved answers, deferred questions and Revisit resume reliably; partial progress and remaining work stay visible.
 - Text mode uses the shared Telemetry/Pulse layout with letter-bound knowledge entries, exact numeric actions, complete review bodies and mobile-width output. Prepare continues automatically; Prepare/Close retain a compact fallback when an App is invisible, without repeating Core calls.
@@ -15,7 +13,7 @@ Release notes finalized 2026-10-23. This is the preparation date; registry publi
 - Incomplete provenance diagnostics no longer imply proven loss of history; no provenance backfill or canonical storage redesign is included.
 - Session writers serialize lock acquisition, stale-owner recovery and release under the same transition guard, preventing a stale PID decision from deleting a successor's lock. Deterministic process barriers and acknowledgment-preservation stress regressions cover record/close concurrency; unknown owners and interrupted guards remain fail-closed.
 
-Project schema remains **8** and knowledge schema remains **3**. No canonical schema migration is added by this version bump. See [compatibility and evidence limits](docs/COMPATIBILITY.md) for exact-SHA CI, installed-artifact native checks and the owner-reported manual acceptance. The final release tree and artifact must satisfy the [release gates](docs/RELEASING.md); these notes do not announce registry availability.
+Project schema remains **8** and knowledge schema remains **3**. This release adds no canonical schema migration. See [compatibility and verification](docs/COMPATIBILITY.md) for tested clients, platforms and the published package identity.
 
 ## 0.1.0 — 2026-10-15 (Public Preview)
 
