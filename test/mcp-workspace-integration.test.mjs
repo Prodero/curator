@@ -180,6 +180,9 @@ for(const mode of ['production','development'])test(`revised F01 ${mode} global 
   await unchanged(a);await unchanged(b);
   const initial=await Promise.all([ca.call('initialize'),cb.call('text',{tool:'prodero_initialize'})]);initial.forEach(ok);
   for(const [c,other] of [[ca,b],[cb,a]]) {
+    const plugins=ok(await c.call('plugins'));
+    const tools=(await c.client.listTools()).tools.map(tool=>tool.name);
+    assert.ok(tools.includes('prodero_plugin_migrate_ai_studio_apply'),JSON.stringify({plugins:plugins.plugins,diagnostics:plugins.diagnostics}));
     deny(await c.call('status',{projectRoot:other}));deny(await c.call('initialize',{projectRoot:other}));
     deny(await c.call('plugin_migrate_ai_studio_apply',{projectRoot:other,input:{}}));
     deny(await c.call('status',{projectRoot:checkout}));

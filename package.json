@@ -44,7 +44,7 @@
   "scripts": {
     "build": "npm run build:server && npm run ui:build",
     "build:server": "node scripts/clean-server.mjs && tsc -p tsconfig.json && npm run build:instructions",
-    "ui:build": "vite build && node scripts/build-plugin-ui.mjs",
+    "ui:build": "node scripts/build-ui.mjs && node scripts/build-plugin-ui.mjs",
     "mcp:build": "npm run build",
     "mcp:dev": "./bin/prodero mcp --dev",
     "dev": "npm run --silent mcp:dev",
