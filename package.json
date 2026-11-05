@@ -1,6 +1,6 @@
 {
   "name": "@prodero/curator",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Local-first project intelligence and memory for coding agents.",
   "type": "module",
   "license": "MIT",
@@ -12,6 +12,7 @@
     "dist/**/*.js",
     "dist-ui/index.html",
     "README.md",
+    "setup.md",
     "LICENSE",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
@@ -33,6 +34,9 @@
     "docs/CONTEXT-SELECTION-V2.md",
     "docs/RELEASING.md",
     "docs/hosts.md",
+    "docs/INSTALL-WITH-AGENT.md",
+    "docs/V0.3.0-MAINTENANCE.md",
+    "docs/V0.3.0-CHAT-TEXT.md",
     "docs/plugins.md",
     "docs/ui-themes.md",
     "plugins/*/*.cjs",
@@ -61,11 +65,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.7.0",
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "jsonc-parser": "^3.3.1",
     "smol-toml": "^1.9.0",
-    "zod": "^3.25.0",
-    "zod-to-json-schema": "^3.25.2"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

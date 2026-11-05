@@ -1,7 +1,8 @@
 /** Portable conversational projection. Reads Core state; never runs or selects work. */
 import type { PresentationAction, ProderoViewModel } from './presentation.js';
-export const LIFECYCLE_PRESENTATION_REPLY = 'For lifecycle text delivery, including when presentation.resolved is text in auto mode, relay the supplied compact presentation.text once as a visible assistant message: Prepare before continuing the task, Close before the final task answer. Healthy Prepare continues immediately without a Continue question or approval. A tool result or App metadata does not prove visible delivery. If the App is invisible, relay its retained fallback; do not duplicate a visible App. Use the returned text and exact context snapshot, never repeat Prepare, Close or retrieval just to display details. Show blocked/deferred/error states truthfully; never invent Session Complete or Saved without successful Close and synchronization.';
-export const PRESENTATION_REPLY = 'For knowledge-list requests in Claude Code, prefer prodero_text unless the user requests a graphical view. Relay the supplied text, preserving code fences, letter-keyed catalogue, separators and external Pulse menu. Show complete requested record/review bodies; keep original text, any translation and metadata together, with service hints separate. Bind letters only through entryActions/knowledgeRows and numbers only through numberedActions on the latest displayed screen in this conversation and project, never array positions. Each screen replaces old aliases. Preserve bindings/order when translating. Pending answers take precedence over navigation aliases, including a question expecting a numeric value; clarify missing/out-of-range bindings. Collect the actual value for an input field before calling its action, never an incomplete placeholder. A menu number is an action request, never approval: show the exact proposal and obtain explicit human approval for approval-marked actions. Keep aliases ephemeral; never store them as settings or knowledge. Tell the user they may reply with a number or command name. In ordinary Open/lifecycle replies omit mode, theme and tool-routing commentary; discuss settings only on request. Display settings or App metadata do not prove that a UI was visible.';
+import { publicDiagnostic } from './core/diagnostics.js';
+export const LIFECYCLE_PRESENTATION_REPLY = 'For lifecycle text delivery, including when presentation.resolved is text in auto mode, relay the supplied compact presentation.text once as a visible assistant message: Prepare before continuing the task, Close in the final task answer. After a successful Close, include its one-line Session closed receipt in the final assistant answer; never leave it only in a tool result or collapsible commentary. Preserve the explicit closure wording when translating. A minimal or quiet reply must still include the Close receipt, including a truthful zero-observation, deferred or error state. If Close fails or its state is unconfirmed, show the returned error/unknown state without claiming closure or saved counts. Observation counts describe persisted session observations, not newly created knowledge records. Healthy Prepare continues immediately without a Continue question or approval. A tool result or App metadata does not prove visible delivery. If the App is invisible, relay its retained fallback in the final answer for Close; do not duplicate a visible App. Use the session ID returned by a successful Prepare for this task. If this task has no confirmed session ID, do not invent one or close another session; state that no active session for this task was confirmed, without claiming anything was saved. A missing-ID or not-found error does not establish that the project has no other active sessions. Use the returned text and exact context snapshot, never repeat Prepare, Close or retrieval just to display details. Show blocked/deferred/error states truthfully; never invent Session Complete or Saved without successful Close and synchronization.';
+export const PRESENTATION_REPLY = 'For knowledge-list requests in Claude Code, prefer prodero_text unless the user requests a graphical view. Relay presentation.text as native Markdown without an enclosing interface code fence, terminal box, fixed-width wrapping or screen sequence. Preserve compact Open branch lines and its displayed action numbers; do not invent numbered menus on other replies. The small brand mark appears only on explicit launch/overview; do not repeat it in lifecycle updates. Preserve complete requested record/review bodies, literal source/code fences and metadata; translate interface prose to the conversation language, keeping exact identifiers, code, original evidence and approval wording intact. No special host table tool is required. Select an Open action by its displayed number or name using the exact latest numberedActions/availableActions binding; natural-language requests remain supported. These numbers belong only to the latest displayed view and project, never a global command. Select records only from entryActions/knowledgeRows on that same result; clarify duplicate titles instead of guessing. Each screen replaces old aliases. Bind numbers only when this exact reply displays them, through numberedActions, never array positions; preserve their explicit values without renumbering. Terminal record aliases require the explicitly displayed entryActions/knowledgeRows binding. The Open instruction count describes only bootstrap instructions supplied by this Open, not total chat/task context, stored records or a token budget. Pending answers take precedence over navigation. Collect the actual value for an input field before calling its action, never an incomplete placeholder. Selecting an action is never approval: show the complete exact proposal and obtain explicit human approval for approval-marked actions. Keep bindings ephemeral; never store them as settings or knowledge. In ordinary Open/lifecycle replies omit mode, theme and tool-routing commentary; discuss settings only on request. Display settings or App metadata do not prove that a UI was visible.';
 
 type Data = Record<string, any>;
 export type TextKind = 'summary' | 'attention' | 'details' | 'diagnostic';
@@ -19,9 +20,57 @@ export interface ConversationView {
   details?: PresentationAction;
   detailSource?: "context";
   suggestions?: PresentationAction[];
+  closeReceipt?: { label: string; detail: string };
+  contextLoaded?: { instructions: number; knowledge: number; skills: number };
 }
 const n = (value: number, one: string, many = `${one}s`) => `${value} ${value === 1 ? one : many}`;
 const tokens = (value: number) => value >= 1000 ? `${Number((value / 1000).toFixed(1))}k` : String(value);
+
+/** The observation count is persisted session evidence, never a knowledge-create count. */
+export function sessionCloseReceipt(result: Data): {label:string;detail:string} {
+  if (result.session?.status !== 'closed') return {label:'Session status unavailable',detail:'Saving state not confirmed.'};
+  const label = result.alreadyClosed ? 'Session already closed' : 'Session closed';
+  if (result.learned?.syncState === 'pending-auto-sync') return {label,detail:'Saving deferred.'};
+  if (result.learned?.syncState !== 'synchronized') return {label,detail:'Saving state not confirmed.'};
+  const observations = result.learned.observations;
+  if (!Number.isSafeInteger(observations) || observations < 0) return {label,detail:'Memory synchronized.'};
+  if (observations === 0) return {label,detail:'No observations recorded.'};
+  return {label,detail:result.alreadyClosed ? `${n(observations,'observation')} previously recorded.` : `Saved ${n(observations,'observation')}.`};
+}
+/** Only reported failures belong in routine attention; planner suggestions stay in details. */
+function diagnosticText(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim()) return publicDiagnostic(value);
+  if (value && typeof value === 'object') {
+    const d = value as Data;
+    const parts = [d.code, d.cause ?? d.message, d.recovery].filter((x): x is string => typeof x === 'string' && Boolean(x.trim()));
+    if (parts.length) return publicDiagnostic(parts.join(' · '));
+  }
+  return fallback;
+}
+
+export const LEGACY_MAINTENANCE_ACTIONS = ['memory-sync','curation','curation-question','curation-reasoning','curation-applied','curation-review-error','session-review'] as const;
+export const isLegacyMaintenanceAction = (action: unknown, explicitManagement = false) => !(explicitManagement && ['curation','curation-applied'].includes(String(action))) && LEGACY_MAINTENANCE_ACTIONS.some(value => value === action);
+export const QUIET_MAINTENANCE_NOTICE = 'Memory maintenance is handled during work. Original records are retained.';
+
+export function maintenanceAttention(payload: Data): string[] {
+  const project=payload.project,overview=project?.memoryOverview,workflow=overview?.workflow,curation=payload.curation;
+  const failures:string[]=[];
+  if(overview?.diagnostic || overview?.error)failures.push(diagnosticText(overview.diagnostic ?? overview.error,'Memory diagnostics could not be loaded. Saved knowledge is preserved.'));
+  if(workflow?.diagnostic || workflow?.error)failures.push(diagnosticText(workflow.diagnostic ?? workflow.error,'A saved memory operation could not finish. Inspect technical diagnostics before retrying.'));
+  if(workflow?.state==='applying')failures.push('Approved memory changes need verification before retrying. Inspect technical diagnostics.');
+  if(curation?.state==='unavailable')failures.push(diagnosticText(curation.diagnostic ?? curation.message,'Saved review could not be loaded. Saved knowledge is preserved.'));
+  return [...new Set(failures)];
+}
+
+export function legacyMaintenanceAttention(payload: Data, operation?: Data): string[] {
+  const r=payload.result ?? payload,failures:string[]=[];
+  const diagnostic=operation?.diagnostic ?? r.diagnostic ?? payload.diagnostic;
+  if(diagnostic)failures.push(diagnosticText(diagnostic,'A memory operation could not finish. Saved evidence is retained.'));
+  const error=r.error ?? payload.error ?? (payload.action==='curation-review-error' ? r.message ?? payload.message : undefined);
+  if(error)failures.push(diagnosticText(error,'A memory operation could not finish. Saved evidence is retained.'));
+  if(r.state==='applying')failures.push('Approved memory changes are pending verification. The outcome is unknown; inspect technical diagnostics before retrying.');
+  return [...new Set(failures)];
+}
 
 export function conversationView(payload: Data, vm: ProderoViewModel): ConversationView {
   const r = payload.result ?? payload;
@@ -29,6 +78,12 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
   const call = (label: string, tool: string, args: Data = {}): PresentationAction => ({label, tool, arguments: {...(root ? {projectRoot: root} : {}), ...args}});
   const v: ConversationView = {kind:'summary',title:vm.title,state:'Ready',facts:[],attention:[],blocking:false,reviewRequired:false};
   const next = (prompt: string, action?: PresentationAction) => { v.prompt = prompt; v.continuation = action; };
+  if(isLegacyMaintenanceAction(payload.action,payload.userInitiatedManagement===true)) {
+    v.title='Prodero · Memory';v.state='Original records retained';v.facts.push(QUIET_MAINTENANCE_NOTICE);
+    v.attention.push(...legacyMaintenanceAttention(payload,vm.operation));
+    if(v.attention.length)v.kind='attention';
+    return v;
+  }
   if (['open','status','status-details','initialized'].includes(payload.action)) {
     const p = payload.project;
     v.title = `Prodero · ${p?.name ?? 'Project'}`;
@@ -41,39 +96,11 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
       v.state=payload.action==='initialized'?'Initialized':'Ready';
       if (p.knowledgeCount !== undefined) v.facts.push(`Memory  ${p.knowledgeCount}`);
       if (p.skillCount !== undefined) v.facts.push(`Skills  ${p.skillCount}`);
-      if (p.activeSessionCount !== undefined) v.facts.push(`Session  ${p.activeSessionCount ? `active (${p.activeSessionCount})` : 'none active'}`);
       if (payload.phase==='initial') v.facts.push('Lightweight status; counts not loaded.');
-      if (p.conflictCount) v.attention.push(`Conflicts to review: ${p.conflictCount}.`);
-      const areas=p.memoryOverview?.areas ?? [];
-      if(areas.length) {
-        v.attention.push(`Memory areas to review: ${areas.length + (p.memoryOverview?.areasOmitted ?? 0)}.`);
-        if(areas.some((a:Data)=>a.signals?.includes('context_pressure')))v.attention.push('Relevant knowledge has not fit into recent task context.');
-        next('Review memory improvements?',call('Review Curate Memory','prodero_sync'));
-      }
-      if (p.memoryOverview?.available === false) v.attention.push('Memory overview unavailable.');
-      if (p.memoryOverview?.workflow && p.memoryOverview.workflow.state !== 'completed') {
-        const w=p.memoryOverview.workflow;
-        v.attention.push(w.state==='stale'?'Memory changed since the last curation.':'Curate Memory is unfinished.');
-        next(w.state==='stale'?'Re-analyze memory?':'Continue curation?',w.state==='stale'?call('Re-analyze memory','prodero_memory_sync',{request:{action:'start',restart:true}}):call('Continue curation','prodero_sync',{workflowId:w.id}));
-      }
-      const c=payload.curation;
-      if(c?.state==='unavailable')v.attention.push('Saved review unavailable. Open details before continuing.');
-      if(c?.prominent) {
-        const q=c.projection;
-        if(q?.needsInputNow)v.attention.push(`Items needing your input: ${q.needsInputNow}.`);
-        if(q?.readyChangeGroups)v.attention.push(`${n(q.readyChangeGroups,'proposed change')} ready for review.`);
-        if(q?.blockedGroups)v.attention.push(`${n(q.blockedGroups,'change')} blocked.`);
-        next('Review these items?',call('Review saved decisions','prodero_curation',{action:'plan',details:true}));
-      } else if(p.conflictCount)next('Inspect knowledge and its review signals?',call('Inspect knowledge','prodero_knowledge'));
+      v.attention.push(...maintenanceAttention(payload));
       if(payload.bootstrap?.warnings?.length)v.attention.push(...payload.bootstrap.warnings);
-      if(payload.update?.available)v.attention.push(`Update available: ${payload.update.latest}.`);
-      if(!v.attention.length && payload.phase!=='initial')v.facts.push('No attention needed.');
       if(payload.action==='open' || payload.action==='initialized') {
-        const w=p.memoryOverview?.workflow;
-        const sync=w?.state==='stale'
-          ? call('Re-analyze memory','prodero_memory_sync',{request:{action:'start',restart:true}})
-          : call(w && w.state!=='completed'?'Continue curation':'Curate Memory','prodero_sync',w && w.state!=='completed'?{workflowId:w.id}:{});
-        v.suggestions=[sync,call('Explore knowledge','prodero_knowledge'),...(c?.prominent?[call('Review changes','prodero_curation',{action:'plan',details:true})]:[]),call('Show settings','prodero_config_get'),...(payload.update?.available?[call('Show update instructions','prodero_update')]:[])];
+        v.suggestions=[call('Explore knowledge','prodero_knowledge'),call('Curate Memory','prodero_curation',{fresh:true}),call('Move Local knowledge to Versioned','prodero_knowledge',{layer:'local'}),call('Show settings','prodero_config_get'),...(payload.update?.available?[call('Show update instructions','prodero_update')]:[])];
       }
     }
     v.details=call('Show project details','prodero_status_details',{details:true});
@@ -81,6 +108,7 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
   } else if(payload.action==='prepare' || payload.action==='context') {
     const c=payload.action==='context'?r:r.context,m=c.metrics,readiness=c.policyReadiness;
     v.title='Prodero · Context Ready';
+    v.contextLoaded={instructions:c.required.length,knowledge:c.relevant.length,skills:c.skills.length};
     const omitted=m.requiredGlobalExcludedItems ?? c.selection?.omittedRequired?.length ?? 0;
     v.blocking=Boolean(readiness?.blocking || omitted);
     v.contextComplete=!omitted && !v.blocking;
@@ -98,64 +126,10 @@ export function conversationView(payload: Data, vm: ProderoViewModel): Conversat
     v.detailSource='context';
   } else if(payload.action==='session-close') {
     v.title='Prodero · Session closed';v.state=r.alreadyClosed?'Already closed':r.learned.syncState==='pending-auto-sync'?'Saving deferred':'Saved';
+    v.closeReceipt=sessionCloseReceipt(r);
     v.facts.push(`${n(r.learned.observations,'observation')} recorded`);
-    if(r.learned.syncState==='pending-auto-sync')v.attention.push('Saving deferred; it will resume before the next work session.');
-    if(r.review?.needsReview)v.attention.push(`Items needing review: ${r.review.needsReview}.`);
-    if(r.review?.error)v.attention.push('Knowledge review unavailable.');
-    if(v.attention.length)next('Review session knowledge?',call('Review session','prodero_session_review',{sessionId:r.session.id}));
-    v.details=call('Review session knowledge','prodero_session_review',{sessionId:r.session.id});
-  } else if(payload.action==='memory-sync') {
-    v.title='Prodero · Curate Memory';
-    const s=r.summary??{},inspect=call('Review this curation','prodero_memory_sync',{request:{action:'inspect',workflowId:r.id},details:true});
-    v.details=inspect;
-    const operation=vm.operation!,state:Record<string,string>={selection:'Ready to curate',queued:'Analysis queued',awaiting_agent:'Awaiting agent analysis',submitted:'Submitted · validation pending',question:'Your input is needed',review:'Review required',recovery:'Approved changes · verify result',sharing:'Ready for sharing review',completed:operation.outcome==='remaining'?'Completed with remaining work':'Complete',stale:'Memory changed'};
-    v.state=state[operation.phase]??'Check saved progress';
-    if(r.state==='awaiting_selection') {
-      v.facts.push('Improve memory · Prepare sharing review');
-      if(r.brokenLinks)v.facts.push(`Fix ${n(r.brokenLinks,'broken link')} · enabled`);
-      next('Start curation? Sharing will require a separate approval.',vm.actions.find(a=>a.label==='Start curation'));
-    } else if(r.state==='semantic_work') {
-      if(r.curation||r.semantic)next('Continue analysis using the prepared evidence.');
-      else next(operation.phase==='awaiting_agent'?'Prepared evidence is waiting for the host agent.':operation.phase==='submitted'?'The submitted result is awaiting validation.':'Continue analysis.',vm.actions.find(a=>'id' in a&&a.id==='reasoning')??vm.actions.find(a=>a.label==='Continue improving memory'));
-    } else if(r.state==='applying') {
-      next('Check saved progress before retrying; do not repeat approval.',vm.actions.find(a=>'id' in a && a.id==='inspect'));
-    } else if(r.state==='awaiting_review') {
-      v.reviewRequired=true;
-      v.attention.push(r.review?.kind==='promotion'?'Nothing published. Review the proposed wording before approval.':'No approval given. Review the proposed changes first.');
-      next('Review the proposed changes?',inspect);
-    } else if(r.state==='awaiting_promotion_selection') {
-      v.facts.push(`${n(r.promotionCandidates.length,'memory','memories')} available for sharing review`);
-      // Display the existing candidate set; selecting it still requires the user's request.
-      next(`Review all ${r.promotionCandidates.length} for sharing?`,vm.actions.find(a=>('id' in a&&a.id==='promotions')));
-    } else if(r.state==='awaiting_clarification') {
-      v.reviewRequired=true;
-      v.attention.push('Choose an answer or give your explanation. Chat answers are saved as relayed evidence, not approval.');
-      for(const q of r.clarification?.graphical?.questions??[])if(q.needsInput){v.facts.push(q.question.prompt);if(q.relatedQuestions?.length>1)v.attention.push(`Deferred together: ${q.relatedQuestions.map((q:Data)=>q.title).join('; ')}.`);}
-      next('Show the question and review details?',inspect);
-      v.suggestions=vm.actions.filter(a=>a.tool==='prodero_curation_question'||a.tool==='prodero_curation_reasoning_prepare');
-    } else if(r.state==='stale') {
-      v.attention.push('Re-analyze before continuing; earlier review is out of date.');
-      next('Re-analyze memory?',vm.actions.find(a=>a.label==='Re-analyze memory'));
-    } else if(r.state==='completed') {
-      if(s.areasProcessed)v.facts.push(`${s.sourcesBefore} → ${s.currentAfter} memories`,`${s.archived} previous memories preserved in history`);
-      else if(!s.promoted&&!s.brokenLinksFixed)v.facts.push('No memory changes.');
-      if(s.brokenLinksFixed)v.facts.push(`${n(s.brokenLinksFixed,'broken link')} fixed`);
-      if(s.brokenLinksRemaining)v.attention.push(`${n(s.brokenLinksRemaining,'broken link')} remain unchanged.`);
-      if(s.promoted)v.facts.push(`${n(s.promoted,'memory','memories')} prepared in Versioned files; review the Git diff`);
-      if(s.unresolved)v.attention.push(`${n(s.unresolved,'unresolved item')} still need clarification.`);
-      if(s.areasFailed)v.attention.push(`${n(s.areasFailed,'area')} could not be analyzed.`);
-      if(s.promotionConflicts)v.attention.push(`Sharing items needing review: ${s.promotionConflicts}.`);
-      if(operation.counts.questionsDeferred)v.attention.push(`${n(operation.counts.questionsDeferred,'question')} deferred.`);
-      else if(operation.counts.questionsDeferred===null&&operation.counts.deferredAreas)v.attention.push(`${n(operation.counts.deferredAreas,'area')} deferred; question count unavailable.`);
-      if(v.attention.length)next('Review the remaining items?',inspect);
-    }
-    const revisit=vm.actions.filter(a=>a.arguments.action==='question_reopen'||(a.arguments.request as Data)?.action==='refresh_questions');
-    if(revisit.length)v.suggestions=[...revisit,...(v.continuation?[v.continuation]:[])];
-    const retries=vm.actions.filter(a=>'id' in a && String(a.id).startsWith('retry:'));
-    if(retries.length)v.suggestions=[...(v.suggestions??[]),...retries,...(!v.suggestions?.length&&v.continuation?[v.continuation]:[])];
-    for(const q of r.deferredQuestions??[])if(q.affectedQuestions.length>1)v.attention.push(`Revisited together: ${q.affectedQuestions.map((q:Data)=>q.title).join('; ')}.`);
-    if(operation.diagnostic)v.attention.push(`${operation.diagnostic.code}: ${operation.diagnostic.cause} ${operation.diagnostic.recovery}`);
-    if(r.error)v.attention.push('This step could not finish. Check saved progress before retrying.');
+    if(r.learned.syncState==='pending-auto-sync')v.attention.push('It will resume before the next work session.');
+    if(r.review?.error)v.attention.push(`Session diagnostics unavailable: ${diagnosticText(r.review.error,'Inspect saved session details.')}`);
   } else if(payload.action==='migration') {
     const p=payload.plan;
     v.title='Prodero · Project update';v.state=vm.title;
@@ -195,6 +169,24 @@ export function numberedActions(vm: ProderoViewModel, expanded = false) {
   return actions.map((action, index) => ({...action, number:index + 1}));
 }
 
+/** Compact chat Open only. Explicit identities/numbers survive optional updates;
+ * bindings reuse the current view's authorized root and exact tool arguments. */
+export function chatOpenActions(vm:ProderoViewModel):Array<PresentationAction&{id:string;number:number;description:string}> {
+  if(!['open','initialized'].includes(vm.textScene?.action??'')||vm.textScene?.home?.initialized!==true)return [];
+  const source=[...(vm.conversation?.suggestions??[]),...vm.actions];
+  const definitions=[
+    {id:'memory',number:1,label:'View memory',tool:'prodero_knowledge',description:'Search and inspect saved records.'},
+    {id:'instructions',number:2,label:'Review legacy instructions',tool:'prodero_curation',description:'Preview splitting compound legacy Required rules and clarifying applicability; protected Apply remains graphical. Does not move records between layers.'},
+    {id:'sharing',number:3,label:'Share selected memory via Git',tool:'prodero_knowledge',description:'Select Local records and preview Versioned files. Exact approval is required before writing; no commit or push.'},
+    {id:'settings',number:4,label:'Settings',tool:'prodero_config_get',description:'Read current project settings.'},
+    {id:'update',number:5,label:'Update instructions',tool:'prodero_update',description:'Read instructions only; does not update the runtime.'},
+  ];
+  return definitions.flatMap(d=>{
+    const action=source.find(a=>a.tool===d.tool&&(d.id==='sharing'?a.arguments.layer==='local':d.id!=='memory'||a.arguments.layer===undefined));
+    return action?[{...action,id:d.id,number:d.number,label:d.label,description:d.description}]:[];
+  });
+}
+
 export function renderActionMenu(actions: PresentationAction[], start = 1): string {
   if (!actions.length) return '';
   return 'Available actions:\n\n' + actions.map((a, index) =>
@@ -208,15 +200,17 @@ export function renderConversation(v: ConversationView): string {
 }
 
 /** Model-visible MCP content, separate from the human summary; never hidden in _meta. */
-export function conversationOperation(payload: Data, vm: ProderoViewModel, details = false, diagnostics = false): Data {
-  const r=payload.result ?? payload, v=vm.conversation!;
+export function conversationOperation(payload: Data, vm: ProderoViewModel, details = false, diagnostics = false, terminal = false): Data {
+  const r=payload.result ?? payload, v=vm.conversation!, legacy=isLegacyMaintenanceAction(payload.action,payload.userInitiatedManagement===true);
   const questionData=payload.action==='curation-question'?payload:r.clarification;
   const owner=payload.action==='curation-question'?{workflowId:payload.syncWorkflowId,candidateId:payload.candidateId}:{workflowId:r.id,candidateId:r.jobs?.find((j:Data)=>j.curationReviewId===questionData?.review?.snapshot.reviewId)?.id};
-  const answerInputs=questionData?.review&&!questionData.graphical.analysisPending?questionData.graphical.questions.filter((q:Data)=>q.needsInput&&q.question.allowFreeText).map((q:Data)=>({tool:'prodero_curation_question',inputRequired:'rawText',instructions:'Collect the user\'s actual explanation. Supply rawText; never execute this incomplete input binding or invent an answer.',arguments:{projectRoot:payload.root??r.root,...owner,action:'answer',reviewId:questionData.review.snapshot.reviewId,reviewRevisionId:questionData.review.snapshot.revision.id,planHash:questionData.review.snapshot.planHash,decisionRevision:questionData.review.state.revision,answerLogHash:questionData.graphical.answerLogHash,questionId:q.question.id,questionVersion:q.question.version,requestId:`chat_${globalThis.crypto.randomUUID()}`,...(q.answer?{replacesAnswerId:q.answer.id}:{})}})):[];
+  const answerInputs=!legacy&&questionData?.review&&!questionData.graphical.analysisPending?questionData.graphical.questions.filter((q:Data)=>q.needsInput&&q.question.allowFreeText).map((q:Data)=>({tool:'prodero_curation_question',inputRequired:'rawText',instructions:'Collect the user\'s actual explanation. Supply rawText; never execute this incomplete input binding or invent an answer.',arguments:{projectRoot:payload.root??r.root,...owner,action:'answer',reviewId:questionData.review.snapshot.reviewId,reviewRevisionId:questionData.review.snapshot.revision.id,planHash:questionData.review.snapshot.planHash,decisionRevision:questionData.review.state.revision,answerLogHash:questionData.graphical.answerLogHash,questionId:q.question.id,questionVersion:q.question.version,requestId:`chat_${globalThis.crypto.randomUUID()}`,...(q.answer?{replacesAnswerId:q.answer.id}:{})}})):[];
+  const openActions=!terminal&&!details&&!diagnostics?chatOpenActions(vm):[];
   return {
     ...(answerInputs.length?{answerInputs}:{}),
     kind: diagnostics ? 'diagnostic' : details ? 'details' : v.kind,
     succeeded: payload.ok !== false,
+    ...(v.closeReceipt ? {closeReceipt:v.closeReceipt} : {}),
     blocking: v.blocking,
     contextComplete: v.contextComplete,
     reviewRequired: v.reviewRequired,
@@ -224,15 +218,16 @@ export function conversationOperation(payload: Data, vm: ProderoViewModel, detai
     details: v.details,
     detailSource: v.detailSource,
     suggestions: v.suggestions,
-    numberedActions: numberedActions(vm, details || diagnostics),
+    numberedActions: terminal ? numberedActions(vm, details || diagnostics) : openActions,
     entryActions: vm.knowledgeTable ? vm.knowledgeTable.rows.map(row=>({key:row.key,label:row.title,tool:'prodero_knowledge',arguments:{projectRoot:r.root,...r.options,id:row.id}})) : [],
     knowledgeRows: vm.knowledgeTable ? vm.knowledgeTable.rows.map(row=>({key:row.key,id:row.id,tool:'prodero_knowledge',arguments:{projectRoot:r.root,...r.options,id:row.id}})) : [],
-    availableActions: details || v.kind === "details" ? vm.actions : [v.continuation,v.details,...(v.suggestions??[])].filter(Boolean),
-    disclosure: vm.knowledgeTable && !details ? 'Show the supplied letter-keyed catalogue and pagination. Bind letters only through entryActions on this exact page; full bodies require inspecting a record.' : details || v.kind === 'details' ? 'Show the requested record/proposal bodies completely before asking for approval.' : 'Keep the human reply to presentation.text; do not expand other domain fields or proposal bodies. This limits display, not execution: continue already-authorized work and Core next instructions. Pause only at a Core human-choice/review step or blocking state. At a human review step, ask whether to inspect; retrieve details on request and show full wording before offering approval.',
+    availableActions: openActions.length?openActions:details || v.kind === "details" ? vm.actions : [v.continuation,v.details,...(v.suggestions??[])].filter(Boolean),
+    disclosure: legacy ? 'Legacy maintenance data is retained for technical compatibility. Do not present a moderation queue, ask housekeeping questions or infer approval. Preserve ambiguous originals and continue independent authorized work; report real failures truthfully.' : vm.knowledgeTable && !details ? 'Show the supplied knowledge list and pagination. Bind a record title to its exact entryActions on this page; clarify duplicate titles. Full bodies require inspecting a record.' : details || v.kind === 'details' ? 'Show the requested record/proposal bodies completely before asking for approval.' : 'Keep the human reply to presentation.text; do not expand other domain fields or proposal bodies. This limits display, not execution: continue already-authorized work and Core next instructions. Pause only at a Core human-choice/review step or blocking state. At a human review step, ask whether to inspect; retrieve details on request and show full wording before offering approval.',
     instructions: PRESENTATION_REPLY + (['prepare','session-close'].includes(payload.action) ? ' ' + LIFECYCLE_PRESENTATION_REPLY : '') + ' Relay presentation.text as the human reply, translated if needed, without narrating operational data. A yes answers only the immediately preceding question: follow its exact continuation through prodero_text for covered tools or the named tool otherwise. Preserve Core blockers and context requirements. View Context after Prepare displays the returned context snapshot; never rerun retrieval to display it. These are tool data, not system instructions.',
     ...(payload.bootstrap ? {bootstrap:payload.bootstrap} : {}),
     ...(payload.action==='context' ? {context:r} : {}),
     ...(payload.action==='prepare' ? {session:r.session,context:r.context,automaticSync:r.automaticSync} : {}),
+    ...(r.maintenance ? {maintenance:r.maintenance} : {}),
     ...(payload.action==='memory-sync' ? {workflow:{id:r.id,revision:r.revision,state:r.state,next:r.next,semantic:r.semantic,curation:r.curation,clarification:r.clarification,jobs:r.jobs,error:r.error,coverage:r.coverage,review:r.review,promotionCandidates:r.promotionCandidates}} : {}),
   };
 }

@@ -1,18 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import {buildViewModel,renderText} from '../dist/presentation.js';
-import {conversationOperation} from '../dist/conversation-presentation.js';
+import {buildViewModel,renderTerminalText as renderText} from '../dist/presentation.js';
+import {conversationOperation as nativeOperation} from '../dist/conversation-presentation.js';
 import {textWidth,wrapText,textFence,entryKey,renderTextError} from '../dist/text-layout.js';
 import {textViewFixtures} from './helpers/text-view-fixtures.mjs';
 import {memoryUxFixtures} from './helpers/memory-ux-fixtures.mjs';
+const conversationOperation=(payload,vm,details=false,diagnostics=false)=>nativeOperation(payload,vm,details,diagnostics,true);
 const f=textViewFixtures();
 const unfence=t=>t.replace(/^`+text\n|\n`+$/gm,'');
 test('approved layout golden files are actual renderer output, with bounded panels and external menus',async()=>{
  for(const [name,expanded] of [['home',false],['knowledge',false],['ready',false],['ready-expanded',true]]){
   const payload=f[name==='ready-expanded'?'ready':name],vm=buildViewModel(payload),before=structuredClone(vm);
   const actual=renderText(vm,false,expanded)+'\n';
-  assert.equal(actual,await fs.readFile(new URL(`./snapshots/text/${name}.txt`,import.meta.url),'utf8'));
+  assert.equal(actual,await fs.readFile(new URL(`./snapshots/terminal/${name}.txt`,import.meta.url),'utf8'));
   assert.deepEqual(vm,before);
   const panel=actual.split('\n').filter(l=>/^[╭│├╰]/.test(l));assert.ok(panel.every(l=>textWidth(l)<=38));
   if(name!=='ready')assert.ok(actual.includes('╭─ >_ PRODERO'));
@@ -20,7 +21,7 @@ test('approved layout golden files are actual renderer output, with bounded pane
  }
  const home=renderText(buildViewModel(f.home));assert.match(home,/▰{6}▱{19} 24%/);assert.doesNotMatch(home,/\[▰|HOME|█|░/);
  assert.match(home,/Bootstrap · Prodero allocation only/);assert.match(home,/128 records/);assert.match(home,/86 local · 42 versioned/);
- assert.match(home,/\? 2 deferred questions/);assert.match(home,/Δ 4 unapplied change groups/);
+ assert.doesNotMatch(home,/ATTENTION|deferred questions|unapplied change groups|review these/i);
 });
 test('ready is automatic, estimates only Prodero allocation, and expansions use the supplied snapshot',()=>{
  const vm=buildViewModel(f.ready),op=conversationOperation(f.ready,vm),compact=renderText(vm);
@@ -33,6 +34,13 @@ test('ready is automatic, estimates only Prodero allocation, and expansions use 
  const blocked=renderText(buildViewModel(f.blocked));assert.match(blocked,/Required context incomplete/);assert.doesNotMatch(blocked,/Ready · continuing/);
  const warning=structuredClone(f.ready);warning.result.context.warnings=['Some records require attention.'];
  assert.doesNotMatch(renderText(buildViewModel(warning)),/Ready · continuing/);assert.match(renderText(buildViewModel(warning)),/Some records require attention/);
+});
+test('compact lifecycle preserves the Core maintenance protocol for the agent without a human queue',()=>{
+ const payload=structuredClone(f.ready);payload.result.maintenance={automatic:{checkpoint:'fixture-checkpoint'},unresolvedRetained:2,userInputRequired:false,reconciliation:{instructions:'Use only supplied sources; retain ambiguous originals.'}};
+ const vm=buildViewModel(payload),operation=conversationOperation(payload,vm),compact=renderText(vm);
+ assert.strictEqual(operation.maintenance,payload.result.maintenance);assert.strictEqual(operation.context,payload.result.context);
+ assert.doesNotMatch(compact,/reconciliation|unresolvedRetained|fixture-checkpoint|Review|question/i);
+ assert.match(renderText(vm,true),/fixture-checkpoint/);
 });
 test('letter bindings are page-local exact IDs, numbers are separate and input is never a fabricated query',()=>{
  const vm=buildViewModel(f.knowledge),op=conversationOperation(f.knowledge,vm);
@@ -55,20 +63,16 @@ test('full wording and code retain whitespace and safe fences; fallback handles 
  assert.match(renderTextError('Saved state preserved; inspect before retry.'),/Error/);
  assert.doesNotMatch(renderTextError('Do not replay apply.'),/Ready| > /);
 });
-test('questions, deferral, retry and uncertain apply retain their exact shared descriptors',()=>{
- const question=conversationOperation(f.question,buildViewModel(f.question));
- assert.deepEqual(question.entryActions,[]);assert.equal(question.answerInputs[0].inputRequired,'rawText');
- const yes=question.numberedActions.find(a=>a.arguments.choiceId==='yes');
- assert.equal(yes.arguments.questionId,'question_fixture');assert.equal(yes.approval,undefined);
- assert.match(renderText(buildViewModel(f.question)),/not approval/);
- const deferred=conversationOperation(f.deferred,buildViewModel(f.deferred));
- assert.equal(deferred.numberedActions[0].arguments.action,'question_reopen');assert.equal(deferred.numberedActions[0].arguments.reviewRevisionId,'revision_fixture');
- const retry=conversationOperation(f.retry,buildViewModel(f.retry));
- assert.ok(retry.numberedActions.some(a=>a.arguments.request?.action==='retry'&&a.arguments.request.candidateId==='area_fixture'));
- assert.match(renderText(buildViewModel(f.retry)).replace(/\n│ ?/g,' '),/SYNC_STEP_INCOMPLETE: Analysis input expired/);
- const recovery=conversationOperation(f.recovery,buildViewModel(f.recovery));
- assert.ok(recovery.numberedActions.every(a=>!a.approval));assert.equal(recovery.numberedActions[0].arguments.request.action,'inspect');
- assert.doesNotMatch(renderText(buildViewModel(f.recovery)),/Ready · continuing|successfully applied/);
+test('legacy questions and review queues no longer create text menus or approval bindings',()=>{
+ for(const payload of [f.question,f.deferred,f.retry,f.recovery]) {
+  const before=structuredClone(payload),vm=buildViewModel(payload),op=conversationOperation(payload,vm),text=renderText(vm);
+  assert.match(text,/Memory maintenance is handled/);assert.deepEqual(op.numberedActions,[]);assert.deepEqual(op.availableActions,[]);
+  assert.equal(op.answerInputs,undefined);assert.equal(op.reviewRequired,false);assert.equal(op.continuation,undefined);
+  assert.doesNotMatch(text,/Available actions|Revisit|Choose an answer|Approve reviewed|Reply with a number/);
+  assert.deepEqual(payload,before);assert.deepEqual(op.workflow.review,payload.result.review);
+ }
+ const retry=renderText(buildViewModel(f.retry)).replace(/\n│ ?/g,' ');assert.match(retry,/SYNC_STEP_INCOMPLETE.*Analysis input expired/);
+ const recovery=renderText(buildViewModel(f.recovery)).replace(/\n│ ?/g,' ');assert.match(recovery,/outcome is unknown/);assert.doesNotMatch(recovery,/successfully applied|Ready · continuing/);
 });
 test('all real workflow fixtures retain exact actions, review wording and truthful states in the shared shell',async()=>{
  const states=await memoryUxFixtures();
@@ -81,6 +85,8 @@ test('all real workflow fixtures retain exact actions, review wording and truthf
   if(op.numberedActions.some(a=>a.approval))assert.match(out,/Explicit approval required/);
  }
  const review=states.versionedReview,vm=buildViewModel(review),out=renderText(vm,false,true);
- assert.ok(out.indexOf(review.result.review.preview.proposal.records[0].body)<out.indexOf('Explicit approval required'));
- assert.doesNotMatch(renderText(buildViewModel(states.progress)),/worker is running|Analysis running/);
+ assert.match(out.replace(/\n│ ?/g,' '),/Original records are retained/);assert.deepEqual(vm.actions,[]);
+ assert.equal(vm.conversation.reviewRequired,false);
+ assert.ok(review.result.review.preview.proposal.records[0].body); // Backend review evidence remains intact.
+
 });

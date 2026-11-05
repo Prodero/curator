@@ -3,7 +3,7 @@
 import { assertSafeCurationData } from './curation-evidence.js';
 import fs from 'node:fs/promises';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { jsonSchema } from './json-schema.js';
 import { checkedDataPath, ensureDataDirectory, writeFileAtomic } from './storage.js';
 import { withSyncLock, ownsSyncLock } from './sync-transaction.js';
 import { loadMemoryCatalog } from './memory-index.js';
@@ -86,7 +86,7 @@ async function makeBundle(root:string,review:CurationReview,componentId:string,l
   while(Buffer.byteLength(JSON.stringify(bundle))>limits.maxBytes-128||measuredTokens(bundle)>limits.maxTokens-32){mark('bundle-limit');if(bundle.evidence.length)bundle.evidence.pop();else if(bundle.sources.length)bundle.sources.pop();else return reject('semantic_limit','The minimum component manifest exceeds the reasoning budget.');}
   bundle.id=`bundle_${hash(bundle)}`;return bundle;
 }
-function response(job:SemanticJob){const {bundle,...input}=job.input;const history=job.events.map(({proposal,...event})=>event);return {jobId:job.input.jobId,status:last(job).status,job:{...job,input,events:history},task:{instructions:SEMANTIC_INSTRUCTIONS,proposalSchema:zodToJsonSchema(semanticProposalSchema,{$refStrategy:'none'}),data:bundle},acceptance:'staged_candidate_only' as const,validation:last(job).reason,resultReviewId:last(job).resultReviewId};}
+function response(job:SemanticJob){const {bundle,...input}=job.input;const history=job.events.map(({proposal,...event})=>event);return {jobId:job.input.jobId,status:last(job).status,job:{...job,input,events:history},task:{instructions:SEMANTIC_INSTRUCTIONS,proposalSchema:jsonSchema(semanticProposalSchema),data:bundle},acceptance:'staged_candidate_only' as const,validation:last(job).reason,resultReviewId:last(job).resultReviewId};}
 const passCount=(history:SemanticJob[],lineageId:string)=>history.filter(j=>j.input.lineageId===lineageId&&j.input.reason!=='validation_correction').length;
 const passLimit=(history:SemanticJob[],lineageId:string,limits:SemanticLimits)=>Math.min(limits.maxPasses,...history.filter(j=>j.input.lineageId===lineageId).map(j=>j.input.bundle.limits.maxPasses));
 function boundedRecoveryLimits(previous:SemanticJob,requested?:Partial<SemanticLimits>):SemanticLimits{

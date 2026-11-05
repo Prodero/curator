@@ -5,6 +5,7 @@ import { recordRetrievalEvidence, recordSyncEvidenceLocked, type RetrievalEviden
 import { publicDiagnostic } from "./diagnostics.js";
 import { explicitProjectRoot } from "./project-root.js";
 import { reviewSessionKnowledge } from "./session-review.js";
+import { prepareSessionReconciliation } from './session-reconciliation.js';
 import { assertNoSecrets } from "./secrets.js";
 import { intelligenceTelemetry, type IntelligenceProvider } from "./intelligence.js";
 import { planAssistedSync, observationEvidence, observationKey } from "./knowledge-engine.js";
@@ -433,18 +434,31 @@ export async function prepareProject(start = process.cwd(), options: { task?: st
     onRequiredOmitted: options.onRequiredOmitted,
   });
   context.agentUsage = options.agentUsage ?? null;
-  if (automaticSync.intelligence?.audit.status === "attention" && !context.attention.some((item) => item.kind === "conflict")) {
-    context.attention.push({ kind: "memory-health", severity: "important", title: "Knowledge review needed", detail: "The affected-area audit left uncertainty or reached its review budget. Original evidence is preserved." });
-  }
+  // Audit uncertainty/budget is deferred maintenance, not a task blocker or an
+  // instruction to ask the user to moderate memory. Context still owns actual
+  // task-relevant disputes and Required-policy readiness.
+  const maintenance = {
+    automatic: {sessions:automaticSync.sessions,created:automaticSync.created,consolidated:automaticSync.consolidated,duplicates:automaticSync.duplicates,checkpoint:automaticSync.checkpoint},
+    audit: automaticSync.intelligence?.audit,
+    unresolvedRetained: automaticSync.intelligence?.audit.status === 'attention',
+    userInputRequired: false,
+  };
   let session = options.sessionId ? await readSession(root, options.sessionId) : undefined;
   if (session?.status === "closed") session = undefined;
   if (!session) session = await createSession(root, { agent: options.agent, taskContext:context.taskContext });
   else if(context.taskContext)session=await updateSessionTaskContext(root,session.id,context.taskContext);
   associatePreparedContext(context, session.id);
   const memoryTelemetry = retrievalEvidence ? await recordRetrievalEvidence(root, session.id, retrievalEvidence) : "unavailable";
+  const reconciliation = context.policyReadiness?.blocking || memoryTelemetry!=='recorded'
+    ? {state:'deferred' as const,reason:context.policyReadiness?.blocking?'current-task-policy-not-ready':'current-retrieval-evidence-unavailable',humanDecisionRequired:false}
+    : await prepareSessionReconciliation(root,{sessionId:session.id}).catch(error=>{
+      const diagnostic=publicDiagnostic(error);
+      context.attention.push({kind:'memory-health',severity:'important',title:'Memory maintenance could not finish',detail:diagnostic});
+      return {state:'deferred' as const,reason:'maintenance-storage-failure',diagnostic,humanDecisionRequired:false};
+    });
   const status = await getProjectStatus(root);
   const uiState = { blocking:context.policyReadiness?.blocking??false, view: context.attention.length ? "attention" as const : "context-ready" as const, attention: context.attention };
-  return { memoryTelemetry, project: status, session: { id: session.id, path: `.prodero/sessions/${session.path}`, status: session.status }, automaticSync, context, proderoMetrics: context.metrics, agentUsage: context.agentUsage, uiState };
+  return { memoryTelemetry, project: status, session: { id: session.id, path: `.prodero/sessions/${session.path}`, status: session.status }, automaticSync, maintenance:{...maintenance,reconciliation}, context, proderoMetrics: context.metrics, agentUsage: context.agentUsage, uiState };
 }
 
 export async function recordProjectSession(start: string | undefined, sessionId: string, entries: SessionObservationInput[]) {

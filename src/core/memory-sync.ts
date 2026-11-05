@@ -25,7 +25,7 @@ export const MEMORY_SYNC_LIMITS = { workflows: 1, candidates: 20, promotions: 50
 const digest = (v: unknown) => sha256(JSON.stringify(v));
 const id = z.string().regex(/^area_[a-f0-9]{20}$/);
 const fingerprintSchema = z.object({knowledge:z.string(),telemetry:z.string(),checkpoints:z.string()}).strict();
-const jobSchema = z.object({id, label:z.string(), signals:z.array(z.string()), recordCount:z.number(), counts:z.record(z.number()).optional(), categories:z.record(z.number()).optional(), sourceIds:z.array(z.string()).max(24), layers:z.object({local:z.number(),versioned:z.number()}), selected:z.boolean(), status:z.enum(['unselected','pending','semantic_work','awaiting_review','awaiting_clarification','deferred','applied','skipped','failed']), curationReviewId:z.string().optional(),curationStateHash:z.string().optional(),error:z.string().optional(), unresolved:z.number().optional(), result:z.unknown().optional()}).strict();
+const jobSchema = z.object({id, label:z.string(), signals:z.array(z.string()), recordCount:z.number(), counts:z.record(z.string(), z.number()).optional(), categories:z.record(z.string(), z.number()).optional(), sourceIds:z.array(z.string()).max(24), layers:z.object({local:z.number(),versioned:z.number()}), selected:z.boolean(), status:z.enum(['unselected','pending','semantic_work','awaiting_review','awaiting_clarification','deferred','applied','skipped','failed']), curationReviewId:z.string().optional(),curationStateHash:z.string().optional(),error:z.string().optional(), unresolved:z.number().optional(), result:z.unknown().optional()}).strict();
 const stateSchema = z.object({version:z.literal(1), id:z.string().uuid(),root:z.string(),revision:z.number().int(),createdAt:z.string(),state:z.enum(['awaiting_selection','semantic_work','awaiting_clarification','awaiting_review','applying','awaiting_promotion_selection','completed','stale']),improveEnabled:z.boolean().optional(),repairLinksEnabled:z.boolean().optional(),brokenLinks:z.number().int().nonnegative().optional(),repairLinksDone:z.boolean().optional(),repairLinksResult:z.object({fixed:z.number(),remaining:z.number()}).optional(),
  usage:z.object({sessions:z.number(),available:z.boolean()}).optional(),baseline:fingerprintSchema,jobs:z.array(jobSchema).max(20),promotionEnabled:z.boolean(),promotionDone:z.boolean(),promotionCandidates:z.array(z.object({id:z.string(),title:z.string(),score:z.number(),signals:z.array(z.string()),recommended:z.boolean()})).max(50),promotionTotal:z.number(),promotionResult:z.unknown().optional(),recovery:z.object({sessions:z.number(),created:z.number()}),error:z.string().optional(),
  active:z.object({kind:z.enum(['transformation','promotion','link-repair']),reviewId:z.string(),candidateId:id.optional(),preview:z.unknown(),approved:z.boolean(),unaffectedKnowledge:z.string().optional(),touchedIds:z.array(z.string()).max(150).optional()}).strict().optional(),
@@ -94,7 +94,7 @@ function view(w:Workflow,clarification?:Awaited<ReturnType<typeof inspectSyncCur
    estimatedTokens:{scope:'transformed_areas',before:applied.reduce((n,r)=>n+r.estimatedTokens.before,0),after:applied.reduce((n,r)=>n+r.estimatedTokens.after,0)},
    versionedCreated:applied.reduce((n,r)=>n+r.created.filter(c=>c.layer==='versioned').length,0),promoted:promotion?.published??0,promotionCreated:promotion?.created.length??0,promotionUpdated:promotion?.updated.length??0,promotionCovered:promotion?.covered.length??0,localArchived:applied.reduce((n,r)=>n+r.archives.filter(a=>a.layer==='local').length,0),versionedArchived:applied.reduce((n,r)=>n+r.archives.filter(a=>a.layer==='versioned').length,0),acknowledgedCandidateIds:w.jobs.filter(j=>j.status==='applied').map(j=>j.id),promotionConflicts:promotion?.conflicts.length??0,historicalProvenancePreserved:true},
   coverage:{promotionCandidatesOmitted:Math.max(0,w.promotionTotal-w.promotionCandidates.length)},
-  next:w.state==='semantic_work'?{action:'semantic_work_required',candidateId:currentJob(w)?.id,instructions:w.improveEnabled?'Use prodero_memory_sync prepare for the next candidate. For its curation job, use the existing prodero_curation_reasoning_prepare/propose protocol, then inspect this Sync workflow. Continue sequentially until a question, review or completion. Never Apply or approve; Core handles eligible Local changes. No session lifecycle or extra scans.':'Use prodero_memory_sync action=prepare, then reason only over that one bundle and submit action=propose with the returned workflow ID/revision. Continue sequentially while semantic_work_required. Never approve review automatically. Do not use session prepare/record/close for this workflow.'}:['awaiting_clarification','awaiting_promotion_selection','awaiting_review'].includes(w.state)?{action:w.state==='awaiting_review'?'human_review_required':w.state,tool:'prodero_sync',arguments:{projectRoot:w.root,workflowId:w.id},instructions:'When an unattached continuation returns this state, present the pending human step before ending the turn: read project presentation settings and invoke prodero_sync with these exact arguments once (use prodero_text for text mode). This reopens the same saved workflow without restarting analysis. After presenting it, stop and wait; do not repeatedly reopen an unchanged step. Never select records, answer questions, approve or publish for the human.'}:{action:w.state},
+  next:w.state==='semantic_work'?{action:'semantic_work_required',candidateId:currentJob(w)?.id,instructions:w.improveEnabled?'Use prodero_memory_sync prepare for the next candidate. For its curation job, use the existing prodero_curation_reasoning_prepare/propose protocol, then inspect this Sync workflow. Continue sequentially until a question, review or completion. Never Apply or approve; Core handles eligible Local changes. No session lifecycle or extra scans.':'Use prodero_memory_sync action=prepare, then reason only over that one bundle and submit action=propose with the returned workflow ID/revision. Continue sequentially while semantic_work_required. Never approve review automatically. Do not use session prepare/record/close for this workflow.'}:['awaiting_clarification','awaiting_promotion_selection','awaiting_review'].includes(w.state)?{action:w.state==='awaiting_review'?'human_review_required':w.state,tool:'prodero_sync',arguments:{projectRoot:w.root,workflowId:w.id},instructions:'Legacy technical continuation only. Preserve this exact saved workflow and its unresolved originals; do not restore the removed moderation UI or ask routine housekeeping questions. A technical caller may inspect these bindings on explicit request. Required exact human approval still applies to protected/shared/link-removal/publication operations; never infer it, fabricate answers or approve for the user. Ordinary work uses the bounded current-session reconciliation protocol.'}:{action:w.state},
  };
 }
 async function workflowView(root:string,w:Workflow,clarification?:Awaited<ReturnType<typeof inspectSyncCuration>>,deferred?:Awaited<ReturnType<typeof deferredQuestions>>){
@@ -253,16 +253,24 @@ export async function runMemorySync(root:string,raw:MemorySyncAction){
 
 /** Open-only diagnostic projection. Never resumes, recovers, migrates or persists a workflow. */
 export async function getMemorySyncOverview(root:string) {
- const workflow=await load(root);
- const pending=workflow&&workflow.state!=='completed'?workflow:null;
- const stale=pending&&(pending.state==='stale'||pending.state!=='applying'&&digest(await fingerprint(root))!==digest(pending.baseline));
- const workflowStatus=pending?{id:pending.id,state:stale?'stale':pending.state}:null;
+ let workflowStatus:{id:string;state:string;error?:string}|null=null;
  try {
+  const workflow=await load(root);
+  const pending=workflow&&workflow.state!=='completed'?workflow:null;
+  const stale=pending&&(pending.state==='stale'||pending.state!=='applying'&&digest(await fingerprint(root))!==digest(pending.baseline));
+  workflowStatus=pending?{id:pending.id,state:stale?'stale':pending.state,...(pending.error?{error:publicDiagnostic(pending.error)}:{})}:null;
   const plan=await getMemoryIntelligencePlan(root);
   return {available:plan.coverage.telemetry!=='unavailable',sessions:plan.coverage.sessions,
    areas:plan.candidates.map(c=>({id:c.id,label:c.label,recordCount:c.recordCount,signals:c.signals,counts:c.counts,layers:c.layers,categories:c.categories})),
-   areasOmitted:plan.truncated.candidates,workflow:workflowStatus};
- } catch { return {available:false,sessions:0,areas:[],areasOmitted:0,workflow:workflowStatus}; }
+   areasOmitted:plan.truncated.candidates,workflow:workflowStatus,
+   ...(workflow?.error?{diagnostic:{code:'PRODERO_MEMORY_MAINTENANCE_INCOMPLETE',cause:publicDiagnostic(workflow.error),recovery:'Original knowledge and saved progress are retained. Inspect the saved operation before retrying.'}}:{})};
+ } catch(error) { return memoryOverviewFailure(error,workflowStatus); }
+}
+
+/** Preserve a sanitized failure separately from missing optional usage history. */
+export function memoryOverviewFailure(error:unknown,workflow:{id:string;state:string;error?:string}|null=null) {
+ return {available:false,sessions:0,areas:[],areasOmitted:0,workflow,
+  diagnostic:{code:'PRODERO_MEMORY_OVERVIEW_UNAVAILABLE',cause:publicDiagnostic(error),recovery:'Saved knowledge is preserved. Inspect the storage diagnostic before retrying; no maintenance was applied by this read.'}};
 }
 
 /** Resolve continuation ownership from persisted review lineage, not a particular App instance. */

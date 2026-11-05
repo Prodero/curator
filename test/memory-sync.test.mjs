@@ -85,9 +85,20 @@ test('only Curate Memory launcher attaches an App; repeated continuation preserv
   assert.equal(response.structuredContent.presentation.card,undefined);
  }
 });
-test('MCP start/semantic continuation and text review share the persisted protocol',async t=>{
- const f=await fixture(t,'mixed'),call=await mcp(t,f);let response=await call(T.sync);assert.equal(response.structuredContent.action,'memory-sync');let w=response.structuredContent.result;
- const send=async(action,extra={})=>{const r=await call(T.memorySync,{request:{action,workflowId:w.id,revision:w.revision,...extra}});assert.equal(r.isError,undefined,JSON.stringify(r));w=r.structuredContent.result;return r;};await send('select',{candidateIds:w.jobs.map(j=>j.id)});await send('prepare',{candidateId:w.next.candidateId});assert.match(w.semantic.instructions,/Core checks structure/);await send('propose',{candidateId:w.next.candidateId,proposal:fixtureProposal(w.semantic.bundle,'mixed')});assert.equal(w.next.action,'human_review_required');const text=await call(T.text,{tool:T.memorySync,arguments:{projectRoot:f.root,request:{action:'inspect',workflowId:w.id}}});assert.match(text.content[0].text,/Review required/);assert.match(text.content[0].text,/Review the proposed changes/);const full=await call(T.text,{tool:T.memorySync,arguments:{projectRoot:f.root,request:{action:"inspect",workflowId:w.id},details:true}});assert.match(full.content[0].text,/Review shared-memory changes/);assert.match(full.content[0].text,/Versioned|versioned/);assert.equal(text.structuredContent.presentation.operational.continuation.arguments.request.action,"inspect");assert.equal(text.structuredContent.presentation.operational.continuation.approval,undefined);const approval=full.structuredContent.presentation.operational.continuation;assert.equal(approval.approval,true);assert.equal(approval.arguments.request.reviewId,w.review.reviewId);assert.equal(approval.arguments.request.revision,w.revision);for(const record of w.review.preview.proposal.records)assert.ok(full.content[0].text.includes(record.body));assert.match(full.content[0].text,/Approve these exact changes\?$/);assert.equal((await listKnowledge(f.root)).length,4);
+test('legacy MCP retains exact review data without restoring a text moderation queue',async t=>{
+ const f=await fixture(t,'mixed'),call=await mcp(t,f);let w=(await call(T.sync)).structuredContent.result;
+ const send=async(action,extra={})=>{const r=await call(T.memorySync,{request:{action,workflowId:w.id,revision:w.revision,...extra}});assert.equal(r.isError,undefined,JSON.stringify(r));w=r.structuredContent.result;return r;};
+ await send('select',{candidateIds:w.jobs.map(j=>j.id)});await send('prepare',{candidateId:w.next.candidateId});
+ await send('propose',{candidateId:w.next.candidateId,proposal:fixtureProposal(w.semantic.bundle,'mixed')});assert.equal(w.state,'awaiting_review');
+ for(const details of [false,true]){
+  const response=await call(T.text,{tool:T.memorySync,arguments:{projectRoot:f.root,request:{action:'inspect',workflowId:w.id},details}});
+  assert.match(response.content[0].text.replace(/\n│ ?/g,' '),/Original records (?:are )?retained/);assert.doesNotMatch(response.content[0].text,/Available actions|Approve|Review required|Show the question/);
+  assert.deepEqual(response.structuredContent.presentation.operational.numberedActions,[]);
+  assert.equal(response.structuredContent.result.review.reviewId,w.review.reviewId);
+  assert.deepEqual(response.structuredContent.result.review.preview,w.review.preview);
+ }
+ await assert.rejects(action(f,w,'approve',{approved:true,reviewId:'wrong'}));
+ assert.equal((await listKnowledge(f.root)).length,4);
 });
 test('human handoff reopens exact promotion selection without restarting or publishing',async t=>{
  const f=await fixture(t),call=await mcp(t,f);
@@ -102,37 +113,33 @@ test('human handoff reopens exact promotion selection without restarting or publ
  assert.equal(reopened.structuredContent.result.id,w.id);
  assert.equal(reopened.structuredContent.result.revision,revision);
  const ui=await knowledgeUi();ui.render(reopened);
- assert.match(ui.html,/Select Local knowledge to move to Versioned Knowledge/);
+ assert.match(ui.html,/Memory maintenance is handled during work/);assert.doesNotMatch(ui.html,/data-memory-sync|data-sync-promotion/);
  assert.deepEqual(await readKnowledgeInventory(f.root),inventory);
  const invalid=await call(T.sync,{workflowId:'00000000-0000-4000-8000-000000000000'});
  assert.equal(invalid.isError,true);
  assert.equal((await inspect(f,w)).id,w.id);
 });
-test('promotion selection defaults to all and preserves individual and bulk choices without publishing',async t=>{
- const f=await fixture(t);let w=await run(f.root,{action:'start'});
- w=await action(f,w,'select',{improve:false,share:true});
- const call=await mcp(t,f),calls=[];
- const ui=await knowledgeUi(req=>{calls.push(req);return call(req.name,req.arguments);});
- const payload={structuredContent:{ok:true,action:'memory-sync',result:w}};
- ui.render(payload);
- const checked=()=>ui.host.querySelectorAll('[data-sync-promotion]').filter(e=>e.checked).map(e=>e.dataset.syncPromotion);
+test('legacy promotion selection remains a guarded technical API without a visual selection queue',async t=>{
+ const f=await fixture(t);let w=await run(f.root,{action:'start'});w=await action(f,w,'select',{improve:false,share:true});
+ const calls=[],ui=await knowledgeUi(req=>{calls.push(req);throw new Error('Legacy rendering must not dispatch');});
+ ui.render({structuredContent:{ok:true,action:'memory-sync',result:w}});
+ assert.doesNotMatch(ui.html,/data-sync-promotion|data-memory-sync|Approve|Select Local knowledge/);assert.deepEqual(calls,[]);
  const ids=w.promotionCandidates.map(c=>c.id);assert.ok(ids.length>1);
- assert.deepEqual(checked(),ids);
- await ui.sync('promotions-none');assert.deepEqual(checked(),[]);
- assert.equal(ui.host.querySelector('[data-memory-sync="promotions"]').disabled,true);
- await ui.sync('promotions');assert.equal(calls.length,0);
- await ui.sync('promotions-all');assert.deepEqual(checked(),ids);
- ui.check(`[data-sync-promotion="${ids[0]}"]`,false);
- ui.render(payload);
- assert.deepEqual(checked(),ids.slice(1));assert.equal(calls.length,0);
- await ui.sync('promotions');
- assert.deepEqual(Array.from(calls[0].arguments.request.ids),ids.slice(1));
- assert.equal(calls.some(c=>c.arguments.request.action==='approve'),false);
+ w=await action(f,w,'promotions',{ids:ids.slice(1)});
+ assert.equal(w.state,'awaiting_review');assert.deepEqual([...new Set(w.review.preview.actions.flatMap(a=>a.localIds))].sort(),ids.slice(1).sort());
  assert.equal((await listKnowledge(f.root,'versioned')).length,0);
 });
-test('minimal production UI explicitly selects operations, requests the current agent and never self-approves',async t=>{
- const f=await fixture(t,'mixed'),call=await mcp(t,f),calls=[],messages=[];const ui=await knowledgeUi(async req=>{calls.push(req);return call(req.name,req.arguments);},message=>{messages.push(message);return {};});ui.render(await call(T.sync));assert.match(ui.html,/Curate Memory/);assert.doesNotMatch(ui.html,/data-action="promotion"/);assert.equal(ui.host.querySelector('#sync-improve-choice').checked,true);await ui.sync('select');assert.equal(messages.length,1);assert.match(messages[0].content[0].text,/never approve/);assert.equal(calls.some(c=>c.arguments.request?.action==='approve'),false);
- let w=await run(f.root,{action:'start',restart:true});w=await action(f,w,'select',{candidateIds:w.jobs.map(j=>j.id),reviewPromotion:false});w=await propose(f,w,'mixed');ui.render({structuredContent:{ok:true,action:'memory-sync',result:w}});assert.match(ui.html,/Approve reviewed changes/);assert.equal((await listKnowledge(f.root)).length,4);await ui.sync('approve');assert.equal((await listKnowledge(f.root,'versioned')).filter(i=>i.status==='active').length,2);assert.match(ui.html,/Memory curated/);
+test('retired visual maintenance states never select, answer or approve for the user',async t=>{
+ const f=await fixture(t,'mixed'),calls=[],messages=[],ui=await knowledgeUi(async req=>{calls.push(req);throw new Error('Unexpected legacy UI request');},message=>{messages.push(message);return {};});
+ let w=await run(f.root,{action:'start'});
+ ui.render({structuredContent:{ok:true,action:'memory-sync',result:w}});
+ assert.doesNotMatch(ui.html,/data-memory-sync|sync-improve-choice|Curate Memory/);
+ w=await action(f,w,'select',{candidateIds:w.jobs.map(j=>j.id),reviewPromotion:false});w=await propose(f,w,'mixed');
+ ui.render({structuredContent:{ok:true,action:'memory-sync',result:w}});
+ assert.doesNotMatch(ui.html,/Approve reviewed changes|data-memory-sync/);assert.deepEqual(calls,[]);assert.deepEqual(messages,[]);
+ assert.equal((await listKnowledge(f.root)).length,4);
+ await assert.rejects(action(f,w,'approve',{approved:true,reviewId:'wrong'}));
+ w=await review(f,w);assert.equal(w.state,'completed');assert.equal((await listKnowledge(f.root,'versioned')).filter(i=>i.status==='active').length,2);
 });
 test('two real independent transformations use fresh per-candidate bundles after each commit',async t=>{
  const f=await fixture(t),ids=Array.from({length:4},(_,i)=>`mem_billing_${i}`);for(const id of ids)await writeKnowledge(f.root,fixtureItem(id,{scopeRef:'src/billing',title:'Billing processing',content:'Billing queues preserve invoice ordering.'}),false,'local');await observeFixture(f.root,ids,3);await observeFixture(f.root,ids,4);let w=await selected(f);

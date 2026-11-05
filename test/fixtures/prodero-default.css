@@ -66,7 +66,7 @@ footer { display:flex;align-items:center;gap:15px;margin-top:22px;color:#555e56;
 @media(max-width:580px){.lifecycle-hero{padding:22px;min-height:205px}.lifecycle-map{right:18px;top:120px;opacity:.75}.telemetry-grid{grid-template-columns:1fr}.lifecycle-metrics{grid-template-columns:repeat(2,1fr)}.lifecycle-metrics .metric:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.08)}}
 .skills-hero{padding:24px 30px 18px}.skills-hero .lead{margin-top:14px}.skills-shell .metric strong{font-size:14px}.project-skill{margin-top:10px;padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow-wrap:anywhere}.project-skill h3{font-size:13px;margin:0}.project-skill p{color:#aab4a6;font-size:12px;line-height:1.5}.project-skill small{display:block;color:#798578;font-size:10px;margin-bottom:10px}.project-skill .actions{margin-top:12px}.skill-form{display:grid;gap:12px;margin-top:18px}.skill-form label{display:grid;gap:5px;font-size:12px;color:#aab4a6}.skill-form input,.skill-form textarea{width:100%;padding:10px;border:1px solid #394238;border-radius:8px;background:#101610;color:#edf3e9;font:inherit}.skill-form p{font-size:11px;color:#aab4a6}.skill-form textarea{resize:vertical}
 
-.context-inspector-head h2,.learned-summary h2{margin:0;color:#dbe1d9;font-size:12px}.context-inspector-head small{display:block;margin-top:6px;color:#778078;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.context-inspector-head>div{min-width:0;padding-right:12px}.learned-categories{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px;color:#aab4a6;font-size:12px}.learned-categories strong{color:#dce2da;font-size:16px}.sync-outcomes{display:flex;flex-wrap:wrap;gap:5px;margin:14px 0;color:#aab4a6;font-size:11px}.sync-outcomes .sync-conflicts{color:#ffc36d;font-weight:700}
+.context-inspector-head h2,.learned-summary h2{margin:0;color:#dbe1d9;font-size:12px}.context-inspector-head small{display:block;margin-top:6px;color:#778078;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.context-inspector-head>div{min-width:0;padding-right:12px}.learned-categories{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px;color:#aab4a6;font-size:12px}.learned-categories strong{color:#dce2da;font-size:16px}.sync-outcomes{display:flex;flex-wrap:wrap;gap:5px;margin:14px 0;color:#aab4a6;font-size:11px}
 
 /* Prepared snapshot: supplied content first, retrieval matches disclosed last. */
 .context-provided{padding:15px 0 2px}.context-provided h3{margin:0 0 8px;color:#c6ff76;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.provided-counts{margin:0;color:#e0e6dd;font-size:17px;font-weight:650}.provided-tokens{margin:6px 0 0;color:#9aa595;font-size:11px}.context-provided dl{display:flex;flex-wrap:wrap;gap:12px 25px;margin:13px 0 0}.context-provided dl>div{display:flex;gap:8px;align-items:baseline}.context-provided dt{color:#8f998e;font-size:10px}.context-provided dd{margin:0;color:#dbe1d9;font-size:12px;font-weight:700}.context-group-summary{margin:-2px 0 9px;color:#8b9688;font-size:10px}.context-saturation{margin-top:20px}.context-saturation h2{margin:0;color:#baad91;font-size:11px;font-weight:600}.context-saturation p{line-height:1.5}.omission-primary span{display:block;color:#8e958a;font-size:9px}.omission-primary b{display:block;margin-top:3px;font-size:10px;font-weight:600}.omitted-list h3{margin:10px 0 0;color:#aab4a6;font-size:10px}.context-provided,.context-saturation,.context-item>summary{overflow-wrap:anywhere}.context-saturation .context-subdetail>summary{gap:12px;flex-wrap:wrap}
@@ -92,51 +92,27 @@ footer { display:flex;align-items:center;gap:15px;margin-top:22px;color:#555e56;
 .knowledge-form label,.knowledge-filters { font-size:12px; }
 .knowledge-filters input,.knowledge-filters select,.knowledge-form input,.knowledge-form textarea { background:#101610; color:#edf3e9; border-color:#394238; }
 
-/* Session review uses semantic theme roles, including all neon palettes. */
+/* Required-instruction review and lifecycle diagnostics use semantic theme roles. */
 .session-review-list { display:grid; gap:16px; margin-top:18px; }
 .session-review-item { border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:16px; min-width:0; }
 .session-review-item header { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; color:#778078; font-size:12px; }
 .session-review-item h2 { margin:10px 0; font-size:16px; }
 .session-review-item .context-content { white-space:pre-wrap; overflow-wrap:anywhere; }
-.session-review-notice { margin:12px 0; padding:12px; border-left:3px solid #d7c39e; background:#151816; border-radius:4px; font-size:13px; }
-.session-review-notice blockquote { margin:8px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; color:#9ca49c; }
 .session-review-warning { color:#d7c39e; font-size:13px; }
 .session-review-message { color:#f8f8f5; overflow-wrap:anywhere; }
-.session-review-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-@media(max-width:480px) { .session-review-fields { grid-template-columns:1fr; } }
 
-.session-review-shell select,.knowledge-form select { box-sizing:border-box; width:100%; padding:10px; border:1px solid #394238; border-radius:8px; background:#101610; color:#edf3e9; font:inherit; }
+.knowledge-form select { box-sizing:border-box; width:100%; padding:10px; border:1px solid #394238; border-radius:8px; background:#101610; color:#edf3e9; font:inherit; }
 
-.session-review-notice.session-review-info { border-left-color:rgba(255,255,255,.12); color:#9ca49c; }
 
-/* Memory workflow: readable review, calm evolution and secondary diagnostics. */
-.memory-overview { margin: 1.4rem 0; }
-.memory-overview h2, .memory-sync h2 { margin-bottom: .65rem; }
+/* Optional technical details shared by lifecycle and knowledge screens. */
 .memory-details { margin: 1.2rem 0; opacity: .9; }
 .memory-details summary { cursor: pointer; padding: .6rem 0; }
 .memory-details pre { max-height: 28rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-.memory-choice { display: flex; align-items: center; gap: .7rem; cursor: pointer; }
-.memory-choice input, .memory-sharing input { width: auto; accent-color: #c6ff76; }
-.memory-sharing { margin: 1rem 0; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 1rem; }
-.memory-sharing p { margin-bottom: 0; }
-.memory-area ul { padding-left: 1.25rem; }
-.memory-review { margin: 1.4rem 0; }
-.memory-review article { padding: .8rem 0; }
-.memory-review .context-content { white-space: pre-wrap; overflow-wrap: anywhere; }
-.memory-sync .metrics { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
-.memory-sync .metric strong { font-size: 20px; }
-.memory-area h3 { font-size: 16px; margin-top: .6rem; }
-.memory-review .context-content { font-family: inherit; font-size: 14px; line-height: 1.65; padding: 0; margin: .6rem 0; }
 
-/* Open is a compact dashboard; the detailed review lives in Sync Memory. */
+/* Open remains a compact dashboard. */
 .open-dashboard.established .hero { padding: 18px 30px; }
 .open-dashboard.established .hero h1 { font-size: 21px; }
 .open-dashboard.established .hero .lead { margin-top: 8px; font-size: 12px; }
-.open-dashboard .memory-overview { margin: 18px 0; }
-.memory-overview-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
-.open-dashboard .memory-overview h2 { margin: 0; font-size: 16px; font-weight: 600; }
-.memory-overview-heading span { color: #7e877f; font-size: 12px; }
-.open-dashboard .memory-overview p { margin: 8px 0 0; font-size: 13px; line-height: 1.45; }
 .open-dashboard .memory-details { margin: 12px 0; font-size: 12px; }
 @media (max-width: 480px) {
  .open-dashboard.established .hero { padding: 16px 18px; }
@@ -144,38 +120,6 @@ footer { display:flex;align-items:center;gap:15px;margin-top:22px;color:#555e56;
  .open-dashboard .metric { padding: 10px 12px; }
  .open-dashboard .actions { margin-top: 14px; }
 }
-
-/* Cleanup keeps proposals visible; only evidence is disclosed on demand. */
-.curation-card-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.curation-card-heading>span{font-size:11px;color:#7e877f}
-.curation-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.curation-comparison>section{min-width:0;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:10px}
-.curation-comparison h4{margin:0 0 10px;font-size:12px}
-.curation-content{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6}
-.curation-shell .memory-details{margin-top:14px;font-size:12px;overflow-wrap:anywhere}
-.curation-shell summary{cursor:pointer;padding:10px 0;color:#c6ff76}
-.curation-shell summary:focus-visible{outline:2px solid #c6ff76;outline-offset:3px}
-.curation-impact{margin:20px 0}.curation-impact h2{font-size:16px}
-@media(max-width:580px){.curation-comparison{grid-template-columns:1fr}}
-
-.review-choice{display:block;text-align:left;color:#f8f8f5;background:#0b0d0c;padding:16px;border:1px solid rgba(255,255,255,.12);border-radius:12px;cursor:pointer;font:inherit;min-width:0}
-.review-choice>strong{display:block;color:#c6ff76;margin-bottom:16px;font-size:13px}
-.review-choice section+section{margin-top:16px}.review-choice h3{font-size:13px}
-.review-choice:hover:not(:disabled),.review-choice.chosen{border-color:#c6ff76;background:rgba(198,255,118,.055)}
-.review-choice:focus-visible{outline:2px solid #c6ff76;outline-offset:3px}.review-choice:disabled{cursor:default;opacity:.65}
-.review-summary{display:grid;gap:10px;margin-top:20px}.review-summary>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:10px;font-size:12px}
-.review-summary span{flex:1;min-width:160px}.review-summary b{font-weight:600}.review-summary button{background:#0b0d0c;color:#c6ff76;border:1px solid rgba(255,255,255,.12);padding:8px;border-radius:8px;cursor:pointer}
-
-/* Focused Curator questions remain readable in narrow MCP App panels. */
-.curation-shell .clarification-choices { display:grid; gap:10px; margin:20px 0; }
-.curation-shell .clarification-choices button { width:100%; text-align:left; white-space:normal; line-height:1.5; padding:12px 14px; }
-.curation-shell label[for="curator-answer"] { display:block; margin:16px 0 8px; font-size:13px; color:#aab4a6; }
-.curation-shell #curator-answer { display:block; box-sizing:border-box; width:100%; min-height:100px; margin-bottom:10px; padding:12px; resize:vertical; border:1px solid #394238; border-radius:8px; background:#101610; color:#edf3e9; font:inherit; line-height:1.5; }
-.curation-shell .memory-details pre { white-space:pre-wrap; overflow-wrap:anywhere; }
-.curation-shell button[data-review]:not(.review-choice) { border:1px solid #394238; border-radius:11px; padding:11px 14px; background:#141714; color:#dfe3dd; cursor:pointer; font-size:12px; font-weight:650; }
-.curation-shell button[data-review].primary { background:#c6ff76; color:#12160f; border-color:#c6ff76; }
-.curation-shell button[data-review]:disabled { opacity:.5; cursor:not-allowed; }
-.curation-shell button[data-review]:hover:not(:disabled) { border-color:#c6ff76; }
 
 /* Catalogue mirrors the terminal column order while preserving native navigation. */
 .knowledge-table-scroll { max-width:100%; overflow-x:auto; border:1px solid #394238; border-radius:10px; }

@@ -48,18 +48,20 @@ test('three-record semantic conflict: defer removes attention everywhere without
  const resumed=await loadCurationReview(root,r.snapshot.reviewId);assert.deepEqual(resumed,r);
  const c=await client(t,root);const payload=(await c.callTool({name:PRODERO_TOOLS.curation,arguments:{action:'plan'}})).structuredContent;
  assert.deepEqual(counts(payload.projection),deferredCounts);assert.deepEqual(payload.review.state,r.state);
- const ui=await lifecycleUi({callServerTool:call=>c.callTool(call)});ui.render(payload);
- const summary='0 need your input · 1 deferred questions';assert.ok(ui.html.includes(summary));
- await ui.clickAsync('review-all');assert.ok(ui.html.includes(summary));assert.match(ui.html,/Deferred clarification|Already current/);
- await ui.clickAsync('review-summary');assert.ok(ui.html.includes(summary));
- assert.deepEqual(payload.projection.attentionUnitIds,[]);
- const reopened=await lifecycleUi({callServerTool:call=>c.callTool(call)});reopened.render(payload);assert.doesNotMatch(reopened.html,/Knowledge 1 of/);
+ const calls=[],ui=await lifecycleUi({callServerTool:call=>{calls.push(call);return c.callTool(call);}});ui.render(payload);
+ assert.match(ui.html,/Memory maintenance is handled/);assert.doesNotMatch(ui.html,/data-review|data-curation|need your input|deferred questions|Review saved decisions/);
+ assert.deepEqual(calls,[]);assert.deepEqual(payload.projection.attentionUnitIds,[]);
+ const reopened=await lifecycleUi();reopened.render(payload);assert.doesNotMatch(reopened.html,/Knowledge 1 of|Deferred clarification/);
  const textResponse=await c.callTool({name:PRODERO_TOOLS.text,arguments:{tool:PRODERO_TOOLS.curation,arguments:{action:'plan'}}});
- assert.ok(textResponse.content[0].text.includes('0 need your input'));assert.ok(textResponse.content[0].text.includes('1 deferred questions'));
+ assert.match(textResponse.content[0].text,/Memory maintenance is handled/);assert.doesNotMatch(textResponse.content[0].text,/need your input|deferred questions|Available actions/);
+ assert.deepEqual(counts(textResponse.structuredContent.projection),deferredCounts);assert.deepEqual(textResponse.structuredContent.review.state,r.state);
+ assert.deepEqual(textResponse.structuredContent.presentation.operational.numberedActions,[]);
  const dash=(await c.callTool({name:PRODERO_TOOLS.open,arguments:{}})).structuredContent;
- assert.deepEqual(counts(dash.curation.projection),deferredCounts);ui.render(dash);assert.match(ui.html,/Review saved decisions/);
- assert.ok(renderText(buildViewModel(payload)).includes('0 need your input'));
- assert.ok(renderCurationText(r.snapshot.plan,projection).includes('0 need your input'));
+ assert.equal(dash.curation,undefined);ui.render(dash);assert.doesNotMatch(ui.html,/Review saved decisions|Review cleanup|Pause review/);
+ assert.doesNotMatch(renderText(buildViewModel(payload)),/need your input|deferred questions|Available actions/);
+ assert.ok(renderCurationText(r.snapshot.plan,projection).includes('0 need your input')); // Explicit technical formatter preserves projection evidence.
+ assert.equal(await bytes(root),before);assert.deepEqual(calls,[]);
+
 });
 test('deferred issue survives an actual Node process restart',async t=>{
  const root=await fixture(t);let r=await createCurationReview(root);r=await defer(root,r);

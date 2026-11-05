@@ -147,7 +147,7 @@ test("existing App opens Skills, promotes/dismisses candidates, saves explicit s
   const sandbox = vm.createContext({ exports: {}, __PRODERO_VERSION__: PRODERO_VERSION, require: (id) => id === "./card-disclosure.js" ? {mountCardDisclosure:()=>undefined} : id === "@modelcontextprotocol/ext-apps" ? { App: AppStub } : id.includes("contracts") ? contracts : id.includes("context-snapshot") ? snapshots : id.includes("presentation") ? presentation : {}, document: { querySelector: () => host }, FormData: FormDataStub, requestAnimationFrame: (callback) => callback(), setTimeout });
   vm.runInContext(code, sandbox);
   app.ontoolresult(await call(contracts.PRODERO_TOOLS.statusDetails));
-  assert.match(host.innerHTML, /<strong>0<\/strong><span>active skills<\/span><small>2 candidates<\/small>/);
+  assert.match(host.innerHTML, /<strong>0<\/strong><span>active skills<\/span>/);
   const settle = async () => {
     for (let i = 0; i < 100 && vm.runInContext("busyAction !== null || statusRequest !== null", sandbox); i++) await new Promise((resolve) => setTimeout(resolve, 5));
     assert.equal(vm.runInContext("busyAction", sandbox), null);

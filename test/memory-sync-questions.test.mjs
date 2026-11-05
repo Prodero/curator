@@ -53,11 +53,16 @@ test('scoped Sync analysis cannot be applied through protected Curator executor'
  const f=await fixture(t);let w=await run(f.root,{action:'start'});w=await prepare(f,await action(f,w,'select'));const j=w.curation.job,result=await submitSemanticCuration(f.root,{jobId:j.jobId,inputHash:j.job.input.inputHash,proposal:proposal(j,'proposed')}),r=result.review;await assert.rejects(executeCurationReview(f.root,{reviewId:r.snapshot.reviewId,planHash:r.snapshot.planHash,decisionRevision:r.state.revision,selectedIds:r.snapshot.plan.proposals.map(p=>p.id)}),/read-only/);assert.equal((await listCheckpoints(f.root)).length,0);
 });
 async function mcp(t,f){const server=createServer({projectRoot:f.root}),client=new Client({name:'sync-questions',version:'1'},{capabilities:{extensions:{'io.modelcontextprotocol/ui':{mimeTypes:['text/html;profile=mcp-app']}}}}),[a,b]=InMemoryTransport.createLinkedPair();await server.connect(b);await client.connect(a);t.after(async()=>{await client.close();await server.close();});return (name,args={})=>client.callTool({name,arguments:{projectRoot:f.root,...args}});}
-test('entry has two enabled operations, no planner controls and rejects both disabled in UI',async t=>{
- const f=await fixture(t),call=await mcp(t,f),calls=[],ui=await knowledgeUi(req=>{calls.push(req);return call(req.name,req.arguments);});ui.render(await call(T.sync));assert.equal(ui.host.querySelector('#sync-improve-choice').checked,true);assert.equal(ui.host.querySelector('#sync-promotion-choice').checked,true);assert.doesNotMatch(ui.html.split('<details')[0],/Area |fragmentation|context pressure|related memories|data-sync-candidate/);ui.check('#sync-improve-choice',false);ui.check('#sync-promotion-choice',false);assert.equal(ui.host.querySelector('[data-memory-sync="select"]').disabled,true);await ui.sync('select');assert.equal(calls.length,0);ui.check('#sync-promotion-choice',true);await ui.sync('select');assert.equal(calls[0].arguments.request.improve,false);assert.equal(calls[0].arguments.request.share,true);assert.match(ui.html,/Review Local knowledge for sharing/);
+test('legacy entry UI makes no operation choice and leaves stored selection unchanged',async t=>{
+ const f=await fixture(t),call=await mcp(t,f),start=await call(T.sync),calls=[],ui=await knowledgeUi(req=>{calls.push(req);throw Error('No legacy selection.');});ui.render(start);
+ assert.equal(ui.host.querySelector('#sync-improve-choice'),null);assert.equal(ui.host.querySelector('#sync-promotion-choice'),null);assert.doesNotMatch(ui.html,/data-memory-sync|<button/);assert.deepEqual(calls,[]);
+ const w=start.structuredContent.result;await assert.rejects(action(f,w,'select',{improve:false,share:false}),/Select/);assert.equal((await inspect(f,w)).state,'awaiting_selection');
 });
-test('Sync question UI sends existing Curator answer and returns to the same Sync operation',async t=>{
- const f=await fixture(t),w=await questioned(f),call=await mcp(t,f),calls=[],messages=[],ui=await knowledgeUi(req=>{calls.push(req);return call(req.name,req.arguments);},m=>{messages.push(m);return {};});ui.render({structuredContent:{ok:true,action:'memory-sync',result:w}});assert.match(ui.html,/Has the migration to queue v2 completed/);assert.doesNotMatch(ui.html.split('<details')[0],/Review ready changes|View all changes|Current ·/);await ui.review('answer:yes');assert.ok(calls.some(c=>c.name===T.curationReview&&c.arguments.action==='answer'));assert.ok(calls.some(c=>c.name===T.memorySync&&c.arguments.request.action==='inspect'));assert.match(messages[0].content[0].text,new RegExp(w.id));assert.match(ui.html,/Answer saved · awaiting agent analysis/);assert.doesNotMatch(ui.html,/Apply [0-9]/);
+test('legacy question UI does not fabricate an answer or invoke semantic work',async t=>{
+ const f=await fixture(t),w=await questioned(f),calls=[],messages=[],ui=await knowledgeUi(req=>{calls.push(req);throw Error('No retired question action.');},m=>{messages.push(m);return {};});
+ const before=JSON.stringify(await listKnowledge(f.root));ui.render({structuredContent:{ok:true,action:'memory-sync',result:w}});
+ assert.match(ui.html,/Original records and saved work are retained/);assert.doesNotMatch(ui.html,/data-review|<textarea|<button/);assert.deepEqual(calls,[]);assert.deepEqual(messages,[]);
+ assert.equal((await curationAnswers(f.root,w.clarification.review.snapshot.revision.lineageId)).length,0);assert.equal(JSON.stringify(await listKnowledge(f.root)),before);
 });
 
 test('initial and answered pending jobs do not ask fabricated questions; inspection is stable',async t=>{
@@ -76,55 +81,42 @@ test('external source edit makes Sync stale without applying a prepared result',
  const fs=(await import('node:fs/promises')).default,f=await fixture(t);let w=await prepare(f,await action(f,await run(f.root,{action:'start'}),'select'));await fs.appendFile(`${f.root}/.prodero/local/memory/mem_driving_00.md`,'\nNew source fact.');w=await inspect(f,w);assert.equal(w.state,'stale');assert.equal((await listCheckpoints(f.root)).length,0);
 });
 
-test('Answer later in Sync UI automatically dispatches independent work without starting a second workflow',async t=>{
+test('explicit technical deferral continues independent backend work without a visual moderation step',async t=>{
  const f=await fixture(t),ids=Array.from({length:4},(_,i)=>`mem_billing_${i}`);for(const id of ids)await writeKnowledge(f.root,fixtureItem(id,{scopeRef:'src/billing',title:'Billing state',content:'Billing queues preserve ordering.'}),false,'local');await observeFixture(f.root,ids,3);await observeFixture(f.root,ids,4);
- const w=await questioned(f),call=await mcp(t,f),messages=[],ui=await knowledgeUi(req=>call(req.name,req.arguments),m=>{messages.push(m);return {};});ui.render({structuredContent:{ok:true,action:'memory-sync',result:w}});await ui.review('question-later');assert.equal(messages.length,1);assert.match(messages[0].content[0].text,new RegExp(w.id));assert.match(ui.html,/Analysis queued/);assert.doesNotMatch(ui.html.split('<details')[0],/Has the migration|Start curation/);const saved=await inspect(f,w);assert.equal(saved.id,w.id);assert.equal(saved.state,'semantic_work');assert.equal(saved.summary.questionsDeferred,1);
+ const w=await questioned(f),v=w.clarification,q=v.graphical.questions[0];
+ await graphicalReviewAction(f.root,{...identity(v),action:'question_later',questionId:q.question.id,questionVersion:q.question.version});
+ const saved=await inspect(f,w),messages=[],ui=await knowledgeUi(()=>{throw Error('No retired UI action.');},m=>{messages.push(m);return {};});ui.render({structuredContent:{ok:true,action:'memory-sync',result:saved}});
+ assert.equal(saved.id,w.id);assert.equal(saved.state,'semantic_work');assert.equal(saved.summary.questionsDeferred,1);assert.deepEqual(messages,[]);assert.doesNotMatch(ui.html,/data-review|Start curation/);
 });
 
-test('unavailable host continuation leaves a saved answer and a copyable Sync continuation',async t=>{
- const f=await fixture(t),w=await questioned(f),call=await mcp(t,f),ui=await knowledgeUi(req=>call(req.name,req.arguments),()=>{throw new Error('Unavailable');});ui.render({structuredContent:{ok:true,action:'memory-sync',result:w}});await ui.review('answer:yes');assert.match(ui.html,/Automatic continuation is unavailable/);assert.match(ui.html,/Continue prepared Curator reasoning job/);assert.match(ui.html,new RegExp(w.id));assert.equal((await curationAnswers(f.root,w.clarification.review.snapshot.revision.lineageId)).length,1);assert.equal((await listCheckpoints(f.root)).length,0);
+test('retired interface preserves an explicitly saved answer without requesting host continuation',async t=>{
+ const f=await fixture(t),w=await questioned(f),v=w.clarification,q=v.graphical.questions[0];
+ await graphicalReviewAction(f.root,{...identity(v),action:'answer',questionId:q.question.id,questionVersion:q.question.version,choiceId:'yes',requestId:'explicit-answer'});
+ const pending=await inspect(f,w),messages=[],ui=await knowledgeUi(()=>{throw Error('No retired UI call.');},m=>{messages.push(m);throw Error('Unavailable');});ui.render({structuredContent:{ok:true,action:'memory-sync',result:pending}});
+ assert.deepEqual(messages,[]);assert.equal((await curationAnswers(f.root,v.review.snapshot.revision.lineageId)).length,1);assert.equal((await listCheckpoints(f.root)).length,0);assert.doesNotMatch(ui.html,/data-review|Continue analysis|<button/);
 });
 
 test('Sync and Curator share project identity across a symlinked workspace path',async t=>{
  const fs=(await import('node:fs/promises')).default,os=await import('node:os'),path=await import('node:path'),f=await fixture(t),parent=await fs.mkdtemp(path.join(os.tmpdir(),'prodero-sync-alias-')),alias=path.join(parent,'project');t.after(()=>fs.rm(parent,{recursive:true,force:true}));await fs.symlink(f.root,alias,'dir');let w=await run(alias,{action:'start'});w=await action(f,w,'select',{improve:true,share:false});w=await prepare(f,w);const j=w.curation.job;assert.equal((await submitSemanticCuration(alias,{jobId:j.jobId,inputHash:j.job.input.inputHash,proposal:proposal(j,'unchanged')})).status,'validated');w=await inspect(f,w);assert.equal(w.state,'completed');assert.equal(w.summary.areasFailed,0);
 });
 
-test('reasoning tools recover Sync ownership and hand off unresolved facts to its question form',async t=>{
- const f=await fixture(t),call=await mcp(t,f);
- let w=await prepare(f,await action(f,await run(f.root,{action:'start'}),'select'));
- const j=w.curation.job;
- const prepared=(await call(T.curationReasoningPrepare,{jobId:j.jobId})).structuredContent;
- assert.equal(prepared.next.tool,T.memorySync);
- assert.equal(prepared.next.arguments.request.workflowId,w.id);
- const submitted=(await call(T.curationReasoningPropose,{jobId:j.jobId,inputHash:j.job.input.inputHash,proposal:proposal(j,'unresolved')})).structuredContent;
- assert.equal(submitted.result.status,'validated');
- assert.equal(submitted.next.arguments.request.workflowId,w.id);
- const inspected=(await call(submitted.next.tool,submitted.next.arguments)).structuredContent.result;
- assert.equal(inspected.next.tool,T.sync);
- const opened=await call(inspected.next.tool,inspected.next.arguments);
- const messages=[],ui=await knowledgeUi(req=>call(req.name,req.arguments),m=>{messages.push(m);return {};});
- ui.render(opened);
+test('reasoning tools retain ownership and exactly bound explicit raw answers without a question form',async t=>{
+ const f=await fixture(t),call=await mcp(t,f);let w=await prepare(f,await action(f,await run(f.root,{action:'start'}),'select'));const j=w.curation.job;
+ const prepared=(await call(T.curationReasoningPrepare,{jobId:j.jobId})).structuredContent;assert.equal(prepared.next.tool,T.memorySync);assert.equal(prepared.next.arguments.request.workflowId,w.id);
+ const submitted=(await call(T.curationReasoningPropose,{jobId:j.jobId,inputHash:j.job.input.inputHash,proposal:proposal(j,'unresolved')})).structuredContent;assert.equal(submitted.result.status,'validated');assert.equal(submitted.next.arguments.request.workflowId,w.id);
+ const inspected=(await call(submitted.next.tool,submitted.next.arguments)).structuredContent.result,v=inspected.clarification,q=v.graphical.questions[0];
  const answer='Во время разработки prod-шаблоны обновлять не нужно: их обновляет production pipeline при деплое.';
- ui.host.querySelector('#curator-answer').value=answer;
- await ui.review('answer-free');
- const resumed=await inspect(f,w),job=await inspectSemanticCuration(f.root,resumed.clarification.graphical.continuationJobId);
- assert.equal(job.task.data.answers.length,1);
- assert.equal(job.task.data.answers[0].rawText,answer);
- assert.match(messages[0].content[0].text,new RegExp(w.id));
- assert.match(messages[0].content[0].text,/next.tool/);
- assert.equal((await listCheckpoints(f.root)).length,0);
- assert.equal((await listKnowledge(f.root,'versioned')).length,0);
+ const saved=await graphicalReviewAction(f.root,{...identity(v),action:'answer',questionId:q.question.id,questionVersion:q.question.version,rawText:answer,requestId:'explicit-raw-answer'});
+ const job=await inspectSemanticCuration(f.root,saved.continuationJobId);assert.equal(job.task.data.answers.length,1);assert.equal(job.task.data.answers[0].rawText,answer);
+ assert.equal((await listCheckpoints(f.root)).length,0);assert.equal((await listKnowledge(f.root,'versioned')).length,0);
 });
 
-test('failed answer analysis in Sync offers retry and defer instead of a pending dead end',async t=>{
+test('failed technical analysis retains answer evidence and explicit deferral remains safe without retry UI',async t=>{
  const f=await fixture(t),w=await questioned(f),v=w.clarification,q=v.graphical.questions[0];
  const saved=await graphicalReviewAction(f.root,{...identity(v),action:'answer',questionId:q.question.id,questionVersion:q.question.version,choiceId:'yes',requestId:'failure-answer'});
- const job=await inspectSemanticCuration(f.root,saved.continuationJobId),bad=proposal(job);bad.approved=true;
- await submitSemanticCuration(f.root,{jobId:job.jobId,inputHash:job.job.input.inputHash,proposal:bad});
+ const job=await inspectSemanticCuration(f.root,saved.continuationJobId),bad=proposal(job);bad.approved=true;await submitSemanticCuration(f.root,{jobId:job.jobId,inputHash:job.job.input.inputHash,proposal:bad});
  const failed=await inspect(f,w);assert.equal(failed.state,'awaiting_clarification');assert.equal(failed.clarification.graphical.analysisPending,false);
- const call=await mcp(t,f),ui=await knowledgeUi(req=>call(req.name,req.arguments));ui.render({structuredContent:{ok:true,action:'memory-sync',result:failed}});
- assert.match(ui.html,/Try again/);assert.doesNotMatch(ui.html,/Reviewing your answer/);
- await ui.review('pending-later');
- const next=await inspect(f,w);assert.equal(next.state,'awaiting_promotion_selection');assert.equal(next.summary.questionsDeferred,1);
- assert.equal((await curationAnswers(f.root,v.review.snapshot.revision.lineageId)).length,1);
+ const ui=await knowledgeUi(()=>{throw Error('No retired retry action.');});ui.render({structuredContent:{ok:true,action:'memory-sync',result:failed}});assert.doesNotMatch(ui.html,/Try again|Reviewing your answer|data-review/);
+ await graphicalReviewAction(f.root,{...identity(failed.clarification),action:'question_later',questionId:q.question.id,questionVersion:q.question.version});
+ const next=await inspect(f,w);assert.equal(next.state,'awaiting_promotion_selection');assert.equal(next.summary.questionsDeferred,1);assert.equal((await curationAnswers(f.root,v.review.snapshot.revision.lineageId)).length,1);
 });

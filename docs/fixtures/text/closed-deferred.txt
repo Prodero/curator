@@ -1,0 +1,3 @@
+**Session closed** · Saving deferred.
+
+It will resume before the next work session.

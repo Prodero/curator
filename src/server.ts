@@ -5,17 +5,19 @@ import {graphicalActionSchema,graphicalReviewAction,graphicalReviewPayload} from
 import {curationQuestionToolSchema,runCurationQuestion} from './core/curation-question.js';
 import { prepareSemanticCuration, inspectSemanticCuration, submitSemanticCuration, semanticPrepareSchema } from './core/curation-semantic-jobs.js';
 import { executeCurationReview } from "./curation-review-adapter.js";
-import { createCurationReview, curationReviewView, controlCurationReview, latestCurationReview, resumeCurationReview, stageCurationDecisions, CurationReviewError } from "./core/curation-review.js";
-import { planKnowledgeCuration, curationRecommendation, deferKnowledgeCuration, simulateKnowledgeCuration } from "./core/knowledge-curation.js";
+import { createCurationReview, curationHistoryDiagnostics, curationReviewView, controlCurationReview, latestCurationReview, resumeCurationReview, stageCurationDecisions, CurationReviewError } from "./core/curation-review.js";
+import { planKnowledgeCuration, deferKnowledgeCuration, simulateKnowledgeCuration } from "./core/knowledge-curation.js";
 import {applicabilitySchema,taskContextInputSchema} from "./core/applicability.js";
 import { matchesCurrentUserRule, rememberCurrentUserRule, rememberChatRule, type RememberKnowledgeInput } from './core/project.js';
 import type { CurrentUserRule } from './core/knowledge-authority.js';
 import { planProjectMigration, applyProjectMigration, requireCurrentProject } from "./core/migrations.js";
-import { runMemorySync, syncWorkflowForCuration, getMemorySyncOverview, memorySyncActionSchema } from './core/memory-sync.js';
+import { runMemorySync, syncWorkflowForCuration, getMemorySyncOverview, memoryOverviewFailure, memorySyncActionSchema } from './core/memory-sync.js';
 import { prepareMemoryTransformation, validateMemoryTransformationProposal, memoryTransformationProposalSchema } from './core/memory-transformation-proposal.js';
+import { prepareSessionReconciliation, proposeSessionReconciliation } from './core/session-reconciliation.js';
 import { projectSettings, setProjectSetting, renderSettings } from "./core/settings.js";
 import { SETTINGS_ROUTING, settingKeySchema } from "./settings-definition.js";
 import { buildViewModel, renderText } from "./presentation.js";
+import { sessionCloseReceipt } from './conversation-presentation.js';
 import { presentationTools } from "./presentation-server.js";
 import { installPresentationTrace } from "./presentation-trace.js";
 import { installDiagnosticBoundary } from "./diagnostic-boundary.js";
@@ -119,7 +121,7 @@ async function fastStatus(projectRoot?: string, instrument?: StatusInstrumentati
 async function completeStatus(projectRoot?: string, instrument?: StatusInstrumentation) {
   const project = await getDetailedProjectStatus(projectRoot, { instrument });
   // Await the read-only projection before the single completed Open response.
-  const memoryOverview = project.initialized ? await getMemorySyncOverview(project.root).catch(() => ({available:false, sessions:0, areas:[], workflow:null})) : undefined;
+  const memoryOverview = project.initialized ? await getMemorySyncOverview(project.root).catch(memoryOverviewFailure) : undefined;
   return { product: "Prodero", title: "Prodero · Project Intelligence", action: "status-details", phase: "ready", hydrationRequired: false, runtimeVersion: PRODERO_VERSION, project:{...project,memoryOverview}, update: uncheckedUpdate() };
 }
 
@@ -171,6 +173,7 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
     return text({ok:true,action:"config-set",updated,projectSettings:view},reset?`${updated.label} local override removed: ${updated.displayValue} (${updated.source}).`:`${updated.label} saved: ${updated.displayValue}.${key.startsWith('presentation.')?' Saved on this checkout.':''}`);
   });
   const workSessions = new Map<string, Set<string>>();
+  const reconciliationSessions = new Map<string,Set<string>>();
   const instructionSelections = new Map<string,InstructionSelection>();
   const instructionPlans = new Map<string,{reviewId:string;preview:Awaited<ReturnType<typeof previewInstructionOptimization>>}>();
   const boundedPut = <T>(map:Map<string,T>,id:string,value:T) => {map.set(id,value);while(map.size>16)map.delete(map.keys().next().value!);};
@@ -183,19 +186,20 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
 
   registerAppTool(server,PRODERO_TOOLS.curation,{
     title:"Review knowledge", description:"Analyze, preview or defer knowledge improvements. Protected changes can only be applied from the graphical review; text remains preview-only.",
-    inputSchema:{projectRoot:projectRootSchema,action:z.enum(["plan","simulate","defer"]).default("plan"),planId:z.string().optional(),reviewId:z.string().optional()},
+    inputSchema:{projectRoot:projectRootSchema,action:z.enum(["plan","simulate","defer"]).default("plan"),planId:z.string().optional(),reviewId:z.string().optional(),fresh:z.boolean().optional().describe('Explicit current-knowledge preview; preserves old reviews without inheriting approvals.')},
     _meta:{ui:{resourceUri:PRODERO_RESOURCE_URI}},annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false}
-  },async({projectRoot,action,planId,reviewId})=>reviewResult(async()=>{
+  },async({projectRoot,action,planId,reviewId,fresh})=>reviewResult(async()=>{
+    if(fresh&&reviewId)throw new CurationReviewError('invalid_review','Choose either a fresh current preview or an exact saved review.');
     const root=await workspaceRoot(projectRoot);
     let review=reviewId?await resumeCurationReview(root,reviewId):undefined;
     let plan=review?.snapshot.plan??await planKnowledgeCuration(root);
-    if(!review&&action==='plan')review=await latestCurationReview(root,plan.planId);
+    if(!review&&action==='plan'&&!fresh)review=await latestCurationReview(root,plan.planId);
     plan=review?.snapshot.plan??plan;
     if(planId&&planId!==plan.planId)throw new Error("Curation plan changed. Review the current proposal.");
     if(action!=="plan"&&!planId)throw new Error("Exact curation plan required");
     const result=action==="defer"?await deferKnowledgeCuration(root,plan.planId):action==="simulate"?await simulateKnowledgeCuration(root,plan,undefined,undefined,undefined,review?.snapshot.revision):undefined;
-    const projected = await curationReviewView(root,plan,review);
-    return {action:"curation",root,plan,result,...projected,...(review?{graphical:(await graphicalReviewPayload(root,review)).graphical}:{}),appReviewAvailable:Boolean(getUiCapability(server.server.getClientCapabilities())?.mimeTypes?.includes(RESOURCE_MIME_TYPE)),trustedReviewAvailable:false,deferred:action==="defer"};
+    const projected = await curationReviewView(root,plan,review,{fresh});
+    return {action:"curation",root,plan,result,...projected,...(fresh?{userInitiatedManagement:true,historyDiagnostics:await curationHistoryDiagnostics(root)}:{}),...(review?{graphical:(await graphicalReviewPayload(root,review)).graphical}:{}),appReviewAvailable:Boolean(getUiCapability(server.server.getClientCapabilities())?.mimeTypes?.includes(RESOURCE_MIME_TYPE)),trustedReviewAvailable:false,deferred:action==="defer"};
   }));
   const requireAppReview=()=>{
     if(!getUiCapability(server.server.getClientCapabilities())?.mimeTypes?.includes(RESOURCE_MIME_TYPE))
@@ -208,12 +212,12 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
   };
   const reviewInput=z.union([
     graphicalActionSchema.extend({projectRoot:projectRootSchema}),
-    z.object({action:z.literal('create'),projectRoot:projectRootSchema}).strict(),
+    z.object({action:z.literal('create'),projectRoot:projectRootSchema,fresh:z.boolean().optional()}).strict(),
     z.object({action:z.literal('inspect'),projectRoot:projectRootSchema,reviewId:reviewIdentity.reviewId}).strict(),
     z.object({action:z.literal('preview'),projectRoot:projectRootSchema,reviewId:reviewIdentity.reviewId}).strict(),
     ...(['pause','resume'] as const).map(action=>z.object({action:z.literal(action),...reviewIdentity,decisionRevision:z.number().int().nonnegative()}).strict()),
     ...(['defer_issue','defer_change'] as const).map(action=>z.object({action:z.literal(action),...reviewIdentity,decisionRevision:z.number().int().nonnegative(),unitId:z.string()}).strict()),
-    z.object({action:z.literal('decide'),...reviewIdentity,decisionRevision:z.number().int().nonnegative(),decisions:z.record(z.enum(['current','suggested','deferred']))}).strict(),
+    z.object({action:z.literal('decide'),...reviewIdentity,decisionRevision:z.number().int().nonnegative(),decisions:z.record(z.string(), z.enum(['current','suggested','deferred']))}).strict(),
   ]);
   registerAppTool(server,PRODERO_TOOLS.curationQuestion,{
     title:'Answer a saved Sync question',description:'Inspect, answer, defer or deliberately revisit an exactly bound question in the current Sync workflow. Analyze/retry prepares bounded reasoning only. Chat answers are server-stamped agent_relay evidence, not authenticated human intent, policy authority or approval. Save the user\'s actual answer with a unique requestId; never invent an answer. Inspect saved state after unknown outcomes before replay. No create, selection, summary, pause/unpause, protected Apply or promotion.',
@@ -224,9 +228,9 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
   server.registerTool(PRODERO_TOOLS.curationReview,{
     title:"Review knowledge decisions",description:"Stage review choices, defer an issue or change, or pause/resume the whole review. Does not apply knowledge changes.",
     // MCP tool schemas use an object root; enforce action-specific fields below.
-    inputSchema:z.object({action:z.enum(['create','inspect','preview','decide','pause','resume','defer_issue','defer_change','summary','analyze','answer','question_later','question_reopen','retry_analysis']),unitId:z.string().optional(),projectRoot:projectRootSchema,
+    inputSchema:z.object({action:z.enum(['create','inspect','preview','decide','pause','resume','defer_issue','defer_change','summary','analyze','answer','question_later','question_reopen','retry_analysis']),unitId:z.string().optional(),projectRoot:projectRootSchema,fresh:z.boolean().optional(),
       reviewRevisionId:z.string().optional(),answerLogHash:z.string().optional(),questionId:z.string().optional(),questionVersion:z.number().int().positive().optional(),choiceId:z.string().optional(),rawText:z.string().max(8192).optional(),requestId:z.string().optional(),replacesAnswerId:z.string().optional(),reviewId:reviewIdentity.reviewId.optional(),planHash:reviewIdentity.planHash.optional(),
-      decisionRevision:z.number().int().nonnegative().optional(),decisions:z.record(z.enum(['current','suggested','deferred'])).optional()}).strict(),
+      decisionRevision:z.number().int().nonnegative().optional(),decisions:z.record(z.string(), z.enum(['current','suggested','deferred'])).optional()}).strict(),
     _meta:{ui:{resourceUri:PRODERO_RESOURCE_URI,visibility:["app"]}},annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false},
   },async rawInput=>reviewResult(async()=>{
     requireAppReview();
@@ -234,7 +238,7 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
     const root=await workspaceRoot(input.projectRoot);
     if(['summary','analyze','answer','question_later','question_reopen','retry_analysis'].includes(input.action)){const {projectRoot:ignored,...graphical}=input;return graphicalReviewAction(root,graphical as any);}
     const legacy=input as Exclude<typeof input,{action:'summary'|'analyze'|'answer'|'question_later'|'question_reopen'|'retry_analysis'}>;
-    const review=legacy.action==='create'?await createCurationReview(root):(legacy.action==='inspect'||legacy.action==='preview')?await resumeCurationReview(root,legacy.reviewId):legacy.action==='decide'?await stageCurationDecisions(root,legacy):await controlCurationReview(root,legacy);
+    const review=legacy.action==='create'?await createCurationReview(root,undefined,undefined,{fresh:legacy.fresh}):(legacy.action==='inspect'||legacy.action==='preview')?await resumeCurationReview(root,legacy.reviewId):legacy.action==='decide'?await stageCurationDecisions(root,legacy):await controlCurationReview(root,legacy);
     const projected=await curationReviewView(root,review.snapshot.plan,review);
     if(input.action==='preview'&&projected.projection.selectionIssues.length)throw new CurationReviewError('dependency_blocked','Selected changes require additional reviewed groups.',{problems:projected.projection.selectionIssues});
     const impact=input.action==='preview'?await simulateKnowledgeCuration(root,review.snapshot.plan,undefined,'safe-batch',projected.projection.selectedIds,review.snapshot.revision):undefined;
@@ -248,7 +252,7 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
     requireAppReview();
     const root=await workspaceRoot(input.projectRoot);
     const result=await executeCurationReview(root,input);
-    return {action:'curation-applied',root,result};
+    return {action:'curation-applied',root,result,...(result.successor?.snapshot.revision?.historyPolicy==='fresh-current'?{userInitiatedManagement:true,plan:result.successor.snapshot.plan,review:result.successor,projection:result.projection}:{} )};
   }));
   registerAppTool(server, PRODERO_TOOLS.knowledge, {
     title: "Browse Prodero Knowledge",
@@ -312,9 +316,8 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
         ? await resolveProjectBootstrapContext(payload.project.root, scope)
         : emptyBootstrapContext(payload.project.root, scope);
       instrument?.({ phase: "first-tool-response", durationMs: performance.now() - started });
-      const curation = payload.project.initialized ? await curationRecommendation(root).catch(error=>({state:"unavailable",prominent:false,message:error instanceof CurationReviewError?error.message:"Saved review is unavailable. Open review details before continuing."})) : undefined;
       const { brokenReferences: _broken, ...openGraph } = payload.project.knowledgeGraph ?? {};
-      const result = { ...payload, project: { ...payload.project, knowledgeGraph: openGraph }, action: "open" as const, bootstrap, curation };
+      const result = { ...payload, project: { ...payload.project, knowledgeGraph: openGraph }, action: "open" as const, bootstrap };
       return text(result, payload.project.initialized
         ? `Prodero opened with ${bootstrap.instructions.length} required bootstrap instruction(s)${bootstrap.warnings.length ? ` and ${bootstrap.warnings.length} warning(s)` : ""}. These instructions are model-visible but not system-level.`
         : `Repository \`${payload.project.name}\` is ready to initialize with Prodero.`);
@@ -354,8 +357,7 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
       const status = await detailedStatus(root, instrument);
       const config = await readConfig(status.project.root);
       const samplingAvailable = Boolean(server.server.getClientCapabilities()?.sampling);
-      const curation=status.project.initialized?await curationRecommendation(root).catch(error=>({state:"unavailable",prominent:false,message:error instanceof CurationReviewError?error.message:"Saved review is unavailable. Open review details before continuing."})):undefined;
-      return text({ ...status, curation, knowledgeEngine: { configuredMode: config?.knowledgeEngine?.mode ?? "deterministic", effectiveMode: config?.knowledgeEngine?.mode === "assisted" && samplingAvailable ? "assisted" : "deterministic", provider: samplingAvailable ? "mcp-sampling" : null, samplingAvailable } });
+      return text({ ...status, knowledgeEngine: { configuredMode: config?.knowledgeEngine?.mode ?? "deterministic", effectiveMode: config?.knowledgeEngine?.mode === "assisted" && samplingAvailable ? "assisted" : "deterministic", provider: samplingAvailable ? "mcp-sampling" : null, samplingAvailable } });
     },
   );
 
@@ -380,6 +382,9 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
       const sessions = workSessions.get(result.project.root) ?? new Set<string>();
       sessions.add(result.session.id);
       workSessions.set(result.project.root, sessions);
+      const allowed = reconciliationSessions.get(result.project.root)??new Set<string>();
+      if(!result.context.policyReadiness?.blocking&&result.memoryTelemetry==='recorded')allowed.add(result.session.id);else allowed.delete(result.session.id);
+      reconciliationSessions.set(result.project.root,allowed);
       return text({ ok: true, action: "prepare", result }, result.context.policyReadiness?.state==="required-incomplete" ? "Required context is incomplete. Inspect omitted policies and retry with appropriate task scope or capacity before continuing; this is not optional context optimization." : result.context.policyReadiness?.state==="context-needed" ? "Enrich taskContext with the work paths, subsystems or task kinds and retry Prepare for this session. No policy approval is needed." : result.context.policyReadiness?.blocking ? "Resolve the applicable required-policy conflict before continuing this task. Retry Prepare after resolution." : `Prodero prepared ${result.context.relevant.length} relevant knowledge item(s) and ${result.context.skills.length} skill(s) for this task.`);
     },
   );
@@ -418,9 +423,9 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
     const workflowId=await syncWorkflowForCuration(root,job.job.input.lineageId);
     return workflowId?{
       tool:PRODERO_TOOLS.memorySync,arguments:{projectRoot:root,request:{action:'inspect',workflowId}},
-      instructions:'After submitting reasoning, inspect this same Sync workflow and follow its next tool to display any pending human question or review once. Continue independent work when available. Save a requested chat answer only through the emitted exact prodero_curation_question binding; it is relayed evidence, not approval or authenticated human intent. Never invent answers, approve or publish.'
+      instructions:'Legacy technical continuation: inspect only this saved workflow when explicitly requested. Do not restore the removed moderation UI or ask housekeeping questions. Exact saved bindings/approval gates remain required; never invent answers, approve or publish. Ordinary session work uses session reconciliation.'
     }:{tool:PRODERO_TOOLS.curation,arguments:{projectRoot:root,action:'plan',reviewId:reviewId??job.resultReviewId??job.job.input.reviewId},
-      instructions:'After submitting reasoning, display this saved review so the human can answer its questions in the form. Ordinary chat replies are not persisted answers. Do not start Sync, Apply or publish.'};
+      instructions:'Legacy technical review retained. Do not display a moderation form or solicit housekeeping answers. Original evidence and exact bindings remain accessible on explicit technical request. Do not start Sync, Apply or publish.'};
   };
 
   server.registerTool(PRODERO_TOOLS.curationReasoningPrepare,{
@@ -435,7 +440,7 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
   }));
   server.registerTool(PRODERO_TOOLS.curationReasoningPropose,{
     title:'Stage bounded semantic candidate',description:'Submit the strict structured proposal for a prepared curation reasoning job. Output is data, never approval. Core validates source/clause coverage, grounding, policy effects and immutable revision bindings. Persists only local staged review/job state; cannot apply, promote or authorize canonical knowledge.',
-    inputSchema:z.object({projectRoot:projectRootSchema,jobId:z.string().regex(/^semantic_job_[a-f0-9]{40}$/),inputHash:z.string().regex(/^[a-f0-9]{64}$/),proposal:z.record(z.unknown())}).strict(),
+    inputSchema:z.object({projectRoot:projectRootSchema,jobId:z.string().regex(/^semantic_job_[a-f0-9]{40}$/),inputHash:z.string().regex(/^[a-f0-9]{64}$/),proposal:z.record(z.string(), z.unknown())}).strict(),
     annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false,idempotentHint:true},
   },async({projectRoot,...input})=>reviewResult(async()=>{
     const root=await workspaceRoot(projectRoot);
@@ -445,6 +450,29 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
     const {review,...result}=submitted as typeof submitted & {review?:Awaited<ReturnType<typeof resumeCurationReview>>};
     return {ok:true,action:'curation-reasoning',next:await reasoningHandoff(root,input.jobId,review?.snapshot.reviewId),result:{...result,...(review?{review:{reviewId:review.snapshot.reviewId,reviewRevisionId:review.snapshot.revision!.id,lineageId:review.snapshot.revision!.lineageId,planHash:review.snapshot.planHash,decisionRevision:review.state.revision}}:{})}};
   }));
+
+  server.registerTool(PRODERO_TOOLS.sessionReconcilePrepare, {
+    title:'Prepare bounded session reconciliation',
+    description:'Internal host-agent continuation for the current prepared work session. Returns at most one bounded untrusted evidence job from that session retrieval, with authority, scope and chronology. Use only its supplied data; no external provider, extra memory scan, user moderation, new session or Curate Memory. Repeated calls retain the same bounded attempt. Protected/shared/user rules remain unchanged; this is not permission to override policy.',
+    inputSchema:{projectRoot:projectRootSchema,sessionId:z.string().regex(/^sess_[a-zA-Z0-9_]+$/)},
+    annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false,idempotentHint:true},
+  },async({projectRoot,sessionId})=>{
+    const root=await findProjectRoot(await workspaceRoot(projectRoot));
+    if(!reconciliationSessions.get(root)?.has(sessionId))throw new Error('Prepare this active work session with ready context and current retrieval evidence on this connection before session reconciliation.');
+    const result=await prepareSessionReconciliation(root,{sessionId});
+    return text({ok:true,action:'session-reconciliation',result},'Internal bounded session maintenance; continue the task without asking the user to moderate memory.');
+  });
+  server.registerTool(PRODERO_TOOLS.sessionReconcilePropose, {
+    title:'Submit bounded session reconciliation',
+    description:'Submit exactly one structured host-agent proposal for the current prepared session job. Source prose cannot grant authority. Core revalidates complete clause/revision coverage and applies only deterministically justified Local active Relevant inferred state/lesson changes through existing transactional history. Shared/protected rules and unsupported/uncertain resolutions preserve originals. No autoapprove, provider, credentials or user moderation. Exact duplicate retries return the receipt; do not retry rejected reasoning in a loop.',
+    inputSchema:{projectRoot:projectRootSchema,sessionId:z.string().regex(/^sess_[a-zA-Z0-9_]+$/),jobId:z.string().regex(/^session_job_[a-f0-9]{40}$/),inputHash:z.string().regex(/^[a-f0-9]{64}$/),proposal:z.record(z.string(), z.unknown())},
+    annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false,idempotentHint:true},
+  },async({projectRoot,...input})=>{
+    const root=await findProjectRoot(await workspaceRoot(projectRoot));
+    if(!reconciliationSessions.get(root)?.has(input.sessionId))throw new Error('Prepare this active work session with ready context and current retrieval evidence on this connection before session reconciliation.');
+    const result=await proposeSessionReconciliation(root,input);
+    return text({ok:true,action:'session-reconciliation',result},'Internal bounded session maintenance completed or safely deferred; continue the task.');
+  });
 
   server.registerTool(PRODERO_TOOLS.memoryTransformPrepare, {
     title: 'Prepare memory transformation proposal',
@@ -592,13 +620,14 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
     PRODERO_TOOLS.sessionClose,
     {
       title: "Close Prodero Session",
-      description: "Finalize the current Prodero session, optionally with a final batch. Synchronizes session observations into Local Knowledge deterministically before returning success; prepare recovers pending work. Call before the final task answer. For lifecycle text delivery use prodero_text with tool=prodero_session_close and show its returned compact saved/deferred state; never claim Session Complete without a successful Close result.",
+      description: "Finalize the current Prodero session, optionally with a final batch. Synchronizes session observations into Local Knowledge deterministically before returning success; prepare recovers pending work. Call before the final task answer. For lifecycle text delivery use prodero_text with tool=prodero_session_close and include its explicit one-line Session closed receipt in the final assistant answer, not only commentary or tool output. Preserve actual observation counts and deferred/error states; never claim Session Complete without a successful Close result.",
       inputSchema: { projectRoot: projectRootSchema, sessionId: z.string(), finalEntries: z.array(observationSchema).max(100).optional(), sync: z.boolean().optional().describe("Defaults to true. Set false only to defer synchronization for legacy workflows; prepare recovers it.") },
       _meta: { ui: { resourceUri: PRODERO_LIFECYCLE_RESOURCE_URI } },
     },
     async ({ projectRoot, sessionId, finalEntries, sync }) => {
       const result = await closeProjectSession(await workspaceRoot( projectRoot), sessionId, finalEntries ?? [], sync ?? true);
-      return text({ ok: true, action: "session-close", result }, result.alreadyClosed ? "The Prodero session was already closed." : `Session closed · ${result.learned.observations} durable observation(s) · ${result.learned.syncState === "synchronized" ? "synchronized" : "pending automatic sync"}.`);
+      const receipt=sessionCloseReceipt(result);
+      return text({ ok: true, action: "session-close", result }, `${receipt.label} · ${receipt.detail}`);
     },
   );
 
@@ -638,17 +667,17 @@ export function createServer(options: { projectRoot?: string; localStdio?: Local
   );
 
   registerAppTool(server, PRODERO_TOOLS.sync, {
-    title: 'Curate Memory',
-    description: 'Open Curate Memory or present a pending human step. With workflowId, reopen only that saved workflow; do not restart analysis. Recover pending deterministic observations, analyze transformation and promotion candidates, then await selection. Opening does not authorize semantic transformation or publication. This replaces the old manual session-flush action.',
+    title: 'Inspect legacy memory workflow',
+    description: 'Technical compatibility API for explicitly requested saved maintenance data. It does not open a user moderation workflow. With workflowId inspect that exact saved workflow; do not restart analysis. Opening never authorizes transformation, link removal or publication. Ordinary work uses current-session reconciliation, not this legacy API.',
     inputSchema: {projectRoot:projectRootSchema,workflowId:z.string().uuid().optional().describe("Reopen this exact saved workflow without starting a new analysis.")}, annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false},
     _meta:{ui:{resourceUri:PRODERO_RESOURCE_URI}},
   }, async ({projectRoot,workflowId}) => {
     const result=await runMemorySync(await workspaceRoot(projectRoot),workflowId?{action:'inspect',workflowId}:{action:'start'});
-    return text({ok:true,action:'memory-sync',result,uiState:{view:'memory-sync'}},`Curate Memory: ${result.state}. The current saved step is displayed in the App.`);
+    return text({ok:true,action:'memory-sync',result,uiState:{view:'memory-sync'}},`Legacy memory state: ${result.state}. Original records and exact technical bindings are retained.`);
   });
   registerAppTool(server, PRODERO_TOOLS.memorySync, {
-    title: 'Continue Curate Memory',
-    description: 'Continue the existing Curate Memory UI in place without opening another App. Use prodero_sync to open the UI and once when next.tool requests a human handoff; pass next.arguments exactly before ending the turn. Do not reopen during intermediate analysis. Orchestrate one persisted Curate Memory workflow. start opens options; select with improve/share starts the same workflow (both default true; both false is invalid). Core chooses all improvement candidates. prepare returns the next bounded Curator job; use curation_reasoning_prepare/propose then inspect this same workflow and continue. Questions reuse Curator; after an answer or deferral inspect Sync to continue. Legacy candidateIds/prepare/propose remains supported for saved workflows. Clean Local plans apply only within this selected workflow. Continue candidates sequentially. awaiting_review requires explicit human approval of the exact reviewId: NEVER infer approval or click approval for the human. Mixed plans stay atomic. Promotion selection follows transformations; the UI initially checks all displayed candidates and lets the human select or deselect them before review. Preselection is not publication approval. approve is allowed only after human review; text hosts must show the full review and obtain explicit approval. retry handles failed candidates; skip/complete leave unresolved work untouched. No sampling, session lifecycle or extra memory scan by the agent.',
+    title: 'Continue legacy memory API',
+    description: 'Technical compatibility API for existing stored workflow revisions, candidates and exact previews. Do not start it for ordinary work or revive the removed moderation UI. Existing source/approval constraints remain: protected or shared changes, link removal and publication require explicit exact human approval; never infer it, fabricate answers or approve for the user. Stale revisions reject; retry/skip preserve existing records. Normal session reconciliation is separate and bounded.',
     inputSchema:{projectRoot:projectRootSchema,request:memorySyncActionSchema},
     annotations:{readOnlyHint:false,destructiveHint:true,openWorldHint:false},
   }, async ({projectRoot,request}) => {

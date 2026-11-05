@@ -12,6 +12,7 @@ import {graphicalReviewAction} from '../dist/core/curation-graphical.js';
 import {inspectSyncCuration} from '../dist/core/memory-sync-curator.js';
 import {buildViewModel} from '../dist/presentation.js';
 import {numberedActions} from '../dist/conversation-presentation.js';
+import {memorySyncOperation} from '../dist/memory-sync-operation.js';
 import {createMemoryBundleFixture} from './helpers/memory-bundle-fixtures.mjs';
 import {knowledgeUi} from './helpers/knowledge-ui.mjs';
 
@@ -73,7 +74,7 @@ async function questioned(f) {
   return w;
 }
 
-test('F3: completed deferred question exposes a deliberately bound Revisit action', async t => {
+test('F3: completed deferred question keeps exact technical binding without a moderator menu', async t => {
   const f = await fixture(t);
   let w = await questioned(f);
   const v = w.clarification, q = v.graphical.questions[0];
@@ -94,14 +95,14 @@ test('F3: completed deferred question exposes a deliberately bound Revisit actio
   const saved = await inspectSyncCuration(f.root, v.review.snapshot.reviewId);
   assert.ok(saved.graphical.deferredQuestionIds.includes(q.question.id));
   const vm = buildViewModel(payload(w));
-  const actions = [...numberedActions(vm), ...numberedActions(vm, true)];
-  assert.ok(actions.some(a => a.arguments?.action === 'question_reopen'
-    && a.arguments.questionId === q.question.id
-    && a.arguments.questionVersion === q.question.version),
-  'Completed text must offer deliberate Revisit bound to the saved question, not just Re-analyze');
+  assert.deepEqual(numberedActions(vm),[]);assert.deepEqual(numberedActions(vm,true),[]);
+  const technical=w.deferredQuestions.find(value=>value.questionId===q.question.id);
+  assert.equal(technical.questionVersion,q.question.version);assert.equal(technical.action,'question_reopen');
+  assert.equal(technical.reviewId,saved.review.snapshot.reviewId);
+
 });
 
-test('F4: a no-App client can persist an exactly bound relayed answer through its emitted tool', async t => {
+test('F4: a technical caller can persist an exactly bound relayed answer without a moderator UI', async t => {
   const f = await fixture(t), w = await questioned(f), v = w.clarification;
   const server = createServer({projectRoot: f.root});
   const client = new Client({name: 'v02-no-app-answer', version: '1'}, {capabilities: {}});
@@ -111,11 +112,11 @@ test('F4: a no-App client can persist an exactly bound relayed answer through it
   const shown = await client.callTool({name: T.text, arguments: {
     tool: T.sync, arguments: {workflowId: w.id}, details: true,
   }});
-  assert.match(shown.content.map(c => c.text ?? '').join('\n'), /Has the migration to queue v2 completed/);
-  const q = v.graphical.questions[0];
-  const bound=shown.structuredContent.presentation.operational.numberedActions.find(a=>a.tool===T.curationQuestion&&a.arguments.choiceId==='yes');
-  assert.ok(bound,'The no-App surface must expose a real callable answer tool');
-  const result = await client.callTool({name:T.text,arguments:{tool:bound.tool,arguments:bound.arguments}});
+  assert.doesNotMatch(shown.content[0].text,/Has the migration|Choose an answer|Available actions/);
+  assert.deepEqual(shown.structuredContent.presentation.operational.numberedActions,[]);
+  const technical=shown.structuredContent.result.clarification,q=technical.graphical.questions[0];
+  const bound={...identity(technical),projectRoot:f.root,workflowId:w.id,candidateId:w.jobs.find(j=>j.curationReviewId===technical.review.snapshot.reviewId).id,action:'answer',questionId:q.question.id,questionVersion:q.question.version,choiceId:'yes',requestId:'request_fixture_answer'};
+  const result=await client.callTool({name:T.curationQuestion,arguments:bound});
   assert.notEqual(result.isError, true, JSON.stringify(result));
   const answers = await curationAnswers(f.root, v.review.snapshot.revision.lineageId);
   assert.equal(answers.length, 1);
@@ -123,34 +124,24 @@ test('F4: a no-App client can persist an exactly bound relayed answer through it
   assert.equal(answers[0].origin,'agent_relay');
 });
 
-test('F5: authoritative refresh keeps the safe original action error visible', async t => {
+test('F5: legacy maintenance errors stay visible without an automatic retry or mutation', async t => {
   const f = await fixture(t), w = await runMemorySync(f.root, {action: 'start'});
   const calls = [], code = 'V02_FIXTURE_LOCK_BUSY';
-  const ui = await knowledgeUi(async request => {
-    calls.push(request.arguments.request.action);
-    if (request.arguments.request.action === 'select') return {
-      isError: true, structuredContent: {ok: false, code, message: `${code}: Another writer is busy. Retry when it finishes.`},
-    };
-    assert.equal(request.arguments.request.action, 'inspect');
-    return {structuredContent: payload(w)};
-  });
-  ui.render({structuredContent: payload(w)});
-  await ui.sync('select');
-  assert.deepEqual(calls, ['select', 'inspect']);
-  assert.match(ui.html, new RegExp(code), 'Safe failure reason must survive authoritative state adoption');
+  const ui = await knowledgeUi(async request => {calls.push(request);throw new Error('No legacy action should dispatch.');});
+  ui.render({structuredContent: {...payload(w),result:{...w,error:`${code}: Another writer is busy. Retry when it finishes.`}}});
+  assert.deepEqual(calls, []);
+  assert.match(ui.html, new RegExp(code));assert.doesNotMatch(ui.html, /data-memory-sync|Approve|<button/);
 });
 
-test('F6: compact and expanded sharing actions bind the same visible selection', async t => {
+test('F6: technical sharing selection stays exact while legacy text exposes no action', async t => {
   const f = await fixture(t);
   let w = await runMemorySync(f.root, {action: 'start'});
   w = await action(f, w, 'select', {improve: false, share: true});
   const vm = buildViewModel(payload(w));
-  const compact = numberedActions(vm).find(a => a.arguments.request?.action === 'promotions');
-  const expanded = numberedActions(vm, true).find(a => a.arguments.request?.action === 'promotions');
-  assert.equal(compact.arguments.request.ids.length, 4);
-  assert.deepEqual(expanded.arguments.request.ids, compact.arguments.request.ids,
-    'Expanded review action must bind a valid visible selection, never placeholder ids:[]');
-  const reviewed = await runMemorySync(f.root, expanded.arguments.request);
+  assert.deepEqual(numberedActions(vm),[]);assert.deepEqual(numberedActions(vm,true),[]);
+  const ids=w.promotionCandidates.map(value=>value.id),technical=memorySyncOperation(w,{promotionIds:ids}).actions.find(a=>a.id==='promotions');
+  assert.equal(ids.length,4);assert.deepEqual(technical.arguments.request.ids,ids);
+  const reviewed=await runMemorySync(f.root,technical.arguments.request);
   assert.equal(reviewed.state, 'awaiting_review');
   assert.equal(reviewed.review.kind, 'promotion');
 });

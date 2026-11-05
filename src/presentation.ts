@@ -1,15 +1,15 @@
 import type { KnowledgeTableRow } from './knowledge-table.js';
 import { renderProductText, entryKey, type TextScene } from './text-layout.js';
-import { conversationView, renderConversation, renderActionMenu, PRESENTATION_REPLY, LIFECYCLE_PRESENTATION_REPLY, type ConversationView } from './conversation-presentation.js';
-import { renderReviewProjection } from './core/curation-review-presentation.js';
+import { renderChatText } from './chat-text.js';
+import { conversationView, sessionCloseReceipt, PRESENTATION_REPLY, LIFECYCLE_PRESENTATION_REPLY, type ConversationView, isLegacyMaintenanceAction, QUIET_MAINTENANCE_NOTICE, legacyMaintenanceAttention, maintenanceAttention } from './conversation-presentation.js';
 export { PRESENTATION_REPLY, LIFECYCLE_PRESENTATION_REPLY } from './conversation-presentation.js';
 export { renderReviewProjection } from './core/curation-review-presentation.js';
 import {applicabilityLabel} from "./core/applicability-label.js";
-import { memoryOpenPresentation, memorySyncPresentation, MEMORY_COPY } from './memory-presentation.js';
+import { memoryOpenPresentation, MEMORY_COPY } from './memory-presentation.js';
 import {memorySyncOperation,type SyncOperation} from './memory-sync-operation.js';
-import {MANUAL_UPDATE_COMMAND} from './update-instructions.js';
+import {publicDiagnostic} from './core/diagnostics.js';
 export {memorySyncOperation,syncClientFailure,syncClientNotice,type SyncClientEvidence} from './memory-sync-operation.js';
-export { memoryOpenPresentation, memorySyncPresentation, MEMORY_COPY } from './memory-presentation.js';
+export { memoryOpenPresentation, MEMORY_COPY } from './memory-presentation.js';
 export {UPDATE_INSTRUCTIONS} from './update-instructions.js';
 export const PRESENTATION_LAUNCHER = "When the user says `prodero` (ignoring surrounding whitespace and case), `open prodero`, or `show prodero`, immediately call prodero_config_get for the current workspace. If presentation.mode is text, call prodero_text with tool=prodero_open; otherwise call prodero_open. Pass the same projectRoot to config_get and the selected operation (inside arguments for prodero_text). Do not ask what the user wants to do with Prodero.";
 
@@ -60,14 +60,12 @@ export function buildViewModel(payload: Data): ProderoViewModel {
   const b = normalized.bootstrap;
   const projection = normalized.curation?.projection;
   vm.textScene = {
-    action: normalized.action,
+    action: isLegacyMaintenanceAction(normalized.action,normalized.userInitiatedManagement===true) ? "maintenance" : normalized.action,
     project: p?.name ?? String(r.root ?? c?.projectRoot ?? normalized.root ?? normalized.projectSettings?.root ?? '').split(/[\\/]/).filter(Boolean).at(-1),
     task: c?.query,
     ...(c?.metrics ? {budget:{used:c.metrics.contextTokens,total:c.metrics.contextBudgetTokens,source:'Task',estimated:true}} : b?.loaded && b.metrics && b.limits ? {budget:{used:b.metrics.estimatedTokens,total:b.limits.budgetTokens,source:'Bootstrap',estimated:true}} : {}),
-    ...(['open','status','initialized'].includes(normalized.action) ? {home:{initialized:p?.initialized,records:p?.knowledgeCount,local:p?.localKnowledgeCount,versioned:p?.versionedKnowledgeCount,deferred:projection?.deferredQuestions,pending:projection?.readyChangeGroups}} : {}),
+    ...(['open','status','initialized'].includes(normalized.action) ? {home:{initialized:p?.initialized,records:p?.knowledgeCount,local:p?.localKnowledgeCount,versioned:p?.versionedKnowledgeCount,...(b?.loaded===true&&Array.isArray(b.instructions)?{loadedInstructions:b.instructions.length}:{}),deferred:projection?.deferredQuestions,pending:projection?.readyChangeGroups}} : {}),
   };
-  if (['open','status','status-details'].includes(normalized.action) && normalized.update?.available)
-    vm.conversation.attention.push(`Finish work and close hosts, then run ${MANUAL_UPDATE_COMMAND} in a terminal. Restart/reconnect afterwards; review project migrations separately.`);
   return vm;
 }
 
@@ -79,17 +77,27 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
   const action = (label:string,tool:string,args:Record<string,unknown> = {},approval=false) => vm.actions.push({label,tool,arguments:{...(root ? {projectRoot:root}:{}),...args},...(approval?{approval:true}:{})});
   const section = (title:string,items:Data[]) => { if(items.length) vm.sections.push({title,items:items.map(itemView)}); };
   const knowledge = () => action("Show project knowledge", "prodero_knowledge");
-  const questionActions=(data:Data,workflowId:string,candidateId:string)=>{
-    const review=data.review,g=data.graphical;if(!review||!g)return;
-    const binding={workflowId,candidateId,reviewId:review.snapshot.reviewId,reviewRevisionId:review.snapshot.revision.id,planHash:review.snapshot.planHash,decisionRevision:review.state.revision,answerLogHash:g.answerLogHash};
-    for(const q of g.questions.filter((q:Data)=>q.needsInput||q.state==='answered_pending_analysis')){
-      if(q.needsInput&&!g.analysisPending)for(const choice of q.question.choices)action(choice.label,'prodero_curation_question',{...binding,action:'answer',questionId:q.question.id,questionVersion:q.question.version,choiceId:choice.id,requestId:`chat_${globalThis.crypto.randomUUID()}`,...(q.answer?{replacesAnswerId:q.answer.id}:{})});
-      action(q.relatedQuestions?.length>1?`Defer ${q.relatedQuestions.length} related questions`:'Answer later','prodero_curation_question',{...binding,action:'question_later',questionId:q.question.id,questionVersion:q.question.version});
+  if(isLegacyMaintenanceAction(payload.action,payload.userInitiatedManagement===true)) {
+    vm.title='Prodero · Memory';vm.simpleActions=true;
+    if(payload.action==='memory-sync')vm.operation=r.operation??memorySyncOperation(r);
+    vm.notices.push(QUIET_MAINTENANCE_NOTICE,...legacyMaintenanceAttention(payload,vm.operation));
+    return vm;
+  }
+  if(payload.userInitiatedManagement===true && ['curation','curation-applied'].includes(payload.action)) {
+    vm.title='Prodero · Curate Memory';vm.simpleActions=true;
+    vm.notices.push(payload.action==='curation-applied'?'Reviewed changes applied; original history is retained.':'Preview refinements of legacy Required instructions: splitting compound rules and clarifying applicability. No memory is changed by analysis or simulation. This does not move records between Local and Versioned. Prior approvals are not carried into a fresh review.');
+    for(const p of payload.plan?.proposals??[]) {
+      vm.sections.push({title:p.before.title,items:[{title:'Current knowledge',body:p.before.content,notes:[p.path]},...p.outputs.map((o:Data)=>({title:'Proposed knowledge',body:o.content,notes:[...(p.changes??[]),...(p.attention??[])]}))]});
     }
-    if(g.canRetryAnalysis)action('Retry saved answer analysis','prodero_curation_question',{...binding,action:'retry_analysis'});
-    else if(g.needsPreparation)action('Analyze saved answer','prodero_curation_question',{...binding,action:'analyze'});
-    if(g.continuationJobId)action('Continue bounded analysis','prodero_curation_reasoning_prepare',{jobId:g.continuationJobId});
-  };
+    if(!payload.plan?.proposals?.length)vm.notices.push('No supported protected-knowledge changes are proposed. Eligible Local maintenance continues during work.');
+    if(payload.historyDiagnostics?.length)vm.notices.push('Some older saved reviews are unavailable or unsupported. They are preserved; this fresh preview does not inherit their choices.');
+    vm.notices.push('Protected curation writes retain the graphical exact-review Apply safeguard; text supports the full preview and simulation.');
+    if(payload.plan?.planId)action('Simulate this proposal','prodero_curation',{action:'simulate',fresh:true,planId:payload.plan.planId});
+    action('Choose Local records for Versioned memory','prodero_knowledge',{layer:'local'});
+    action('Back to Prodero','prodero_open');
+    if(payload.result)vm.diagnostics=[{title:'Simulation',items:[{title:'Read-only result',body:JSON.stringify(payload.result,null,2),notes:[]}]}];
+    return vm;
+  }
   if(payload.action==='config-get'){
     vm.title='Prodero · Project Settings';
     const settings=payload.projectSettings;
@@ -100,29 +108,6 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
   } else if(payload.action==='update-instructions'){
     vm.title='Prodero · Update instructions';
     vm.notices.push(r.message);
-  } else if(payload.action==='curation-question'){
-    vm.title='Saved curation question';vm.simpleActions=true;
-    if(payload.answerAcknowledgement)vm.notices.push(payload.answerAcknowledgement.message);
-    if(payload.analysisNotice)vm.notices.push(payload.analysisNotice);
-    vm.notices.push('Chat answers are relayed evidence, not approval. Unresolved facts may still need clarification.');
-    vm.sections.push({title:'Project questions',items:payload.graphical.questions.map((q:Data)=>({title:q.question.title,body:q.question.prompt,notes:[q.state,...q.question.choices.map((c:Data)=>c.label)]}))});
-    questionActions(payload,payload.syncWorkflowId,payload.candidateId);
-    action('Check saved curation progress','prodero_memory_sync',{request:{action:'inspect',workflowId:payload.syncWorkflowId}});
-  } else if(payload.action==="curation") {
-    const p=payload.plan, projection=payload.projection;vm.title="Knowledge cleanup";
-    if(!projection){vm.notices.push("Reload this review to obtain its saved state.");action("Reload review","prodero_curation",{action:"plan"});return vm;}
-    vm.notices.push(renderReviewProjection(projection),"Knowledge stays unchanged until explicit Apply.");
-    metric("Proposed change groups",projection.readyChangeGroups);metric("Needs input",projection.needsInputNow);metric("Deferred questions",projection.deferredQuestions);metric("Deferred changes",projection.deferredChanges);metric("Unchanged",projection.unchanged);
-    const decisions=projection.items.filter((v:any)=>v.needsInput);
-    if(decisions.length)vm.sections.push({title:"Needs clarification",items:decisions.map((v:any)=>({title:p.proposals.find((q:any)=>q.id===v.proposalIds[0]).before.title,body:"Keep current or decide later. No actionable suggestion is available yet.",notes:[]}))});
-    for(const group of [...new Set(p.proposals.map((v:any)=>v.group))])vm.sections.push({title:String(group),items:p.proposals.filter((v:any)=>v.group===group).map((v:any)=>({title:v.before.title,body:`Currently: ${v.before.contextPolicy} · ${applicabilityLabel(v.before)}\nSuggested: ${v.outputs.map((o:any)=>`${o.category} · ${o.contextPolicy} · ${applicabilityLabel(o)}`).join("; ")}`,notes:[...v.attention,...(v.investigation?[v.investigation.outcome, v.investigation.explanation]:[])]}))});
-    vm.diagnostics=[{title:"Record content and traceability",items:p.proposals.map((v:any)=>({title:v.before.title,body:`Current: ${v.before.content}\n\nProposed: ${v.outputs.map((o:any)=>o.content).join("\n\n")}`,notes:[`Source revision: ${v.revision}`,`Source: ${v.sourceId}`,...v.evidence]}))}];
-    if(payload.result&&Array.isArray(payload.result))vm.sections.push({title:"Context impact · safe batch",items:payload.result.map((row:any)=>({title:row.task,body:`Required candidate tokens: ${row.before.requiredCandidateTokens} → ${row.after.requiredCandidateTokens}; omissions: ${row.before.requiredOmissions} → ${row.after.requiredOmissions}`,notes:[`Context needed: ${row.after.contextNeeded?"yes":"no"}`]}))});
-    if(!payload.trustedReviewAvailable)vm.notices.push("Text review is preview-only. Open the graphical App to review and apply changes.");
-    if(projection.readyChangeGroups && !projection.paused)action("Preview context impact","prodero_curation",{projectRoot:payload.root,action:"simulate",planId:p.planId});
-    if((projection.readyChangeGroups || projection.needsInputNow) && !projection.paused)action("Pause review","prodero_curation",{projectRoot:payload.root,action:"defer",planId:p.planId});
-    if(!projection.paused && (projection.readyChangeGroups || projection.needsInputNow))action("Refresh suggestions","prodero_curation",{projectRoot:payload.root,action:"plan"});
-    action("Back to Prodero","prodero_open",{projectRoot:payload.root});return vm;
   }
   if(payload.action === "migration") {
     const p=payload.plan;
@@ -167,9 +152,7 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
     ];
   } else if (["open","status","status-details","initialized"].includes(payload.action)) {
     const p = payload.project;
-    if(payload.curation?.state==="unavailable")vm.notices.push(payload.curation.message??"Saved review is unavailable.");
-    if(payload.curation?.prominent){vm.notices.push(renderReviewProjection(payload.curation.projection));action("Review cleanup","prodero_curation",{action:"plan"});action("Pause review","prodero_curation",{action:"defer",planId:payload.curation.planId});}
-    if(payload.curation?.projection?.analyzedSourceCount > 0 && !payload.curation.prominent){vm.notices.push(renderReviewProjection(payload.curation.projection));action("Review saved decisions","prodero_curation",{action:"plan"});}
+    vm.notices.push(...maintenanceAttention(payload));
     if (typeof p?.initialized !== "boolean") {
       vm.notices.push("Project state is not available yet.");
       return vm;
@@ -180,16 +163,14 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
     else {
       const memory=memoryOpenPresentation(p);vm.simpleActions=true;
       metric("Knowledge",p.knowledgeCount);metric("Local Knowledge",p.localKnowledgeCount);metric("Shared / Versioned Knowledge",p.versionedKnowledgeCount);
-      metric("Active skills",p.skillCount,p.skillCandidateCount?`${p.skillCandidateCount} candidate${p.skillCandidateCount===1?"":"s"}`:undefined);metric("Sessions",p.sessionCount);
+      metric("Active skills",p.skillCount);
       vm.notices.push(memory.headline,...memory.notes);
-      if(memory.conflicts)vm.notices.push(`${memory.conflicts} area${memory.conflicts===1?' needs':'s need'} review. Prodero found incompatible current knowledge.`);
-      if(memory.areas.length)vm.sections.push({title:"Memory",items:memory.areas.map((a:any)=>({title:a.title,body:a.body,notes:a.reasons}))});
-      vm.diagnostics=[{title:"Memory diagnostics",items:[{title:"Project statistics",body:JSON.stringify({memoryHealth:p.memoryHealth,graph:p.knowledgeGraph?{...p.knowledgeGraph,cacheState:undefined,...(payload.action==="open"?{brokenReferences:undefined}:{})}:undefined,pendingSessions:p.pendingSessionCount,checkpoints:p.checkpointCount,overview:p.memoryOverview},null,2),notes:p.memoryHealth?.missingProvenanceItems?[`${p.memoryHealth.missingProvenanceItems} current records have incomplete provenance metadata. ${MEMORY_COPY.incompleteProvenance}`]:[]}]}];
+      vm.diagnostics=[{title:"Memory diagnostics",items:[{title:"Project statistics",body:JSON.stringify({memoryHealth:p.memoryHealth,graph:p.knowledgeGraph?{...p.knowledgeGraph,cacheState:undefined,...(payload.action==="open"?{brokenReferences:undefined}:{})}:undefined,activeSessions:p.activeSessionCount,pendingSessions:p.pendingSessionCount,checkpoints:p.checkpointCount,overview:p.memoryOverview,review:payload.curation},null,2),notes:p.memoryHealth?.missingProvenanceItems?[`${p.memoryHealth.missingProvenanceItems} current records have incomplete provenance metadata. ${MEMORY_COPY.incompleteProvenance}`]:[]}]}];
       if(payload.phase === "initial") {vm.notices.push("Lightweight status only; detailed statistics were not requested.");action("Load detailed status","prodero_status_details");}
-      knowledge();action("Show project skills","prodero_skills");action(memory.button,"prodero_sync");action("Check for updates","prodero_check_update");if(payload.update?.available)action("Show update instructions","prodero_update");
+      knowledge();action("Curate Memory","prodero_curation",{fresh:true});action("Move Local knowledge to Versioned","prodero_knowledge",{layer:"local"});action("Show project skills","prodero_skills");action("Check for updates","prodero_check_update");if(payload.update?.available)action("Show update instructions","prodero_update");
     }
     const b=payload.bootstrap;
-    if(b) {metric("Required",b.instructions.length);section("Required instructions · model-visible, not system-level",b.instructions);vm.notices.push(...b.warnings);}
+    if(b) {metric("Required",list(b.instructions).length);section("Required instructions · model-visible, not system-level",list(b.instructions));vm.notices.push(...(Array.isArray(b.warnings)?b.warnings:[]));}
     if(payload.update?.available) vm.notices.push(`Update available: ${payload.update.current} → ${payload.update.latest}.`);
   } else if(payload.action === "context") {
     vm.title="Prodero · View Context";
@@ -199,24 +180,12 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
     section("Required instructions not loaded",list(r.selection?.omittedRequired));
     section("Required instructions",r.required);section("Relevant knowledge",r.relevant);section("Skills",r.skills);
     vm.diagnostics=[{title:"Context diagnostics",items:[{title:"Selection",body:JSON.stringify({metrics:r.metrics,selection:r.selection,policyReadiness:r.policyReadiness},null,2),notes:[]}]}];
-  } else if(payload.action === "memory-sync") {
-    const memory=memorySyncPresentation(r);vm.title=memory.headline==='Curate Memory'?'Prodero · Curate Memory':`Curate Memory · ${memory.headline}`;vm.simpleActions=true;
-    vm.metrics=memory.metrics;vm.notices=[...memory.notes,...memory.warnings];vm.sections=memory.sections;
-    if(r.state==='awaiting_selection')vm.sections.unshift({title:'Curation options',items:[{title:'Improve memory · enabled',body:'Process, compress and organize memory.',notes:[]},...(r.brokenLinks?[{title:`Fix ${r.brokenLinks} broken ${r.brokenLinks===1?'link':'links'} · enabled`,body:'Review and remove links to missing memories. Original records are saved in history.',notes:[]}]:[]),{title:'Share knowledge · enabled',body:'Review Local knowledge for Versioned files. Your agent can also change these files; review the Git diff before commit/push.',notes:[]}]});
-    if(r.clarification?.graphical)vm.sections.push({title:'Project questions',items:r.clarification.graphical.questions.filter((q:Data)=>q.needsInput).map((q:Data)=>({title:q.question.title,body:q.question.prompt,notes:q.question.choices.map((c:Data)=>c.label)}))});
-    if(r.state==='awaiting_promotion_selection')section("Local Knowledge available for sharing review",r.promotionCandidates.map((c:Data)=>({title:c.title})));
-    vm.diagnostics=[{title:"Memory diagnostics",items:[{title:"Workflow evidence and exact effects",body:JSON.stringify({...r,semantic:undefined},null,2),notes:[]}]}];
-    const operation=r.operation??memorySyncOperation(r);vm.operation=operation;
-    for(const q of list(r.deferredQuestions)){
-      const {title,expired,affectedQuestions}=q;
-      vm.sections.push({title:expired?'Expired question review':'Deferred questions',items:[{title:affectedQuestions.length>1?`${affectedQuestions.length} related questions`:title,body:affectedQuestions.map((a:Data)=>a.title).join('\n'),notes:[...(affectedQuestions.length>1?['These related questions reopen together.']:[]),...(expired?['Refresh this expired review before choosing Revisit. Refresh preserves deferral.']:[])]}]});
-    }
-    vm.actions.push(...operation.actions);
   } else if(payload.action === "prepare") {
     vm.title=r.context.policyReadiness?.state==="required-incomplete"?"Prodero · Required context incomplete":r.context.policyReadiness?.state==="context-needed"?"Prodero · Task context needed":r.context.policyReadiness?.blocking?"Prodero · Required policy review":"Prodero · Context Ready";
     const c=r.context,m=c.metrics;
     if(c.applicability)vm.diagnostics=[{title:"Applicability",items:Object.entries(c.applicability.decisions).map(([id,d]:[string,any])=>({title:id,body:d.state,notes:d.reasons}))}];
     if(c.allocation)(vm.diagnostics??=[]).push({title:"Context allocation",items:[{title:"Allocation decisions",body:JSON.stringify(c.allocation,null,2),notes:[]}]});
+    if(r.maintenance)(vm.diagnostics??=[]).push({title:"Maintenance diagnostics",items:[{title:"Automatic maintenance",body:JSON.stringify(r.maintenance,null,2),notes:[]}]});
     metric("Required",c.required.length);metric("Relevant",c.relevant.length);metric("Skills",c.skills.length);metric("Synced",r.automaticSync?.sessionsProcessed ?? r.automaticSync?.sessions ?? 0);
     metric("Task context",`${tokenLabel(m.contextTokens)} / ${tokenLabel(m.contextBudgetTokens)} est. tokens`);
     metric("Project knowledge",`${tokenLabel(m.projectKnowledgeTokens)} est. tokens`);
@@ -235,13 +204,15 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
     vm.title="Prodero · Session Learned";
     metric("Recorded",r.learned.observations);metric("Session memory",`${tokenLabel(r.learned.rawSessionTokens)} est. tokens`);
     for(const [key,value] of Object.entries(r.learned.byType ?? {})) if(value) metric(human(key),value);
-    metric("Needs review",r.review?.needsReview);metric("Local Knowledge",r.review?.localKnowledge);metric("Versioned Knowledge",r.review?.versionedKnowledge);
-    vm.notices.push(r.alreadyClosed ? "Session was already closed." : "Session closed.");
-    vm.notices.push(r.learned.syncState === "pending-auto-sync" ? "Saving was deferred. Prodero will recover it before the next work session." : "Useful knowledge was saved automatically to Local Knowledge.");
+    metric("Local Knowledge",r.review?.localKnowledge);metric("Versioned Knowledge",r.review?.versionedKnowledge);
+    const receipt=sessionCloseReceipt(r);
+    vm.notices.push(`${receipt.label}.`,receipt.detail);
+    if(r.learned.syncState === "pending-auto-sync")vm.notices.push("Prodero will recover pending synchronization before the next work session.");
     const s=r.learned.synchronization;
     if(s) for(const key of ["knowledgeCreated","knowledgeConsolidated","duplicates","conflicts"]) metric(human(key),s[key]);
-    if(r.review?.error) vm.notices.push(`Knowledge review unavailable: ${r.review.error}`);
-    action("Review session knowledge","prodero_session_review",{sessionId:r.session.id});knowledge();
+    if(r.review?.error) vm.notices.push(`Session diagnostics unavailable: ${publicDiagnostic(r.review.error)}`);
+    vm.diagnostics=[{title:"Session diagnostics",items:[{title:"Saved session evidence",body:JSON.stringify({review:r.review,maintenance:r.maintenance,synchronization:s},null,2),notes:[]}]}];
+    knowledge();
   } else if(["knowledge","knowledge-mutated"].includes(payload.action)) {
     vm.title="Prodero · Knowledge";
     if(payload.action === "knowledge-mutated") vm.notices.push("Knowledge maintenance completed. Identity and history are retained.");
@@ -251,6 +222,7 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
     if(r.detail) {
       const i=r.detail;
       action("Back to knowledge list","prodero_knowledge",r.options);
+      if(i.layer === "local" && i.status === "active")action("Preview move to Versioned","prodero_promotion_preview",{ids:[i.id]});
       vm.notices.push("Edits preserve identity and history. Retirement is not secure erase. Repository maintenance modifies Git-shareable files through the review workflow. Approval arguments do not authenticate human consent; review the Git diff before commit/push.");
       action("Review an edit or retirement","prodero_knowledge_mutate",{id:i.id,revision:i.revision,mode:i.layer === "versioned" ? "repository-maintenance":"local"},true);
       vm.actions.at(-1)!.input={field:'action',prompt:'Collect edit/retire and required fields. Show the complete proposal before asking for approval.'};
@@ -262,7 +234,6 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
       if(r.options?.offset)action('Previous page','prodero_knowledge',{...r.options,offset:Math.max(0,r.options.offset-(r.options.limit??12))});
     }
     if(!r.detail && r.nextOffset != null) action("Next page","prodero_knowledge",{...r.options,offset:r.nextOffset});
-    action("Curate Memory","prodero_sync");
     action("Back to Prodero","prodero_open");
   } else if(payload.action === "instruction-review") {
     vm.title="Prodero · Required Instruction Review";metric("Omitted",r.total);metric("Critical",r.counts.critical);metric("Normal",r.counts.normal);
@@ -289,18 +260,10 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
       section(`Before · ${a.targetId ?? "new item"}`,a.before ? [a.before]:[]);
       section("Proposed",a.draft ? [a.draft]:[]);
     }
-    action("Publish the exact reviewed preview","prodero_promote",{approved:true},true);
+    action("Publish the exact reviewed preview","prodero_promote",{approved:true,preview},true);
   } else if(payload.action === "promotion-applied") {
     vm.title="Prodero · Versioned Files Prepared";
     metric("Written to Versioned",r.published);metric("Already covered",r.covered?.length);metric("Conflicts remain local",r.conflicts?.length);knowledge();
-  } else if(payload.action === "session-review") {
-    vm.title="Prodero · Session Knowledge Review";
-    metric("Items",r.summary.total);metric("Needs review",r.summary.needsReview);metric("State",r.consolidated ? "Synchronized":"Pending synchronization");
-    section("Observations",r.items);section("Produced knowledge",[...r.items.flatMap((i:Data)=>i.outputs ?? []),...r.knowledge]);
-    vm.notices.push(`Session: ${r.sessionId} · Revision: ${r.revision}`);
-    if(r.editable) action("Review an edit or discard","prodero_session_review_mutate",{sessionId:r.sessionId,revision:r.revision},true);
-    else vm.notices.push("Session history is not editable; maintain the resulting knowledge instead.");
-    knowledge();
   }
   if(payload.presentationWarning) vm.notices.push(payload.presentationWarning);
   vm.notices=[...new Set(vm.notices.filter(Boolean))];
@@ -309,6 +272,11 @@ function buildDetailedViewModel(payload: Data): ProderoViewModel {
 
 /** Short overview first; selected instruction/knowledge bodies remain available to the agent. */
 export function renderText(vm:ProderoViewModel, includeDiagnostics=false, expanded=includeDiagnostics, plain=false):string {
+  return plain ? renderProductText(vm,includeDiagnostics,expanded,true) : renderChatText(vm,includeDiagnostics,expanded);
+}
+
+/** Explicit terminal route; chat never infers device width or terminal capability. */
+export function renderTerminalText(vm:ProderoViewModel, includeDiagnostics=false, expanded=includeDiagnostics, plain=false):string {
   return renderProductText(vm,includeDiagnostics,expanded,plain);
 }
 

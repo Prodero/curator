@@ -20,7 +20,7 @@ test('two projects keep modes and themes isolated on one client and across resta
  await set(a.root,'presentation.mode','ui');await set(a.root,'presentation.theme','blue-neon');await set(b.root,'presentation.mode','text');await set(b.root,'presentation.theme','purple-neon');
  for(const [root,mode,theme] of [[a.root,'ui','blue-neon'],[b.root,'text','purple-neon'],[a.root,'ui','blue-neon']]){
   const opened=await shared.call('prodero_open',{projectRoot:root});assert.equal(opened.structuredContent.presentation.resolved,mode);assert.equal(opened.structuredContent.presentation.scope,'project');assert.equal(opened.structuredContent.projectSettings.presentation.theme,theme);
-  if(mode==='text')assert.match(opened.content[0].text,/Memory/);
+  if(mode==='text'){assert.match(opened.content[0].text,/^\*\*›_ prodero\*\*/);assert.match(opened.content[0].text,/Memory: 0 records/);assert.doesNotMatch(opened.content[0].text,/```|╭|1 >/);}
  }
  const fresh=await connection(b.root);try{assert.equal((await fresh.call('prodero_open')).structuredContent.presentation.resolved,'text');assert.match((await fresh.call('prodero_config_get')).content[0].text,/Purple Neon/);}finally{await fresh.close();}
  const prepared=await shared.call('prodero_prepare',{projectRoot:b.root,task:'Check settings'});assert.equal(prepared.structuredContent.presentation.resolved,'text');

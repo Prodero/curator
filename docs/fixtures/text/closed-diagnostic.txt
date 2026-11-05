@@ -1,0 +1,3 @@
+**Session closed** · Saved 2 observations.
+
+Session diagnostics unavailable: Knowledge changed after context selection; retry

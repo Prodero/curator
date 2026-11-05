@@ -1,0 +1,384 @@
+{
+  "generatedBy": "Pre-migration Curator 0.3.0, Zod 3.25.76; baseline archive 85a64cf7bf2aa69573a0a41a95b0543dc51a8676531dcbaccacc485599a828ea",
+  "vectors": [
+    {
+      "name": "knowledge defaults",
+      "schema": "knowledgeQuerySchema",
+      "input": {},
+      "accepted": true,
+      "output": {
+        "query": "",
+        "includeHistorical": false,
+        "offset": 0,
+        "limit": 12
+      }
+    },
+    {
+      "name": "knowledge explicit filters",
+      "schema": "knowledgeQuerySchema",
+      "input": {
+        "query": "Cedar",
+        "layer": "local",
+        "limit": 4,
+        "includeHistorical": true,
+        "offset": 2
+      },
+      "accepted": true,
+      "output": {
+        "query": "Cedar",
+        "layer": "local",
+        "includeHistorical": true,
+        "offset": 2,
+        "limit": 4
+      }
+    },
+    {
+      "name": "knowledge unknown field stripping",
+      "schema": "knowledgeQuerySchema",
+      "input": {
+        "query": "Cedar",
+        "unrelated": "discarded"
+      },
+      "accepted": true,
+      "output": {
+        "query": "Cedar",
+        "includeHistorical": false,
+        "offset": 0,
+        "limit": 12
+      }
+    },
+    {
+      "name": "invalid query limit",
+      "schema": "knowledgeQuerySchema",
+      "input": {
+        "limit": 21
+      },
+      "accepted": false
+    },
+    {
+      "name": "invalid query offset",
+      "schema": "knowledgeQuerySchema",
+      "input": {
+        "offset": -1
+      },
+      "accepted": false
+    },
+    {
+      "name": "skill defaults and trimming",
+      "schema": "skillInputSchema",
+      "input": {
+        "title": "  Verify Cedar  ",
+        "description": "  Verify source fixtures.  ",
+        "content": "  Inspect the synthetic fixture.  "
+      },
+      "accepted": true,
+      "output": {
+        "title": "Verify Cedar",
+        "description": "Verify source fixtures.",
+        "scope": "project",
+        "triggers": [],
+        "relatedKnowledge": [],
+        "references": [],
+        "content": "Inspect the synthetic fixture."
+      }
+    },
+    {
+      "name": "skill explicit arrays",
+      "schema": "skillInputSchema",
+      "input": {
+        "title": "Verify Cedar",
+        "description": "Inspect Cedar.",
+        "content": "Inspect the fixture.",
+        "scope": "fixtures",
+        "triggers": [
+          "  verify  "
+        ],
+        "references": [
+          "docs/fixture.md"
+        ],
+        "relatedKnowledge": [
+          "mem_fixture"
+        ]
+      },
+      "accepted": true,
+      "output": {
+        "title": "Verify Cedar",
+        "description": "Inspect Cedar.",
+        "scope": "fixtures",
+        "triggers": [
+          "verify"
+        ],
+        "relatedKnowledge": [
+          "mem_fixture"
+        ],
+        "references": [
+          "docs/fixture.md"
+        ],
+        "content": "Inspect the fixture."
+      }
+    },
+    {
+      "name": "semantic limits defaults",
+      "schema": "semanticLimitsSchema",
+      "input": {},
+      "accepted": true,
+      "output": {
+        "maxBytes": 65536,
+        "maxTokens": 12000,
+        "maxItems": 16,
+        "maxEvidence": 16,
+        "maxOutputBytes": 65536,
+        "maxOutputTokens": 16000,
+        "maxCorrections": 1,
+        "maxPasses": 3,
+        "ttlMs": 1800000
+      }
+    },
+    {
+      "name": "legacy applicability",
+      "schema": "applicabilitySchema",
+      "input": {
+        "kind": "legacy"
+      },
+      "accepted": true,
+      "output": {
+        "kind": "legacy"
+      }
+    },
+    {
+      "name": "scoped applicability trim",
+      "schema": "applicabilitySchema",
+      "input": {
+        "kind": "scoped",
+        "paths": [
+          " fixtures/cedar/** "
+        ],
+        "subsystems": [
+          " Cedar "
+        ],
+        "taskKinds": [
+          "testing"
+        ]
+      },
+      "accepted": true,
+      "output": {
+        "kind": "scoped",
+        "paths": [
+          "fixtures/cedar/**"
+        ],
+        "subsystems": [
+          "Cedar"
+        ],
+        "taskKinds": [
+          "testing"
+        ]
+      }
+    },
+    {
+      "name": "invalid applicability traversal",
+      "schema": "applicabilitySchema",
+      "input": {
+        "kind": "scoped",
+        "paths": [
+          "../outside"
+        ]
+      },
+      "accepted": false
+    },
+    {
+      "name": "legacy receipt v1",
+      "schema": "receiptSchema",
+      "input": {
+        "format": 1,
+        "host": "codex",
+        "config": "/fixture/codex/config.toml",
+        "launcherPath": "/fixture/codex/AGENTS.md",
+        "entry": {
+          "command": "/fixture/prefix/bin/prodero",
+          "args": [
+            "mcp"
+          ],
+          "env": {
+            "PATH": "/fixture/node/bin"
+          }
+        },
+        "launcher": "Synthetic launcher",
+        "mcpBlock": null,
+        "originalConfig": null,
+        "originalLauncher": null,
+        "installedConfig": "Synthetic configuration",
+        "installedLauncher": "Synthetic launcher"
+      },
+      "accepted": true,
+      "output": {
+        "format": 1,
+        "host": "codex",
+        "config": "/fixture/codex/config.toml",
+        "launcherPath": "/fixture/codex/AGENTS.md",
+        "entry": {
+          "command": "/fixture/prefix/bin/prodero",
+          "args": [
+            "mcp"
+          ],
+          "env": {
+            "PATH": "/fixture/node/bin"
+          }
+        },
+        "launcher": "Synthetic launcher",
+        "mcpBlock": null,
+        "originalConfig": null,
+        "originalLauncher": null,
+        "installedConfig": "Synthetic configuration",
+        "installedLauncher": "Synthetic launcher"
+      }
+    },
+    {
+      "name": "runtime receipt v2",
+      "schema": "receiptSchema",
+      "input": {
+        "format": 2,
+        "host": "codex",
+        "config": "/fixture/codex/config.toml",
+        "launcherPath": "/fixture/codex/AGENTS.md",
+        "entry": {
+          "command": "/fixture/prefix/bin/prodero",
+          "args": [
+            "mcp"
+          ],
+          "env": {
+            "PATH": "/fixture/node/bin"
+          }
+        },
+        "launcher": "Synthetic launcher",
+        "mcpBlock": null,
+        "originalConfig": null,
+        "originalLauncher": null,
+        "installedConfig": "Synthetic configuration",
+        "installedLauncher": "Synthetic launcher",
+        "runtime": {
+          "mode": "package",
+          "packageEntry": {
+            "command": "/fixture/prefix/bin/prodero",
+            "args": [
+              "mcp"
+            ],
+            "env": {
+              "PATH": "/fixture/node/bin"
+            }
+          },
+          "devRoot": null,
+          "devEntry": null
+        }
+      },
+      "accepted": true,
+      "output": {
+        "format": 2,
+        "host": "codex",
+        "config": "/fixture/codex/config.toml",
+        "launcherPath": "/fixture/codex/AGENTS.md",
+        "entry": {
+          "command": "/fixture/prefix/bin/prodero",
+          "args": [
+            "mcp"
+          ],
+          "env": {
+            "PATH": "/fixture/node/bin"
+          }
+        },
+        "launcher": "Synthetic launcher",
+        "mcpBlock": null,
+        "originalConfig": null,
+        "originalLauncher": null,
+        "installedConfig": "Synthetic configuration",
+        "installedLauncher": "Synthetic launcher",
+        "runtime": {
+          "mode": "package",
+          "packageEntry": {
+            "command": "/fixture/prefix/bin/prodero",
+            "args": [
+              "mcp"
+            ],
+            "env": {
+              "PATH": "/fixture/node/bin"
+            }
+          },
+          "devRoot": null,
+          "devEntry": null
+        }
+      }
+    },
+    {
+      "name": "receipt strict unknown refusal",
+      "schema": "receiptSchema",
+      "input": {
+        "format": 1,
+        "host": "codex",
+        "config": "/fixture/codex/config.toml",
+        "launcherPath": "/fixture/codex/AGENTS.md",
+        "entry": {
+          "command": "/fixture/prefix/bin/prodero",
+          "args": [
+            "mcp"
+          ],
+          "env": {
+            "PATH": "/fixture/node/bin"
+          }
+        },
+        "launcher": "Synthetic launcher",
+        "mcpBlock": null,
+        "originalConfig": null,
+        "originalLauncher": null,
+        "installedConfig": "Synthetic configuration",
+        "installedLauncher": "Synthetic launcher",
+        "unexpected": true
+      },
+      "accepted": false
+    },
+    {
+      "name": "receipt invalid environment refusal",
+      "schema": "receiptSchema",
+      "input": {
+        "format": 1,
+        "host": "codex",
+        "config": "/fixture/codex/config.toml",
+        "launcherPath": "/fixture/codex/AGENTS.md",
+        "entry": {
+          "command": "/fixture/prefix/bin/prodero",
+          "args": [
+            "mcp"
+          ],
+          "env": {
+            "PATH": 1
+          }
+        },
+        "launcher": "Synthetic launcher",
+        "mcpBlock": null,
+        "originalConfig": null,
+        "originalLauncher": null,
+        "installedConfig": "Synthetic configuration",
+        "installedLauncher": "Synthetic launcher"
+      },
+      "accepted": false
+    },
+    {
+      "name": "sync start defaults",
+      "schema": "memorySyncActionSchema",
+      "input": {
+        "action": "start"
+      },
+      "accepted": true,
+      "output": {
+        "action": "start"
+      }
+    },
+    {
+      "name": "sync strict refusal",
+      "schema": "memorySyncActionSchema",
+      "input": {
+        "action": "start",
+        "approved": true
+      },
+      "accepted": false
+    }
+  ]
+}

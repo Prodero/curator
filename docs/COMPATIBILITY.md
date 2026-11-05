@@ -1,6 +1,6 @@
 # Compatibility and verification
 
-Curator **0.2.1 Public Preview** is a documentation-only patch for 0.2.0. Application behavior, runtime requirements, host support and project/knowledge schemas are unchanged; users already running 0.2.0 do not need an urgent upgrade. The runtime and host checks below describe 0.2.0. See the [changelog](../CHANGELOG.md) for release changes.
+Curator **0.3.0 Public Preview is an unpublished release candidate**. Package metadata is prepared for 0.3.0; the public npm baseline remains 0.2.1. The runtime requirements and project/knowledge schemas remain unchanged. The historical native-client and CI results below describe 0.2.0 unless a different version is explicitly named. They do not certify this candidate. See the [changelog](../CHANGELOG.md) and [release procedure](RELEASING.md).
 
 > Contract: Local/Versioned describe Git storage and sharing, not a security boundary against the connected agent. Review and approval are workflow safeguards, not authenticated human consent. The agent may create, promote and maintain Versioned files within current authorization. Curator tools do not execute Git commit or push; coding-agent Git actions follow current user scope and host approval controls. See [Privacy](PRIVACY.md).
 

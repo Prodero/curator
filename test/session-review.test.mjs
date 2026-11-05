@@ -26,19 +26,16 @@ test('explicit deferred close stays compact, review exposes exact pending observ
  assert.equal(r.learned.observations,1);assert.equal(r.review.total,1);assert.equal(r.learned.syncState,'pending-auto-sync');
  const view=await reviewSessionKnowledge(f.root,f.sessionId);assert.equal(view.editable,true);assert.equal(view.items[0].content,'Portal sending is disabled.');
  const ui=await knowledgeUi(req=>f.call(req.name,req.arguments));ui.render(f.close);
- assert.match(ui.html,/Review knowledge/);assert.doesNotMatch(ui.html,/Portal sending is disabled/);
+ assert.doesNotMatch(ui.html,/Review knowledge|data-session-action/);assert.match(ui.html,/Saving was deferred/);assert.doesNotMatch(ui.html,/Portal sending is disabled/);
  const next=await f.call(T.prepare,{task:'portal'});assert.equal(next.structuredContent.result.automaticSync.sessions,1);
  assert.equal((await listKnowledge(f.root)).length,1);
 });
-test('production review form edits persist through later automatic consolidation',async t=>{
- const f=await fixture(t);const ui=await knowledgeUi(req=>f.call(req.name,req.arguments));ui.render(f.close);
- await ui.session('open');assert.match(ui.html,/No action means keep/);
- const view=await reviewSessionKnowledge(f.root,f.sessionId);await ui.session('edit',view.items[0].id);
- await ui.submit('session-edit-form',{title:'Portal sending',content:'Portal compose and sending are implemented.',type:'state_change',scope:'module',scopeRef:'src/portal',scopeKind:'path'});
- assert.match(ui.html,/Saved/);
+test('explicit technical correction persists through later automatic consolidation',async t=>{
+ const f=await fixture(t);
+ const view=await reviewSessionKnowledge(f.root,f.sessionId);
+ await mutateSessionKnowledge(f.root,{sessionId:f.sessionId,revision:view.revision,action:'edit',id:view.items[0].id,title:'Portal sending',content:'Portal compose and sending are implemented.',type:'state_change',scope:'module',scopeRef:'src/portal',scopeKind:'path'});
  const corrected=await reviewSessionKnowledge(f.root,f.sessionId);
  assert.equal(corrected.items[0].type,'state_change');assert.equal(corrected.items[0].scopeKind,'path');assert.equal(corrected.items[0].scopeRef,'src/portal');
- await ui.session('back');assert.match(ui.html,/Project change/);
  await f.call(T.prepare,{task:'src/portal'});const memories=await listKnowledge(f.root);
  assert.equal(memories.length,1);assert.equal(memories[0].content,'Portal compose and sending are implemented.');assert.equal(memories[0].scopeRef,'src/portal');
 });
@@ -70,11 +67,10 @@ test('shared reconciliation signals keep evolution informational and prioritize 
  assert.equal(v.items[0].type,'global_instruction_candidate');
  assert.equal(v.summary.needsReview,1);
 });
-test('failed UI saves retain drafts and report server validation errors',async t=>{
- const f=await fixture(t);const ui=await knowledgeUi(req=>f.call(req.name,req.arguments));ui.render(f.close);await ui.session('open');
- const view=await reviewSessionKnowledge(f.root,f.sessionId);await ui.session('edit',view.items[0].id);
- await ui.submit('session-edit-form',{content:'Draft still here.',scope:'module',scopeRef:'../escape',scopeKind:'path'});
- assert.match(ui.html,/Draft still here/);assert.match(ui.html,/Invalid repository path scope/);
+test('invalid explicit technical correction retains original pending evidence',async t=>{
+ const f=await fixture(t),view=await reviewSessionKnowledge(f.root,f.sessionId);
+ await assert.rejects(mutateSessionKnowledge(f.root,{sessionId:f.sessionId,revision:view.revision,action:'edit',id:view.items[0].id,content:'Draft still here.',scope:'module',scopeRef:'../escape',scopeKind:'path'}),/Invalid repository path scope/);
+ assert.equal((await reviewSessionKnowledge(f.root,f.sessionId)).items[0].content,view.items[0].content);
 });
 
 test('duplicate signals and candidate type changes reuse normal consolidation lifecycle',async t=>{
@@ -99,11 +95,13 @@ test('Sync while a review is open protects history, including discard-all',async
  const closed=(await f.call(T.sessionClose,{sync:false,sessionId:f.sessionId})).structuredContent.result;
  assert.equal(closed.alreadyClosed,true);assert.equal(closed.learned.syncState,'synchronized');
 });
-test('discard-all UI requires only its own action, preserves the session and updates the compact card',async t=>{
- const f=await fixture(t);const ui=await knowledgeUi(req=>f.call(req.name,req.arguments));ui.render(f.close);await ui.session('open');
- await ui.session('discard-all');assert.match(ui.html,/The session remains stored/);assert.equal((await reviewSessionKnowledge(f.root,f.sessionId)).items.length,1);
- await ui.session('confirm-discard-all');assert.match(ui.html,/No observations remain/);await ui.session('back');
- assert.match(ui.html,/No durable project updates recorded/);assert.equal((await readSession(f.root,f.sessionId)).status,'closed');
+test('retired session moderator has no discard or edit handlers and preserves stored observations',async t=>{
+ const f=await fixture(t),calls=[],ui=await knowledgeUi(req=>{calls.push(req);return f.call(req.name,req.arguments);});
+ const before=await fs.readFile(path.join(f.root,'.prodero/sessions',f.sessionId+'.md'),'utf8');
+ ui.render(await f.call(T.sessionReview,{sessionId:f.sessionId}));
+ assert.match(ui.html,/Original records and saved work are retained/);assert.doesNotMatch(ui.html,/data-session-action|session-edit-form|Discard all/);
+ assert.deepEqual(calls,[]);assert.equal(await fs.readFile(path.join(f.root,'.prodero/sessions',f.sessionId+'.md'),'utf8'),before);
+ assert.equal((await reviewSessionKnowledge(f.root,f.sessionId)).items.length,1);assert.equal((await readSession(f.root,f.sessionId)).status,'closed');
 });
 
 test('different titles and polarity alone remain neutral pending semantic reconciliation',async t=>{
@@ -119,7 +117,7 @@ test('unavailable optional review does not turn a successfully closed session in
  await fs.writeFile(path.join(f.root,'.prodero/memory/mem_broken.md'),'---\nid: mem_broken\n---\nBroken metadata');
  const response=await f.call(T.sessionClose,{sync:false,sessionId:f.sessionId});assert.ok(!response.isError);
  assert.ok(response.structuredContent.result.review.error);assert.equal((await readSession(f.root,f.sessionId)).status,'closed');
- const ui=await knowledgeUi(req=>f.call(req.name,req.arguments));ui.render(response);assert.match(ui.html,/Knowledge review is unavailable/);
+ const ui=await knowledgeUi(req=>f.call(req.name,req.arguments));ui.render(response);assert.match(ui.html,/Session details are unavailable/);
 });
 
 test('remember artifacts belong to the active session without copying observations or durable records',async t=>{
@@ -139,8 +137,8 @@ test('remember artifacts belong to the active session without copying observatio
  assert.equal((await listKnowledge(f.root)).length,12);
  const ui=await knowledgeUi(req=>f.call(req.name,req.arguments));ui.render(close);
  assert.match(ui.html,/12<\/strong> Local Knowledge/);
- await ui.session('open');assert.match(ui.html,/Migration topic 11/);assert.match(ui.html,/State change/);
- await ui.session('knowledge',ids[0]);assert.match(ui.html,/Migration topic/);
+ assert.doesNotMatch(ui.html,/data-session-action|Review knowledge/);
+ assert.ok(view.knowledge.some(item=>item.title==='Migration topic 11'));assert.equal(view.items[0].type,'state_change');
  await fs.rm(path.join(f.root,'.prodero/.cache'),{recursive:true,force:true});
  assert.deepEqual((await reviewSessionKnowledge(f.root,started)).knowledge.map(i=>i.id).sort(),ids);
  await f.call(T.prepare);

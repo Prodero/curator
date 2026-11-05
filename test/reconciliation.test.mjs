@@ -33,9 +33,9 @@ for(const scenario of cases) test(`shared review and consolidation: ${scenario.n
  assert.equal(view.summary.needsReview,scenario.classification==='potential_conflict'?1:0);
  assert.equal((await listKnowledge(root))[0].status,'active','review never mutates');
  const ui=await knowledgeUi(()=>{});ui.render({structuredContent:{action:'session-review',result:view}});const html=ui.html;
- assert.match(html,new RegExp(reconciliationSignal(scenario.classification).detail));
- if(scenario.classification==='potential_conflict') assert.match(html,/session-review-notice session-review-warning/);
- else {assert.doesNotMatch(html,/session-review-notice session-review-warning|needs-review/);assert.doesNotMatch(html,/Possible conflict|Potential conflict/);}
+ assert.match(html,/Original records and saved work are retained/);
+ assert.doesNotMatch(html,/data-session-action|session-review-warning|Review session knowledge/);
+ assert.equal(view.items[0].signals[0].kind,scenario.classification);
  const result=await syncProject(root,{provider});
  assert.equal(result.conflicts,scenario.classification==='potential_conflict'?1:0);
  const items=await listKnowledge(root);

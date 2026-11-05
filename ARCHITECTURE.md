@@ -1,5 +1,13 @@
 # Prodero Architecture
 
+## 0.3.0 development: quiet session maintenance
+
+Ordinary Open/Prepare/Close and visual/CLI navigation no longer expose a memory moderation queue. Existing deterministic synchronization owns snapshot recovery, conservative consolidation, provenance and transactional checkpoints. Legacy curation APIs retain their low-level source/approval contracts for technical compatibility; persisted questions/candidates are not accepted, dismissed or deleted by UI removal.
+
+Prepare can offer the current host agent one bounded `prodero_session_reconcile_prepare` / `prodero_session_reconcile_propose` task. Its immutable job binds the active prepared session, latest native task/scope fingerprint, authorized retrieval or task-dispute evidence and canonical revisions. Source prose is untrusted evidence, never authority. Complete semantic coverage and existing lifecycle transactions permit only justified eligible Local inferred State/Lesson changes. Protected/shared/rule changes, metadata loss, unsupported scope changes and unresolved intent preserve originals. Supersession additionally needs an existing replacement edge and matching boundaries. Exact retry reuses the receipt; invalid reasoning consumes the attempt; confirmed changes refresh the original task context once.
+
+There is no additional model provider or credential. Real save/storage/recovery errors and current-task Required blockers remain visible. Optional planning signals and pending housekeeping do not create user decisions. Explicit selected Knowledge sharing/editing and migrations retain their own exact approvals. The general chat renderer style remains separate from this behavior change.
+
 ## Primary experience
 
 Users interact with Prodero primarily through their coding agent.
@@ -296,3 +304,7 @@ Only potential_conflict uses warning styling. State transitions say “Knowledge
 ## Migration Foundation
 
 Project structure and canonical knowledge have independent versions under `.prodero/config.json`. The existing Core migration engine owns ordered planning, approval-bound execution, staging, backup integrity, shared locking, rollback and diagnostic history. Open, Prepare, MCP/text and CLI consume that engine. See [Migration Foundation](docs/MIGRATIONS.md) for version transitions and lifecycle boundaries.
+
+## Chat text boundary — 0.3.0 development
+
+`src/chat-text.ts` renders native Markdown from the existing ViewModel/conversation projection, without I/O, capability guessing or business mutations. `renderText` selects that chat route by default; `renderTerminalText` and explicit MCP `plain:true` retain the existing width-bounded terminal route in `src/text-layout.ts`. CLI migration calls the terminal route explicitly. The MCP gateway and invisible-App fallback share the Markdown output while App negotiation/actions remain unchanged. Chat returns named actions and exact knowledge bindings; numbered aliases are supplied only with the explicitly displayed terminal fallback. Exact review/source/code bodies and diagnostics retain literal preservation; no interface is fenced. Missing counts, Required blockers, deferred saving and errors remain factual. The runtime guide, not a duplicate global launcher policy, owns the relay/translation contract.

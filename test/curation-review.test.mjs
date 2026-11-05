@@ -9,7 +9,7 @@ import {initializeProject} from '../dist/core/project.js';
 import {writeKnowledge,listKnowledge,renderKnowledge} from '../dist/core/memory.js';
 import {listCheckpoints,checkedDataPath,writeFileAtomic,sha256} from '../dist/core/storage.js';
 import {withSyncLock} from '../dist/core/sync-transaction.js';
-import {createCurationReview,loadCurationReview,stageCurationDecisions,selectedCurationProposals,REVIEW_RETENTION} from '../dist/core/curation-review.js';
+import {createCurationReview,loadCurationReview,stageCurationDecisions,controlCurationReview,selectedCurationProposals,REVIEW_RETENTION} from '../dist/core/curation-review.js';
 import {executeCurationReview} from '../dist/curation-review-adapter.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
@@ -113,57 +113,42 @@ test('MCP restart reloads review; app-only metadata and legacy/text mutation pat
 // Execute the production App handlers against the actual MCP server, without
 // treating this transport test as proof of a graphical host's visibility policy.
 import {lifecycleUi} from './helpers/lifecycle-ui.mjs';
+const initialPayload=review=>({root:review.snapshot.plan.project,review,plan:review.snapshot.plan});
 async function appFixture(t,items){
  const root=await fixture(t,items),client=await mcp(t,root),calls=[];
  const ui=await lifecycleUi({callServerTool:async call=>{calls.push(call);return client.callTool(call);}});
  const initial=(await client.callTool({name:PRODERO_TOOLS.curation,arguments:{projectRoot:root,action:'plan'}})).structuredContent;
  ui.render(initial);return {root,client,ui,calls,initial};
 }
-test('production App renders, stages, previews and reloads without mutation; final Apply alone writes',async t=>{
- const {root,ui,calls,initial}=await appFixture(t),before=await knowledgeBytes(root);
- ui.render(initial);assert.equal(calls.length,0);assert.match(ui.html,/Review knowledge/);
- await ui.clickAsync('review-create');assert.match(ui.html,/Review ready/);assert.match(ui.html,/View all changes/);
- await ui.clickAsync('review-all');assert.match(ui.html,/Knowledge 1 of 1/);assert.match(ui.html,/Current · Keep current/);
- await ui.clickAsync('review-suggested');assert.match(ui.html,/Review ready/);assert.match(ui.html,/Apply 1 change/);
- await ui.clickAsync('review-preview');assert.match(ui.html,/Estimated context impact/);
- await ui.clickAsync('review-reload');assert.equal(await knowledgeBytes(root),before);assert.ok(calls.every(c=>c.name!==PRODERO_TOOLS.curationApply));
- await ui.clickAsync('review-apply');assert.match(ui.html,/Knowledge updated/);assert.notEqual(await knowledgeBytes(root),before);
- const apply=calls.filter(c=>c.name===PRODERO_TOOLS.curationApply);assert.equal(apply.length,1);assert.ok(!('approved' in apply[0].arguments));
- const replay=await (await mcp(t,root)).callTool(apply[0]);assert.equal(replay.structuredContent.result.replayed,true);
+test('retired App never stages or applies; exact explicit MCP review still preserves history and replay',async t=>{
+ const {root,ui,calls,initial,client}=await appFixture(t),before=await knowledgeBytes(root);
+ ui.render(initial);assert.deepEqual(calls,[]);assert.match(ui.html,/Original records and saved work are retained/);assert.doesNotMatch(ui.html,/data-review|<button/);
+ let r=(await client.callTool({name:PRODERO_TOOLS.curationReview,arguments:{action:'create'}})).structuredContent.review;
+ r=(await client.callTool({name:PRODERO_TOOLS.curationReview,arguments:{action:'decide',...identity(r),decisions:{[r.snapshot.units[0].id]:'suggested'}}})).structuredContent.review;
+ const restored=(await client.callTool({name:PRODERO_TOOLS.curationReview,arguments:{action:'inspect',reviewId:r.snapshot.reviewId}})).structuredContent.review;assert.deepEqual(restored,r);assert.equal(await knowledgeBytes(root),before);
+ const apply={name:PRODERO_TOOLS.curationApply,arguments:request(r)};assert.ok(!('approved' in apply.arguments));const result=await client.callTool(apply);assert.notEqual(result.isError,true,JSON.stringify(result));assert.equal(result.structuredContent.action,'curation-applied');assert.notEqual(await knowledgeBytes(root),before);
+ const replay=await (await mcp(t,root)).callTool(apply);assert.equal(replay.structuredContent.result.replayed,true);assert.deepEqual(calls,[]);
 });
-test('production review cards allow backtracking and changes; bulk staging preserves Current and Later',async t=>{
- const {root,ui,calls}=await appFixture(t,[item('a'),item('b','Decision:\nOrbitUI tests must preserve isolation.'),item('c','Decision:\nCedarAPI tests must preserve dry runs.')]);
- const before=await knowledgeBytes(root);await ui.clickAsync('review-create');await ui.clickAsync('review-all');
- await ui.clickAsync('review-current');assert.match(ui.html,/Knowledge 2 of 3/);
- await ui.clickAsync('review-previous');assert.match(ui.html,/Knowledge 1 of 3/);
- await ui.clickAsync('review-suggested');await ui.clickAsync('review-deferred');await ui.clickAsync('review-current');
- const latest=calls.filter(c=>c.arguments.action==='decide').at(-1),r=await loadCurationReview(root,latest.arguments.reviewId);
+test('explicit staged choices support backtracking and persist Current and Later across MCP reload',async t=>{
+ const {root,ui,calls}=await appFixture(t,[item('a'),item('b','Decision:\nOrbitUI tests must preserve isolation.'),item('c','Decision:\nCedarAPI tests must preserve dry runs.')]),before=await knowledgeBytes(root);
+ let r=await createCurationReview(root),units=r.snapshot.units;
+ r=await choose(root,r,'current',[units[0]]);r=await choose(root,r,'suggested',[units[0]]);r=await choose(root,r,'deferred',[units[1]]);r=await choose(root,r,'current',[units[2]]);
  assert.deepEqual(Object.values(r.state.decisions).sort(),['current','deferred','suggested']);
- // Reopen resets the presentation while retaining server decisions.
- const client=await mcp(t,root);
- const other=await lifecycleUi({callServerTool:call=>client.callTool(call)});
- other.render((await client.callTool({name:PRODERO_TOOLS.curation,arguments:{projectRoot:root,action:'plan'}})).structuredContent);
- await other.clickAsync('review-all');await other.clickAsync('review-summary');const saved=await loadCurationReview(root,r.snapshot.reviewId);
- assert.deepEqual(saved.state.decisions,r.state.decisions);assert.equal(await knowledgeBytes(root),before);
+ const client=await mcp(t,root),saved=(await client.callTool({name:PRODERO_TOOLS.curationReview,arguments:{action:'inspect',reviewId:r.snapshot.reviewId}})).structuredContent.review;
+ assert.deepEqual(saved.state.decisions,r.state.decisions);ui.render({...initialPayload(saved),action:'curation'});assert.doesNotMatch(ui.html,/data-review|<button/);assert.deepEqual(calls,[]);assert.equal(await knowledgeBytes(root),before);
 });
-test('production App groups merges, disables unresolved Suggested and surfaces stale review',async t=>{
- const {root,ui,calls}=await appFixture(t,[item('a'),item('b')]);
- await ui.clickAsync('review-create');await ui.clickAsync('review-all');assert.match(ui.html,/2 linked knowledge items reviewed together/);
- await ui.clickAsync('review-suggested');await writeKnowledge(root,item('new','Decision:\nOrbitUI tests must preserve isolation.'));
- const before=await knowledgeBytes(root);await ui.clickAsync('review-apply');assert.match(ui.html,/Knowledge changed since this review/);assert.match(ui.html,/Review updated changes/);assert.equal(await knowledgeBytes(root),before);
- await ui.clickAsync('review-create');assert.ok(!/Knowledge changed since this review/.test(ui.html));
- const unresolved=await appFixture(t,[item('bad','Decision:\nSynthetic runner currently fails by design.')]);
- await unresolved.ui.clickAsync('review-create');await unresolved.ui.clickAsync('review-all');assert.doesNotMatch(unresolved.ui.html,/data-review="suggested"/);
- const count=unresolved.calls.length;await unresolved.ui.key('ArrowRight');assert.equal(unresolved.calls.length,count);
- await unresolved.ui.clickAsync('review-deferred');assert.doesNotMatch(unresolved.ui.html,/data-review="apply"/);
+test('technical merge selection is atomic, unresolved suggestions reject, and stale executor writes nothing',async t=>{
+ const {root,ui,calls}=await appFixture(t,[item('a'),item('b')]);let r=await ready(root);assert.equal(r.snapshot.units.length,1);assert.equal(r.snapshot.units[0].proposalIds.length,2);
+ await writeKnowledge(root,item('new','Decision:\nOrbitUI tests must preserve isolation.'));const before=await knowledgeBytes(root);await assert.rejects(executeCurationReview(root,request(r)),e=>e.code==='stale_review');assert.equal(await knowledgeBytes(root),before);
+ r=await createCurationReview(root);ui.render({...initialPayload(r),action:'curation'});assert.doesNotMatch(ui.html,/data-review|<button/);assert.deepEqual(calls,[]);
+ const unresolved=await appFixture(t,[item('bad','Decision:\nSynthetic runner currently fails by design.')]),bad=await createCurationReview(unresolved.root);assert.equal(bad.snapshot.units[0].applicable,false);
+ await assert.rejects(choose(unresolved.root,bad,'suggested',bad.snapshot.units),e=>e.code==='invalid_selection');const count=unresolved.calls.length;await unresolved.ui.key('ArrowRight');assert.equal(unresolved.calls.length,count);
+ const deferred=await choose(unresolved.root,bad,'deferred',bad.snapshot.units);assert.deepEqual(selectedCurationProposals(deferred),[]);
 });
-test('keyboard navigation stages semantic choices but has no apply shortcut',async t=>{
- const {root,ui,calls}=await appFixture(t,[item('a'),item('b','Decision:\nOrbitUI tests must preserve isolation.')]);const before=await knowledgeBytes(root);
- await ui.clickAsync('review-create');await ui.clickAsync('review-all');
- await ui.key('ArrowLeft');assert.match(ui.html,/Knowledge 2 of 2/);
- await ui.key('Backspace');assert.match(ui.html,/Knowledge 1 of 2/);
- await ui.key('ArrowRight');await ui.key('l');assert.match(ui.html,/Review ready/);
- await ui.key('Enter');assert.ok(calls.every(c=>c.name!==PRODERO_TOOLS.curationApply));assert.equal(await knowledgeBytes(root),before);
+test('retired moderator has no keyboard mutation, answer or Apply shortcuts',async t=>{
+ const {root,ui,calls}=await appFixture(t,[item('a'),item('b','Decision:\nOrbitUI tests must preserve isolation.')]),before=await knowledgeBytes(root);
+ for(const key of ['ArrowLeft','Backspace','ArrowRight','l','Enter'])await ui.key(key);
+ assert.deepEqual(calls,[]);assert.doesNotMatch(ui.html,/data-review|<button/);assert.equal(await knowledgeBytes(root),before);
 });
 
 test('non-App connections cannot stage or apply even if a host ignores tool visibility',async t=>{
@@ -183,9 +168,10 @@ test('structured review errors retain their code without reflecting unsafe diagn
  const response=await client.callTool({name:'fixture',arguments:{}});assert.equal(response.isError,true);assert.equal(response.structuredContent.code,'stale_review');assert.ok(!JSON.stringify(response).includes('PRIVATE_REJECTED_INPUT'));
 });
 
-test('production App partial result and Pause control target successor and preserve deferred attention',async t=>{
- const {root,ui,calls}=await appFixture(t,[item('a'),item('conflict','Decision:\nOrbitUI must rotate puzzle tiles by a quarter turn.'),item('policy','Never rotate puzzle tiles; preserve the initial orientation.')]);
- await ui.clickAsync('review-create');await ui.clickAsync('review-all');await ui.clickAsync('review-filter:clarification');await ui.clickAsync('review-deferred');await ui.clickAsync('review-summary');assert.match(ui.html,/0 need your input/);assert.match(ui.html,/1 deferred questions/);assert.match(ui.html,/Apply 1 change/);
- await ui.clickAsync('review-apply');assert.match(ui.html,/Continue review/);assert.match(ui.html,/0 need your input/);await ui.clickAsync('review-pause');assert.match(ui.html,/Review paused/);
- const apply=calls.find(c=>c.name===PRODERO_TOOLS.curationApply),pause=calls.find(c=>c.arguments.action==='pause');assert.notEqual(pause.arguments.reviewId,apply.arguments.reviewId);const successor=await loadCurationReview(root,pause.arguments.reviewId);assert.equal(successor.snapshot.revision.parentRevisionId,apply.arguments.reviewRevisionId);assert.equal(successor.state.paused,true);
+test('technical partial apply creates a successor whose pause retains deferred uncertainty',async t=>{
+ const root=await fixture(t,[item('a'),item('conflict','Decision:\nOrbitUI must rotate puzzle tiles by a quarter turn.'),item('policy','Never rotate puzzle tiles; preserve the initial orientation.')]);
+ let r=await createCurationReview(root);const issue=r.snapshot.units.find(u=>u.attention);assert.ok(issue);r=await stageCurationDecisions(root,{...identity(r),decisions:{[issue.id]:'deferred'}});r=await choose(root,r,'suggested',r.snapshot.units.filter(u=>u.applicable));
+ const result=await executeCurationReview(root,request(r));assert.equal(result.appliedGroupCount,1);assert.equal(result.projection.needsInputNow,0);assert.equal(result.projection.deferredQuestions,1);assert.ok(result.successor);
+ const successor=await controlCurationReview(root,{...identity(result.successor),action:'pause'});assert.notEqual(successor.snapshot.reviewId,r.snapshot.reviewId);assert.equal(successor.snapshot.revision.parentRevisionId,r.snapshot.revision.id);assert.equal(successor.state.paused,true);
+ const persisted=await loadCurationReview(root,successor.snapshot.reviewId);assert.equal(persisted.state.paused,true);assert.equal(Object.values(persisted.state.items).some(i=>i.issue?.state==='deferred'),true);
 });

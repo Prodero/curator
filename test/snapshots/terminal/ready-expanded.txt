@@ -1,0 +1,57 @@
+```text
+╭─ >_ PRODERO ──────────────────── /03
+│ Curator · project memory
+│
+├─ Context Ready ─────────────────────
+│ Task: Fix CLI update flow
+│ Ready · continuing the task
+│
+├─ PROVIDED TO AGENT ─────────────────
+│ 1 required · 1 relevant · 1 skill
+│ Session  active
+│
+├─ PRODERO CONTEXT ───────────────────
+│ ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱ 72%
+│ 4,320 / 6,000 est. tokens
+│ Task · Prodero allocation only.
+├─ Required instructions ─────────────
+│ CLI update boundary
+├─ Relevant knowledge ────────────────
+│ Version verification
+├─ Skills ────────────────────────────
+│ CLI regression checks
+╰─────────────────────────────────────
+```
+
+```text
+Required instructions:
+CLI update boundary
+Updates run in a terminal.
+ID: required
+Revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+local · state · normal · global · active
+```
+
+```text
+Relevant knowledge:
+Version verification
+Check the version after updating.
+ID: relevant
+Revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+local · state · normal · global · active
+```
+
+```text
+Skills:
+CLI regression checks
+Verify cancel, confirm and exact version results.
+ID: cli_checks
+```
+
+```text
+Available actions:
+
+  1 > Show project knowledge
+
+Reply with a number or the command name.
+```

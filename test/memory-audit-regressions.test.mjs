@@ -63,6 +63,6 @@ test('incomplete provenance remains a compatibility count, with truthful human e
  const project={name:'Fixture',root:'/fixture',initialized:true,git:true,agentsFile:true,knowledgeCount:3,localKnowledgeCount:3,versionedKnowledgeCount:0,skillCount:0,sessionCount:0,checkpointCount:0,pendingSessionCount:0,conflictCount:0,memoryHealth:health,knowledgeGraph:{brokenReferences:0}};
  const expanded=renderText(buildViewModel({action:'status-details',project}),true,true);
  assert.match(expanded.replace(/\n│ ?/g,' '),/incomplete provenance/);assert.match(expanded,/not proof of lost history/);
- const cli=renderProjectStatus({version:'0.1.0',scope:'project',project,update:{status:'current',current:'0.1.0'}});assert.match(cli,/Provenance: 2 current records with incomplete metadata/);assert.match(cli,/not proof of lost history/);
+ const cli=renderProjectStatus({version:'0.1.0',scope:'project',project,update:{status:'current',current:'0.1.0'}});assert.doesNotMatch(cli,/Provenance:|Needs attention:|sharing suggestions/);assert.equal(project.memoryHealth.missingProvenanceItems,2);
  assert.deepEqual(memoryHealth(records),health);assert.deepEqual(records,before);
 });

@@ -1,5 +1,6 @@
-/** Chat-native, I/O-free text layout. Core and shared action projections own state. */
+/** Terminal-compatible, I/O-free layout. Chat uses chat-text.ts instead. */
 import type { ProderoViewModel, ViewItem } from './presentation.js';
+import { renderChatText } from './chat-text.js';
 import { numberedActions } from './conversation-presentation.js';
 
 export interface TextScene {
@@ -7,7 +8,7 @@ export interface TextScene {
   project?: string;
   task?: string;
   budget?: { used: number; total: number; source: 'Bootstrap' | 'Task'; estimated: true };
-  home?: { initialized?: boolean; records?: number; local?: number; versioned?: number; deferred?: number; pending?: number };
+  home?: { initialized?: boolean; records?: number; local?: number; versioned?: number; loadedInstructions?: number; deferred?: number; pending?: number };
 }
 const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
 const graphemes = (s: string) => Array.from(segmenter.segment(s), x => x.segment);
@@ -61,7 +62,7 @@ export function budgetLines(b: NonNullable<TextScene['budget']>): string[] {
 export function renderProductText(vm: ProderoViewModel, diagnostics = false, expanded = diagnostics, plain = false): string {
   const scene = vm.textScene, action = scene?.action, v = vm.conversation;
   const width = 38, prefix = plain ? '| ' : '│ ', rule = plain ? '-' : '─';
-  const screens: Record<string,string> = {open:'01',status:'01','status-details':'01',initialized:'01',knowledge:'02','knowledge-mutated':'02',prepare:'03',context:'03','memory-sync':'04','curation-question':'04',curation:'05','instruction-review':'06','instruction-optimize':'06','promotion-preview':'07','promotion-applied':'07','session-close':'08','session-review':'08','config-get':'09','update-instructions':'10',migration:'10',error:'00'};
+  const screens: Record<string,string> = {open:'01',status:'01','status-details':'01',initialized:'01',knowledge:'02','knowledge-mutated':'02',prepare:'03',context:'03',maintenance:'04','instruction-review':'06','instruction-optimize':'06','promotion-preview':'07','promotion-applied':'07','session-close':'08','config-get':'09','update-instructions':'10',migration:'10',error:'00'};
   const screen = vm.knowledgeTable ? '02' : screens[action ?? ''] ?? '00';
   const head = `${plain ? '+-' : '╭─'} >_ PRODERO `;
   const lines = [head + rule.repeat(width - textWidth(head) - 4) + ` /${screen}`];
@@ -109,13 +110,8 @@ export function renderProductText(vm: ProderoViewModel, diagnostics = false, exp
       line(); section('MEMORY');
       if (h.records !== undefined) line(`${number(h.records)} records`);
       if (h.local !== undefined && h.versioned !== undefined) line(`${number(h.local)} local · ${number(h.versioned)} versioned`);
-      line(); section('ATTENTION');
-      if (h.deferred !== undefined) line(`? ${h.deferred} deferred questions`);
-      if (h.pending !== undefined) line(`Δ ${h.pending} unapplied change groups`);
-      (v?.attention ?? []).forEach(x => line(x));
-      if (!v?.attention.length && h.deferred === undefined && h.pending === undefined) line(action === 'status' && h.records === undefined ? 'Lightweight status; counts not loaded.' : 'No attention needed.');
-      // Session activity is real data, not evidence of a background agent.
-      v?.facts.filter(x => x.startsWith('Session')).forEach(x => line(x));
+      if (v?.attention.length) { line(); section('ATTENTION'); v.attention.forEach(x => line(x)); }
+      else { line(); line(action === 'status' && h.records === undefined ? 'Lightweight status; counts not loaded.' : 'Ready'); }
     } else {
       section(v?.state ?? title); (v?.facts ?? vm.notices).forEach(x => line(x));
       v?.attention.forEach(x => line(x));
@@ -154,11 +150,7 @@ export function renderProductText(vm: ProderoViewModel, diagnostics = false, exp
     if (t.rows.length) { line(); line('Enter a letter to open its record.'); }
     if (expanded) verbatim('Knowledge', vm.sections.find(s => s.title === 'Knowledge')?.items ?? []);
   } else {
-    if (action === 'memory-sync') {
-      section('CURATE MEMORY');
-      const state = full ? title.replace(/^Curate Memory · /,'') : v?.state ?? title;
-      if (state !== 'Curate Memory') line(state);
-    } else section(action === 'session-close' ? 'Session closed' : v?.kind !== 'details' && !full ? v?.state ?? title : title);
+    section(action === 'session-close' ? 'Session closed' : v?.kind !== 'details' && !full ? v?.state ?? title : title);
     if (action === 'session-close') line(v?.state ?? 'Check saved state');
     if (full && v?.reviewRequired) line('Review required · not approval.');
     if (!full && v?.kind !== 'details') {
@@ -188,15 +180,15 @@ export function renderProductText(vm: ProderoViewModel, diagnostics = false, exp
   }
   // Keep the service separator outside the record and its metadata.
   if (vm.sections.some(s => s.title === 'Knowledge detail')) bodies.push('-------------\n' + vm.notices.join('\n'));
-  if (diagnostics || action === 'curation' || full && action === 'migration') for (const s of vm.diagnostics ?? []) verbatim(s.title, s.items);
+  if (diagnostics || full && action === 'migration') for (const s of vm.diagnostics ?? []) verbatim(s.title, s.items);
   const panel = textFence(lines.join('\n'));
   const exact = bodies.map(textFence);
-  const approval = full && actions.some(a=>a.approval) && (action === 'memory-sync' || action === 'migration')
-    ? action === 'memory-sync' ? 'Approve these exact changes?' : `${actions.find(a=>a.approval)!.label}?` : '';
+  const approval = full && actions.some(a=>a.approval) && action === 'migration' ? `${actions.find(a=>a.approval)!.label}?` : '';
   return [panel, ...exact, menu.length ? textFence(menu.join('\n').replace(/^\n/, '').trimEnd()) : '', approval].filter(Boolean).join('\n\n');
 }
 
 /** Public sanitized errors have no executable retry/apply action. */
 export function renderTextError(message: string, plain = false): string {
-  return renderProductText({version:1,title:'Prodero · Error',metrics:[],notices:[message],sections:[],actions:[],textScene:{action:'error'}}, false, true, plain);
+  const vm:ProderoViewModel={version:1,title:'Prodero · Error',metrics:[],notices:[message],sections:[],actions:[],textScene:{action:'error'}};
+  return plain ? renderProductText(vm,false,true,true) : renderChatText(vm,false,true);
 }

@@ -8,7 +8,7 @@ import type { ContextSelectionSignal } from './types.js';
 import type { ReconciliationCategory } from './intelligence.js';
 export const MEMORY_PRESSURE_LIMITS = { sessions: 32, syncs: 32, records: 128, relationships: 128, bytes: 1048576 } as const;
 export const MEMORY_PRESSURE_PATH = 'local/memory-pressure.json';
-const reasons = ['selected', 'marginal-value', 'context-budget', 'required-budget', 'item-limit', 'rank-window', 'inactive', 'superseded', 'scope-mismatch', 'no-match'] as const;
+const reasons = ['selected', 'task-dispute', 'marginal-value', 'context-budget', 'required-budget', 'item-limit', 'rank-window', 'inactive', 'superseded', 'scope-mismatch', 'no-match'] as const;
 export type RetrievalReason = typeof reasons[number];
 const count = z.number().finite().nonnegative();
 const id = z.string().max(256);
@@ -26,11 +26,20 @@ export type RetrievalRecord = z.infer<typeof selectionSchema>;
 const totalsSchema = z.object({ records: count, tokens: count }).strict();
 const retrievalSchema = z.object({
     queryHash: z.string().regex(/^[a-f0-9]{64}$/), purpose: z.string().max(16),
+    taskContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     budgets: z.object({ contextBudgetTokens: count, requiredContextBudgetTokens: count, maxRequiredItems: count, maxContextItems: count }).strict(),
-    totals: z.record(z.enum(reasons), totalsSchema), requiredTruncated: z.boolean(), requiredOmitted: count,
+    totals: z.partialRecord(z.enum(reasons), totalsSchema), requiredTruncated: z.boolean(), requiredOmitted: count,
     records: z.array(selectionSchema).max(MEMORY_PRESSURE_LIMITS.records), detailsDropped: count,
 }).strict();
 export type RetrievalEvidence = z.infer<typeof retrievalSchema>;
+/** Bind optional retrieval telemetry to the actual latest native task scope. */
+export function retrievalTaskContextHash(taskContext:unknown):string {
+    const value=(taskContext&&typeof taskContext==='object'?taskContext:{}) as Record<string,unknown>;
+    const dimensions=(key:string)=>Array.isArray(value[key])?[...new Set(value[key])].sort():[];
+    // Signal provenance is diagnostic; replaying the same normalized scope can
+    // legitimately change 'task-text' to 'argument' without changing authority.
+    return sha256(JSON.stringify({taskText:value.taskText??'',paths:dimensions('paths'),subsystems:dimensions('subsystems'),taskKinds:dimensions('taskKinds'),documentationOnly:value.documentationOnly??false}));
+}
 /** Called at existing selection/filter branches; never evaluates relevance itself. */
 export class RetrievalEvidenceCollector {
     private samples: Record<string, RetrievalRecord[]> = {};
@@ -47,8 +56,10 @@ export class RetrievalEvidenceCollector {
             sample.push({ ...pressureRecord(item), bucket, reason, score, rankScore, signals: signals.slice(0, 12).map(({ kind, score }) => ({ kind, score })) });
     }
     finish(query: string, purpose: string, budgets: RetrievalEvidence['budgets']): RetrievalEvidence {
-        // Retain selected and budget-pressure details before lower-ranked/filter samples.
-        const records = ['selected', 'required-budget', 'context-budget', 'item-limit', 'marginal-value', 'rank-window', 'scope-mismatch', 'inactive', 'superseded', 'no-match'].flatMap(r => this.samples[r] ?? []).slice(0, MEMORY_PRESSURE_LIMITS.records);
+        // Task-bound dispute diagnostics are read-only evidence, never selected
+        // context or a license to activate disputed knowledge. Keep their small
+        // bounded set before ordinary samples so real conflicts reach the agent.
+        const records = ['task-dispute', 'selected', 'required-budget', 'context-budget', 'item-limit', 'marginal-value', 'rank-window', 'scope-mismatch', 'inactive', 'superseded', 'no-match'].flatMap(r => this.samples[r] ?? []).slice(0, MEMORY_PRESSURE_LIMITS.records);
         return { queryHash: sha256(query.trim()), purpose, budgets, totals: this.totals, requiredTruncated: this.requiredOmitted > 0, requiredOmitted: this.requiredOmitted, records, detailsDropped: Object.values(this.totals).reduce((n, t) => n + (t?.records ?? 0), 0) - records.length };
     }
 }
@@ -57,7 +68,7 @@ const relationshipSchema = z.object({ source: id, target: recordSchema, classifi
 const syncSchema = z.object({ checkpoint: id, sessionIds: z.array(id).max(128), sessionIdsDropped: count,
     changes: z.array(recordSchema.extend({ actions: z.array(z.enum(['created', 'updated', 'merged', 'superseded'])).max(4) }).strict()).max(MEMORY_PRESSURE_LIMITS.records),
     totals: z.object({ created: count, updated: count, merged: count, superseded: count }).strict(), changesDropped: count,
-    reconciliation: z.array(relationshipSchema).max(MEMORY_PRESSURE_LIMITS.relationships), classifications: z.record(z.enum(categories), count), relationshipsDropped: count,
+    reconciliation: z.array(relationshipSchema).max(MEMORY_PRESSURE_LIMITS.relationships), classifications: z.partialRecord(z.enum(categories), count), relationshipsDropped: count,
 }).strict();
 export type SyncPressureEvidence = z.infer<typeof syncSchema>;
 export type SyncPressureDraft = Omit<SyncPressureEvidence, 'checkpoint' | 'sessionIds' | 'sessionIdsDropped'>;

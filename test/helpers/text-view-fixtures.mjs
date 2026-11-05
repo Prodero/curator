@@ -19,5 +19,9 @@ export function textViewFixtures(){
   deferred:{action:'memory-sync',result:deferred},
   retry:{action:'memory-sync',result:{...workflow,state:'completed',clarification:undefined,jobs:[{...workflow.jobs[0],status:'failed',error:'Analysis input expired. Inspect before retrying.'}],summary:{areasFailed:1}}},
   recovery:{action:'memory-sync',result:{...workflow,state:'applying',clarification:undefined}},
+  closed:{ok:true,action:'session-close',result:{session:{id:'fixture-session',status:'closed'},learned:{observations:2,rawSessionTokens:80,syncState:'synchronized'}}},
+  'closed-zero':{ok:true,action:'session-close',result:{session:{id:'fixture-session',status:'closed'},learned:{observations:0,rawSessionTokens:0,syncState:'synchronized'}}},
+  'closed-deferred':{ok:true,action:'session-close',result:{session:{id:'fixture-session',status:'closed'},learned:{observations:1,rawSessionTokens:40,syncState:'pending-auto-sync'}}},
+  'closed-diagnostic':{ok:true,action:'session-close',result:{session:{id:'fixture-session',status:'closed'},learned:{observations:2,rawSessionTokens:80,syncState:'synchronized'},review:{error:'Knowledge changed after context selection; retry'}}},
  };
 }

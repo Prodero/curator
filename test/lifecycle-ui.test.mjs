@@ -48,12 +48,13 @@ test('Status groups current Local and Shared counts; technical statistics are se
   assert.equal((html.match(/<div class="metric">/g) ?? []).length, 4);
 });
 
-test('Status uses planner conflict evidence, not structural age warnings, and offers sharing review', async () => {
+test('Status preserves planner data outside the normal UI without moderation suggestions', async () => {
   const ui = await lifecycleUi();
-  const html = ui.render(status({promotionRecommendedCount:3,localKnowledgeCount:3,conflictCount:4,memoryOverview:{available:true,sessions:2,areas:[{id:'a',label:'Driving',recordCount:2,layers:{local:1,versioned:1},signals:['potential_conflict']}],workflow:null}}));
-  assert.match(html,/3 Local memories available for sharing review/);
-  assert.match(html,/1 area needs review/);
-  assert.doesNotMatch(html,/Review Promotion|Possible conflict or state transition/);
+  const payload=status({promotionRecommendedCount:3,localKnowledgeCount:3,conflictCount:4,memoryOverview:{available:true,sessions:2,areas:[{id:'a',label:'Driving',recordCount:2,layers:{local:1,versioned:1},signals:['potential_conflict']}],workflow:null}});
+  const before=JSON.stringify(payload),html=ui.render(payload);
+  assert.doesNotMatch(html,/Driving/);assert.equal(JSON.stringify(payload),before);
+  assert.doesNotMatch(html.split('<details')[0],/available for sharing review|area needs review|Memory areas to review/);
+  assert.doesNotMatch(html,/Review Promotion|Possible conflict or state transition|data-action="sync"|Review cleanup/);
 });
 
 test('Context Ready uses product labels, local disclosure and unchanged MCP telemetry', async (t) => {
@@ -149,14 +150,15 @@ test('synchronized outcomes expose real counts, compression, expansion and confl
   const before = JSON.stringify(payload);
   const html = ui.render(payload);
   for (const label of ['Memory compression', '66%', '620', '1.82K', '+2 Added', '~3 Merged']) assert.ok(html.includes(label), label);
-  assert.doesNotMatch(html, /Duplicates collapsed|Superseded|Conflicts|Pending sync|Memory result|Observations/);
+  assert.doesNotMatch(html.split('<details')[0], /Duplicates collapsed|Superseded|Conflicts|Pending sync|Memory result|Observations/);
   assert.equal(JSON.stringify(payload), before);
   const expanded = ui.render(synchronized(2000, { duplicates: 2, knowledgeSuperseded: 1, conflicts: 3 }));
   assert.match(expanded, /Canonical expansion/);
   assert.match(expanded, /\+9\.9%/);
   assert.doesNotMatch(expanded, /Memory compression|-[\d.]+%/);
-  for (const label of ['2 Duplicates collapsed', '1 Superseded', '3 Conflicts']) assert.ok(expanded.includes(label), label);
-  assert.match(expanded, /class="sync-conflicts"/);
+  for (const label of ['2 Duplicates collapsed', '1 Superseded']) assert.ok(expanded.includes(label), label);
+  assert.match(expanded, /&quot;conflicts&quot;: 3/);
+  assert.doesNotMatch(expanded.split('<details')[0], /3 Conflicts|class="sync-conflicts"/);
   assert.match(ui.render(synchronized(1820)), /Unchanged/);
   const unavailable = synchronized(620);
   unavailable.result.learned.synchronization.memoryCompression = { kind: 'unavailable', ratio: null };
@@ -183,13 +185,14 @@ test('context disclosure labels retrieval scores after reasons and explains satu
   assert.equal(JSON.stringify(payload), before);
 });
 
-test('assisted audit remains a compact product result and unresolved conflicts stay visible', async () => {
+test('assisted audit diagnostics retain uncertainty without a moderation prompt', async () => {
   const ui = await lifecycleUi();
   const payload = synchronized(620, { knowledgeCreated: 2, knowledgeConsolidated: 3, conflicts: 1, intelligence: { audit: { triggered: true, status: 'attention' } } });
-  assert.match(ui.render(payload), /Attention · Review affected knowledge/);
-  assert.match(ui.render(payload), /1 Conflicts/);
+  assert.match(ui.render(payload), /&quot;status&quot;: &quot;attention&quot;/);
+  assert.match(ui.render(payload), /&quot;conflicts&quot;: 1/);
+  assert.doesNotMatch(ui.render(payload).split('<details')[0], /Attention · Review affected knowledge|1 Conflicts/);
   payload.result.learned.synchronization.intelligence.audit.status = 'coherent';
-  assert.match(ui.render(payload), /Audit · ✓ Coherent in the reviewed area/);
+  assert.match(ui.render(payload), /&quot;status&quot;: &quot;coherent&quot;/);
   assert.doesNotMatch(ui.render(payload), /DISTILL|RECONCILE|prompt|chain.of.thought/i);
 });
 

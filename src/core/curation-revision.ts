@@ -15,6 +15,8 @@ export interface DependencyGroup {
 }
 export interface DependencyManifest { version: 1; engine: 'structural-1'; groups: DependencyGroup[]; }
 export interface ReviewRevision {
+  /** An explicitly requested current-knowledge review; old approvals are not inherited. */
+  historyPolicy?: 'fresh-current';
   version: 1 | 2; id: string; lineageId: string; parentRevisionId: string | null;
   parentReviewId: string | null; reviewId: string; projectIdentity: string;
   baseline: string; sources: Array<{ id: string; revision: string }>;
@@ -68,6 +70,7 @@ export function selectionProblems(manifest: DependencyManifest, selectedIds: str
 export function sealRevision(body: Omit<ReviewRevision,'id'>): ReviewRevision { return {...body,id:`revision_${revisionHash(body)}`}; }
 export function validateRevision(revision: ReviewRevision) {
   assertSafeCurationData(revision);
+  if(revision.historyPolicy!==undefined&&revision.historyPolicy!=='fresh-current')throw new Error('Unsupported curation history policy');
   if(![1,2].includes(revision.version)||revision.typedPlan.plan.version!==1||revision.dependencies.version!==1||revision.dependencies.engine!=='structural-1')throw new Error('Unsupported curation revision validator');
   const {id,...body}=revision;
   if(id!==`revision_${revisionHash(body)}`)throw new Error('Curation revision integrity failed');

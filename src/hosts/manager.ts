@@ -8,7 +8,7 @@ import {PRODERO_VERSION} from '../core/constants.js';
 import {adapters,executable,block,replaceBlock,LAUNCHER,GLOBAL_START,GLOBAL_END,MCP_START,MCP_END,type HostAdapter,type Entry} from './adapters.js';
 import {IntegrationError,fail,read,transact,type Change} from './files.js';
 
-const legacyReceiptSchema=z.object({format:z.literal(1),host:z.enum(['codex','claude']),config:z.string(),launcherPath:z.string(),entry:z.object({command:z.string(),args:z.array(z.string()),type:z.string().optional(),env:z.record(z.string()).optional()}).strict(),launcher:z.string(),mcpBlock:z.string().nullable(),originalConfig:z.string().nullable(),originalLauncher:z.string().nullable(),installedConfig:z.string(),installedLauncher:z.string()}).strict();
+const legacyReceiptSchema=z.object({format:z.literal(1),host:z.enum(['codex','claude']),config:z.string(),launcherPath:z.string(),entry:z.object({command:z.string(),args:z.array(z.string()),type:z.string().optional(),env:z.record(z.string(), z.string()).optional()}).strict(),launcher:z.string(),mcpBlock:z.string().nullable(),originalConfig:z.string().nullable(),originalLauncher:z.string().nullable(),installedConfig:z.string(),installedLauncher:z.string()}).strict();
 const runtimeEntrySchema=legacyReceiptSchema.shape.entry;
 export const receiptSchema=z.union([
  legacyReceiptSchema,

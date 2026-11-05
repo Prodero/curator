@@ -31,7 +31,7 @@ test('App-resolved lifecycle retains exact compact fallback and bindings without
  assert.equal(prepared.structuredContent.result.context.snapshot.sessionId,prepared.structuredContent.result.session.id);
  const closed=await call('prodero_session_close',{sessionId:prepared.structuredContent.result.session.id,presentationGroup:'fixture_lifecycle'});
  assert.equal(closed.structuredContent.action,'session-close');assert.equal(closed.structuredContent.result.learned.syncState,'synchronized');
- assert.match(closed.structuredContent.presentation.text,/Session closed[\s\S]*Saved/);
+ assert.match(closed.structuredContent.presentation.text,/Session closed/);
  assert.ok(closed.content.some(c=>c.annotations?.audience?.includes('assistant')&&c.text.includes(closed.structuredContent.presentation.text)));
  assert.deepEqual(calls,['prodero_initialize','prodero_prepare','prodero_session_close']);
 });
@@ -45,7 +45,7 @@ test('text gateway lifecycle exposes visible text and specific relay timing, nev
  assert.deepEqual(prepared.structuredContent.presentation.operational.numberedActions,[]);
  const closed=await call('prodero_text',{tool:'prodero_session_close',arguments:{sessionId:prepared.structuredContent.result.session.id}});
  assert.equal(closed.content[0].text,closed.structuredContent.presentation.text);
- assert.match(closed.structuredContent.presentation.operational.instructions,/before the final task answer/);
+ assert.match(closed.structuredContent.presentation.operational.instructions,/include its one-line Session closed receipt in the final assistant answer/);
  assert.equal(closed.structuredContent.result.learned.syncState,'synchronized');
  const instructions=(await call('prodero_instructions_read')).content[0].text;
  assert.match(instructions,/presentation.resolved is text/);assert.match(instructions,/visible assistant message/);

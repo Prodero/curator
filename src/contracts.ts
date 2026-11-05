@@ -35,6 +35,8 @@ export const PRODERO_TOOLS = {
   promotionPreview: "prodero_promotion_preview",
   promote: "prodero_promote",
   sessionRecord: "prodero_session_record",
+  sessionReconcilePrepare: "prodero_session_reconcile_prepare",
+  sessionReconcilePropose: "prodero_session_reconcile_propose",
   sessionClose: "prodero_session_close",
   sessionReview: "prodero_session_review",
   sessionReviewMutate: "prodero_session_review_mutate",

@@ -30,18 +30,26 @@ const bind=(w,v=w.clarification)=>({workflowId:w.id,candidateId:w.jobs.find(j=>j
 const choice=(w,requestId='chat-answer')=>({...bind(w),action:'answer',questionId:w.clarification.graphical.questions[0].question.id,questionVersion:w.clarification.graphical.questions[0].question.version,choiceId:'yes',requestId});
 const result=r=>{assert.notEqual(r.isError,true,JSON.stringify(r));return r.structuredContent;};
 
-test('no-App discovery and both text menus expose callable exact Sync answer choices',async t=>{
+test('no-App technical discovery retains exact answer data without a moderator menu',async t=>{
  const f=await fixture(t),w=await questioned(f),c=await client(t,f.root),tools=(await c.listTools()).tools;
  assert.ok(tools.find(x=>x.name===T.curationQuestion));assert.equal(tools.find(x=>x.name===T.curationQuestion)._meta?.ui,undefined);assert.deepEqual(tools.find(x=>x.name===T.curationReview)._meta.ui.visibility,['app']);
- for(const details of [false,true]){const shown=result(await show(c,w,details));assert.match(shown.presentation.text,/Has queue v2 deployed/);const answer=shown.presentation.operational.numberedActions.find(a=>a.tool===T.curationQuestion&&a.arguments.choiceId==='yes');assert.ok(answer);assert.equal(answer.arguments.workflowId,w.id);assert.equal(answer.arguments.questionVersion,1);assert.equal(shown.presentation.operational.answerInputs[0].inputRequired,'rawText');assert.equal('rawText' in shown.presentation.operational.answerInputs[0].arguments,false);}
- const shown=result(await show(c,w)),answer=shown.presentation.operational.numberedActions.find(a=>a.arguments.choiceId==='yes'),saved=result(await throughText(c,answer.arguments));
+ for(const details of [false,true]) {
+  const shown=result(await show(c,w,details));assert.doesNotMatch(shown.presentation.text,/Has queue v2 deployed|Choose an answer|Available actions/);
+  assert.deepEqual(shown.presentation.operational.numberedActions,[]);assert.equal(shown.presentation.operational.answerInputs,undefined);
+  assert.deepEqual(shown.result.clarification,w.clarification);assert.equal(shown.result.clarification.graphical.questions[0].question.version,1);
+ }
+ const shown=result(await show(c,w)),saved=result(await throughText(c,choice(shown.result)));
  assert.equal(saved.answerAcknowledgement.origin,'agent_relay');assert.equal(saved.answerAcknowledgement.saved,true);const answers=await curationAnswers(f.root,w.clarification.review.snapshot.revision.lineageId);assert.equal(answers.length,1);assert.equal(answers[0].origin,'agent_relay');assert.equal(answers[0].choice.meaning,'Queue v2 is deployed.');
 });
 
-test('no-App defer and deliberately emitted Revisit return to the same saved question',async t=>{
- const f=await fixture(t),w=await questioned(f),c=await client(t,f.root);const shown=result(await show(c,w)),later=shown.presentation.operational.numberedActions.find(a=>a.arguments.action==='question_later');assert.ok(later);result(await throughText(c,later.arguments));
- const deferred=result(await show(c,w)),revisit=deferred.presentation.operational.numberedActions.find(a=>a.arguments.action==='question_reopen');assert.ok(revisit);assert.equal(revisit.tool,T.curationQuestion);result(await throughText(c,revisit.arguments));
- const reopened=result(await show(c,w));assert.equal(reopened.result.state,'awaiting_clarification');assert.equal(reopened.result.clarification.graphical.questions[0].question.id,w.clarification.graphical.questions[0].question.id);
+test('no-App technical defer and exact Revisit preserve the same saved question without UI bindings',async t=>{
+ const f=await fixture(t),w=await questioned(f),c=await client(t,f.root),shown=result(await show(c,w)),technical=shown.result,q=technical.clarification.graphical.questions[0];
+ assert.deepEqual(shown.presentation.operational.numberedActions,[]);
+ result(await throughText(c,{...bind(technical),action:'question_later',questionId:q.question.id,questionVersion:q.question.version}));
+ const deferred=result(await show(c,w)),saved=deferred.result.deferredQuestions[0];assert.deepEqual(deferred.presentation.operational.numberedActions,[]);
+ assert.equal(saved.questionId,q.question.id);assert.equal(saved.questionVersion,q.question.version);
+ result(await throughText(c,{...reopen(saved),workflowId:w.id,candidateId:saved.candidateId}));
+ const reopened=result(await show(c,w));assert.equal(reopened.result.state,'awaiting_clarification');assert.equal(reopened.result.clarification.graphical.questions[0].question.id,q.question.id);
 });
 
 test('wrong ownership/bindings and authority or approval fields fail without a saved answer',async t=>{
@@ -69,7 +77,7 @@ test('relayed answers remain conservative through bounded reasoning and an expli
  p.answerInterpretations=j.task.data.answers.map(a=>({answerId:a.id,status:'ambiguous',fact:a.choice.meaning,sourceIds:a.sourceIds,grounding:[a.id]}));
  const staged=result(await c.callTool({name:T.curationReasoningPropose,arguments:{jobId:j.jobId,inputHash:j.job.input.inputHash,proposal:p}}));assert.equal(staged.result.status,'validated');
  assert.equal((await throughText(c,input)).isError,true,'Old review binding must not re-answer a successor');
- const current=result(await show(c,w));assert.equal(current.result.state,'awaiting_clarification');const later=current.presentation.operational.numberedActions.find(a=>a.arguments.action==='question_later');result(await throughText(c,later.arguments));const done=result(await show(c,w));assert.equal(done.result.state,'completed');assert.equal(done.result.summary.questionsDeferred,1);assert.equal(done.result.summary.areasProcessed,0);
+ const current=result(await show(c,w));assert.equal(current.result.state,'awaiting_clarification');assert.deepEqual(current.presentation.operational.numberedActions,[]);const currentQuestion=current.result.clarification.graphical.questions[0];result(await throughText(c,{...bind(current.result),action:'question_later',questionId:currentQuestion.question.id,questionVersion:currentQuestion.question.version}));const done=result(await show(c,w));assert.equal(done.result.state,'completed');assert.equal(done.result.summary.questionsDeferred,1);assert.equal(done.result.summary.areasProcessed,0);
 });
 
 test('configured cross-project direct and nested roots cannot be authorized by a conversational selector',async t=>{
@@ -93,6 +101,6 @@ test('free-form relayed answers reject secrets and preserve exact replacement re
  const f=await fixture(t),w=await questioned(f),c=await client(t,f.root),input=choice(w),q=w.clarification.graphical.questions[0];delete input.choiceId;
  const secret='synthetic_audit_credential',bad=await throughText(c,{...input,rawText:`SERVICE_PASSWORD password=${secret}`});assert.equal(bad.isError,true);assert.equal(JSON.stringify(bad).includes(secret),false);assert.equal((await curationAnswers(f.root,w.clarification.review.snapshot.revision.lineageId)).length,0);
  const saved=result(await throughText(c,{...input,rawText:'Deployment depends on the environment.'})),j=await inspectSemanticCuration(f.root,saved.continuationJobId),p=unresolved(j);p.answerInterpretations=j.task.data.answers.map(a=>({answerId:a.id,status:'ambiguous',fact:'The environment is not specified.',sourceIds:a.sourceIds,grounding:[a.id]}));result(await c.callTool({name:T.curationReasoningPropose,arguments:{jobId:j.jobId,inputHash:j.job.input.inputHash,proposal:p}}));
- const current=result(await show(c,w)),answerInputs=current.presentation.operational.answerInputs;assert.ok(answerInputs?.length);const replacement={...answerInputs[0].arguments,rawText:'The sandbox environment is deployed.'};assert.equal(replacement.replacesAnswerId,saved.answerAcknowledgement.answerId);result(await throughText(c,replacement));result(await throughText(c,replacement));
+ const current=result(await show(c,w)),technical=current.result,question=technical.clarification.graphical.questions.find(value=>value.question.id===q.question.id);assert.equal(current.presentation.operational.answerInputs,undefined);assert.equal(question.question.allowFreeText,true);const replacement={...bind(technical),action:'answer',questionId:question.question.id,questionVersion:question.question.version,requestId:'replacement-answer',replacesAnswerId:question.answer.id,rawText:'The sandbox environment is deployed.'};assert.equal(replacement.replacesAnswerId,saved.answerAcknowledgement.answerId);result(await throughText(c,replacement));result(await throughText(c,replacement));
  assert.equal((await throughText(c,{...replacement,replacesAnswerId:undefined})).isError,true);const answers=await curationAnswers(f.root,w.clarification.review.snapshot.revision.lineageId);assert.equal(answers.length,2);assert.equal(answers[1].replacesAnswerId,answers[0].id);assert.equal(answers.every(a=>a.origin==='agent_relay'),true);
 });

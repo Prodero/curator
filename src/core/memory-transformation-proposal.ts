@@ -1,7 +1,7 @@
 import {applicabilitySchema} from "./applicability.js";
 /** Semantic proposals only: no writer, lifecycle mutation, recovery or provider. */
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { jsonSchema } from './json-schema.js';
 import { buildMemoryTransformationBundle } from './memory-transformation-bundle.js';
 import { assertPathScope } from './path-scope.js';
 import { sha256 } from './storage.js';
@@ -41,7 +41,7 @@ For each source explain coverage, explicitly list only information omitted as re
 export async function prepareMemoryTransformation(root: string, candidateId: string) {
     const bundle = await buildMemoryTransformationBundle(root, candidateId);
     return { bundle, instructions: MEMORY_TRANSFORMATION_INSTRUCTIONS,
-        proposalSchema: zodToJsonSchema(memoryTransformationProposalSchema, { $refStrategy: 'none' }),
+        proposalSchema: jsonSchema(memoryTransformationProposalSchema),
         binding: { version: 1 as const, bundleId: bundle.bundleId, candidateId, sourceRevisions: bundle.revisions },
         canPropose: bundle.readyForSemanticWork, persistence: 'return_only' as const };
 }

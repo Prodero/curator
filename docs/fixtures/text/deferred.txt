@@ -1,23 +1,5 @@
-```text
-╭─ >_ PRODERO ──────────────────── /04
-│ Curator · project memory
-│
-├─ CURATE MEMORY ─────────────────────
-│ Complete
-│ No memory changes.
-│
-├─ ATTENTION ─────────────────────────
-│ 1 question deferred.
-│
-│ Review the remaining items?
-╰─────────────────────────────────────
-```
+**Memory**
 
-```text
-Available actions:
+Original records retained
 
-  1 > Revisit Queue migration
-  2 > Review this curation
-
-Reply with a number or the command name.
-```
+Memory maintenance is handled during work. Original records are retained.

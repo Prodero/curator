@@ -29,7 +29,7 @@ export class CurationReviewError extends Error {
   constructor(readonly code: string, message: string, readonly details?: unknown) { super(message); }
 }
 const fail = (code: string, message: string): never => { throw new CurationReviewError(code, message); };
-const decisionSchema = z.record(z.enum(['current', 'suggested', 'deferred']));
+const decisionSchema = z.record(z.string(), z.enum(['current', 'suggested', 'deferred']));
 const legacySchema = z.object({ revision: z.number().int().nonnegative(), snapshotHash: z.string(), decisions: decisionSchema }).strict();
 const eventSchema = z.object({
   revision: z.number().int().positive(), at: z.string().datetime(),
@@ -38,7 +38,7 @@ const eventSchema = z.object({
 }).strict();
 const journalSchema = z.object({
   version: z.literal(2), projectIdentity: z.string(), snapshotHash: z.string(),
-  base: z.object({ revision: z.number().int().nonnegative(), decisions: decisionSchema, paused: z.boolean(), origin: z.enum(['new', 'legacy_v1', 'inherited']), inheritedFrom: z.array(z.string()), pauseUpdatedAt:z.string().datetime().optional(), analysis: z.enum(['complete','pending','failed']).optional(), clarifications: z.record(z.object({id:z.string(),basisHash:z.string(),sourceIds:z.array(z.string()),state:clarificationStateSchema}).strict()).optional() }).strict(),
+  base: z.object({ revision: z.number().int().nonnegative(), decisions: decisionSchema, paused: z.boolean(), origin: z.enum(['new', 'legacy_v1', 'inherited']), inheritedFrom: z.array(z.string()), pauseUpdatedAt:z.string().datetime().optional(), analysis: z.enum(['complete','pending','failed']).optional(), clarifications: z.record(z.string(), z.object({id:z.string(),basisHash:z.string(),sourceIds:z.array(z.string()),state:clarificationStateSchema}).strict()).optional() }).strict(),
   events: z.array(eventSchema).max(REVIEW_RETENTION.maxEvents),
 }).strict();
 type Journal = z.infer<typeof journalSchema>;
@@ -143,6 +143,15 @@ async function names(root: string) {
   const files = await fs.readdir(await checkedDataPath(root, directory)).catch((e: NodeJS.ErrnoException) => { if (e.code === 'ENOENT') return []; throw e; });
   return files.filter(n => /^review_[a-zA-Z0-9_]+\.json$/.test(n)).sort();
 }
+/** Explicit management diagnostics only. Never repairs, deletes or trusts old choices. */
+export async function curationHistoryDiagnostics(root:string) {
+  const diagnostics:Array<{reviewId:string;code:string;message:string}>=[];
+  for(const name of await names(root))try{await loadStored(root,name.slice(0,-5));}catch(error){
+    if(!(error instanceof CurationReviewError))throw error;
+    diagnostics.push({reviewId:name.slice(0,-5),code:error.code,message:error.message});
+  }
+  return diagnostics;
+}
 async function loadStored(root: string, reviewId: string): Promise<{ review: CurationReview; journal: Journal }> {
   const snapshot = await readJson(await reviewPath(root, reviewId)) as CurationReviewSnapshot;
   if (snapshot.version !== 1 && snapshot.version !== 2 && snapshot.version !== 3) fail('unsupported_review_schema', 'This review uses a newer format. Update Prodero.');
@@ -182,11 +191,18 @@ const expired = (snapshot: CurationReviewSnapshot) => Date.now() - Date.parse(sn
 
 // Pin all decision-bearing history, even after expiry. Refuse at capacity instead
 // of silently removing unresolved decisions. Empty abandoned previews may expire.
-async function pruneForCreation(root: string, now: number) {
+async function pruneForCreation(root: string, now: number, preserveUnavailable = false) {
   const referenced=await (await import('./curation-semantic-jobs.js')).semanticReferencedReviews(root);
   const records = [];
   for (const name of await names(root)) {
-    const id = name.slice(0,-5), { review, journal } = await loadStored(root,id);
+    const id = name.slice(0,-5);
+    let stored;
+    try{stored=await loadStored(root,id);}catch(error){
+      if(!preserveUnavailable||!(error instanceof CurationReviewError))throw error;
+      const stat=await fs.stat(await reviewPath(root,id));
+      records.push({id,pinned:true,time:stat.mtimeMs});continue;
+    }
+    const {review,journal}=stored;
     const stat = await fs.stat(await reviewPath(root,id));
     const pinned = referenced.has(review.snapshot.reviewId) || !!review.snapshot.revision?.parentRevisionId || journal.events.length > 0 || Object.keys(journal.base.decisions).length > 0 || journal.base.paused;
     records.push({ id: review.snapshot.reviewId, pinned, time: stat.mtimeMs });
@@ -226,7 +242,7 @@ async function legacyPause(root: string, plan: CurationPlan, journal?: Journal):
   if(journal?.base.pauseUpdatedAt && (!checkpoint || journal.base.pauseUpdatedAt>=checkpoint.createdAt))return journal.base.paused;
   return !!checkpoint || !!journal?.base.paused;
 }
-export async function createCurationReview(root: string, successor?: { parent: CurationReview; operationId: string; applied: string[] }, memorySyncSources?:string[]): Promise<CurationReview> {
+export async function createCurationReview(root: string, successor?: { parent: CurationReview; operationId: string; applied: string[] }, memorySyncSources?:string[], options:{fresh?:boolean}={}): Promise<CurationReview> {
   const create = async () => {
     if (await fs.stat(await checkedDataPath(root, '.transactions/pending.json')).then(() => true, () => false)) fail('recovery_required', 'Finish the pending transaction before starting a new review.');
     const baselinePlan = await planKnowledgeCuration(root,{memorySyncSources}), now = Date.now();
@@ -237,8 +253,9 @@ export async function createCurationReview(root: string, successor?: { parent: C
       const analyses=previousTyped.analyses.filter(a=>a.bundle.expectedSources.every(s=>catalog.originalHashes.get(s.id)===s.revision)&&a.bundle.sources.filter(s=>s.editable).every(s=>baselinePlan.proposals.some(p=>p.id===s.id&&p.revision===s.revision))&&a.bundle.evidence.every(e=>baselinePlan.proposals.some(p=>(p.investigation?.evidence??[]).some(v=>`evidence_${hash([v.path,v.revision,v.line]).slice(0,24)}`===e.id&&v.revision===e.revision))));
       if(analyses.length){plan=materializeSemanticPlan(baselinePlan,analyses);carriedSemantic={kind:'semantic-v2',validator:'semantic-1',basePlan:baselinePlan,analyses,plan};}
     }
+    const fresh=options.fresh===true||successor?.parent.snapshot.revision?.historyPolicy==='fresh-current';
     const units=reviewUnits(plan);
-    const inherited = successor ? {decisions:{} as Record<string,ReviewDecision>,from:[successor.parent.snapshot.reviewId]} : await inheritedDecisions(root,plan,units);
+    const inherited = successor ? {decisions:{} as Record<string,ReviewDecision>,from:[successor.parent.snapshot.reviewId]} : fresh?{decisions:{} as Record<string,ReviewDecision>,from:[]}:await inheritedDecisions(root,plan,units);
     const invalidatedDecisions:string[]=[];
     if(successor)for(const [id,decision] of Object.entries(successor.parent.state.decisions)){
       if(decision==='suggested')continue;
@@ -246,18 +263,18 @@ export async function createCurationReview(root: string, successor?: { parent: C
       if(unit&&sameUnitBasis(successor.parent.snapshot.plan,plan,old,unit))inherited.decisions[id]=decision;
       else invalidatedDecisions.push(id);
     }
-    const previous=await latestCurationReview(root,plan.planId);
+    const previous=fresh?undefined:await latestCurationReview(root,plan.planId);
     const body = { version: carriedSemantic?3 as const:2 as const, reviewId: successor ? `review_${hash(successor.operationId).slice(0,40)}` : sortableId('obs').replace(/^obs_/, 'review_'), project: plan.project, projectIdentity: await fs.realpath(root), planHash: plan.planId, createdAt: new Date(now).toISOString(), plan, units };
     let snapshot: CurationReviewSnapshot = JSON.parse(JSON.stringify({ ...body, snapshotHash: hash(body) }));
     const journal: Journal = { version: 2, projectIdentity: snapshot.projectIdentity, snapshotHash: snapshot.snapshotHash,
-      base: { revision: 0, decisions: inherited.decisions, paused: successor?.parent.state.paused??previous?.state.paused??await legacyPause(root,plan), origin: inherited.from.length ? 'inherited' : 'new', inheritedFrom: inherited.from }, events: [] };
+      base: { revision: 0, decisions: inherited.decisions, paused: successor?.parent.state.paused??previous?.state.paused??(fresh?false:await legacyPause(root,plan)), origin: inherited.from.length ? 'inherited' : 'new', inheritedFrom: inherited.from }, events: [] };
     journal.base.pauseUpdatedAt=new Date(now).toISOString();
     journal.base.analysis='complete';
     journal.base.clarifications=Object.fromEntries(Object.entries(stateFrom(snapshot,journal).items).filter(([,i])=>i.issue).map(([id,i])=>[id,i.issue!]));
     const initial=stateFrom(snapshot,journal), catalog=await loadMemoryCatalog(root,{persistCache:false});
     const revisionSources=catalog.summaries.filter(s=>!memorySyncSources||memorySyncSources.includes(s.id));
     await Promise.all(revisionSources.map(s=>catalog.load(s.id)));
-    const revision=sealRevision({version:carriedSemantic?2:1,lineageId:successor?.parent.snapshot.revision?.lineageId??successor?.parent.snapshot.reviewId??snapshot.reviewId,
+    const revision=sealRevision({...(fresh?{historyPolicy:'fresh-current' as const}:{}),version:carriedSemantic?2:1,lineageId:successor?.parent.snapshot.revision?.lineageId??successor?.parent.snapshot.reviewId??snapshot.reviewId,
       parentRevisionId:successor?.parent.snapshot.revision?.id??null,parentReviewId:successor?.parent.snapshot.reviewId??null,reviewId:snapshot.reviewId,projectIdentity:snapshot.projectIdentity,
       baseline:plan.fingerprint,sources:revisionSources.map(s=>({id:s.id,revision:catalog.originalHashes.get(s.id)!})).sort((a,b)=>a.id.localeCompare(b.id)),
       evidence:[...new Map(plan.proposals.flatMap(p=>(p.investigation?.evidence??[]).map(e=>[e.path,{path:e.path,revision:e.revision}] as const))).values()].sort((a,b)=>a.path.localeCompare(b.path)),
@@ -268,7 +285,7 @@ export async function createCurationReview(root: string, successor?: { parent: C
     const {snapshotHash:discard,...unsealed}=snapshot;
     snapshot=JSON.parse(JSON.stringify({...unsealed,revision,snapshotHash:hash({...unsealed,revision})}));journal.snapshotHash=snapshot.snapshotHash;
     if (Buffer.byteLength(JSON.stringify(snapshot)) > REVIEW_RETENTION.maxBytes) fail('review_too_large', 'Review is too large. Reduce the review scope first.');
-    await ensureDataDirectory(root,directory); await pruneForCreation(root,now);
+    await ensureDataDirectory(root,directory); await pruneForCreation(root,now,fresh);
     // Publish the immutable snapshot last. A crash can leave only an unpublished seed.
     await writeFileAtomic(await reviewPath(root,snapshot.reviewId,true), JSON.stringify(journal));
     await writeFileAtomic(await reviewPath(root,snapshot.reviewId), JSON.stringify(snapshot));
@@ -328,18 +345,18 @@ export async function latestCurationReview(root: string, planHash: string): Prom
   return reviews.filter(r=>!parents.has(r.snapshot.revision?.id)&&(r.snapshot.planHash===planHash||(r.snapshot.revision?deterministicBaseline(r.snapshot.revision).planId:r.snapshot.planHash)===planHash)).sort((a,b)=>b.snapshot.createdAt.localeCompare(a.snapshot.createdAt))[0];
 }
 /** Authoritative saved-state projection, including old pauses and completed receipts. */
-export async function curationReviewView(root: string, plan: CurationPlan, supplied?: CurationReview) {
-  const candidate = supplied ?? await latestCurationReview(root,plan.planId);
+export async function curationReviewView(root: string, plan: CurationPlan, supplied?: CurationReview, options:{fresh?:boolean}={}) {
+  const candidate = supplied ?? (options.fresh?undefined:await latestCurationReview(root,plan.planId));
   const stored = candidate ? await loadStored(root,candidate.snapshot.reviewId) : undefined;
   const review=stored?.review;
   plan=review?.snapshot.plan??plan;
   const units = review?.snapshot.units ?? reviewUnits(plan);
-  const inherited = review ? undefined : await inheritedDecisions(root,plan,units);
+  const inherited = review ? undefined : options.fresh?{decisions:{} as Record<string,ReviewDecision>,from:[]}:await inheritedDecisions(root,plan,units);
   const journal = stored?.journal;
   const state = review ? structuredClone(review.state) : stateFrom({ snapshotHash: '', plan, units }, {
     base: { revision: 0, decisions: inherited!.decisions, paused: false, origin: 'inherited', inheritedFrom: inherited!.from }, events: [],
   });
-  state.paused = await legacyPause(root,plan,journal);
+  state.paused = options.fresh&&!review?false:await legacyPause(root,plan,journal);
   if(review)await applyReceiptState(root,{snapshot:review.snapshot,state});
   const semantic=review?await (await import('./curation-semantic-jobs.js')).semanticReviewStatus(root,review):undefined;
   return { review:review?{...review,state}:undefined, projection: projectCurationReview(plan,units,state,{semantic,stale: !!review && expired(review.snapshot),revision:review?.snapshot.revision,legacy:review?.snapshot.version===1}) };
@@ -386,7 +403,7 @@ export async function resumeCurationReview(root:string,reviewId:string) {
   while(true){
     if(seen.has(review.snapshot.reviewId))fail('invalid_review','Cyclic review lineage.');seen.add(review.snapshot.reviewId);
     let child:CurationReview|undefined;
-    for(const name of await names(root)){const stored=await loadStored(root,name.slice(0,-5));if(stored.review.snapshot.revision?.parentRevisionId===review.snapshot.revision?.id && review.snapshot.revision){if(child)fail('invalid_review','Forked review lineage.');child=stored.review;}}
+    for(const name of await names(root)){let stored;try{stored=await loadStored(root,name.slice(0,-5));}catch(error){if(review.snapshot.revision?.historyPolicy!=='fresh-current'||!(error instanceof CurationReviewError))throw error;continue;}if(stored.review.snapshot.revision?.parentRevisionId===review.snapshot.revision?.id && review.snapshot.revision){if(child)fail('invalid_review','Forked review lineage.');child=stored.review;}}
     if(!child)return review;review=child;
   }
 }
@@ -398,12 +415,14 @@ export function validateRevisionReceipt(receipt: import('./knowledge-curation.js
   const {snapshotHash,...body}=snapshot;
   if(![2,3].includes(snapshot.version)||state.snapshotHash!==snapshotHash||snapshot.projectIdentity!==receipt.projectIdentity||hash(receipt.applied)!==hash(receipt.selectedIds)||receipt.operationId!==curationOperationId(receipt.reviewId,receipt.selectedIds,receipt.reviewRevisionId,receipt.selectionHash)||hash(body)!==snapshotHash || snapshot.planHash!==receipt.planHash || snapshot.reviewId!==receipt.reviewId || snapshot.revision.id!==receipt.reviewRevisionId || hash(snapshot.revision.typedPlan.plan)!==hash(snapshot.plan) || hash(state.decisions)!==hash(receipt.decisions) || state.revision!==receipt.decisionRevision || receipt.selectionHash!==curationSelectionHash(snapshot.revision.id,state.revision,receipt.selectedIds) || receipt.executionHash!==hash([snapshotHash,state,receipt.selectedIds]))fail('invalid_review','Execution binding changed.');
 }
-export async function reserveSuccessorCapacity(root:string){await pruneForCreation(root,Date.now());}
+export async function reserveSuccessorCapacity(root:string,preserveUnavailable=false){await pruneForCreation(root,Date.now(),preserveUnavailable);}
 
 /** Read-only lineage check; semantic tools must never invoke transaction recovery. */
 export async function assertCurationHead(root:string,review:CurationReview){
   for(const name of await names(root)){
-    const {review:other}=await loadStored(root,name.slice(0,-5));
+    let stored;
+    try{stored=await loadStored(root,name.slice(0,-5));}catch(error){if(review.snapshot.revision?.historyPolicy!=='fresh-current'||!(error instanceof CurationReviewError))throw error;continue;}
+    const {review:other}=stored;
     if(other.snapshot.revision?.lineageId!==review.snapshot.revision?.lineageId&&other.snapshot.createdAt>review.snapshot.createdAt&&other.snapshot.revision&&review.snapshot.revision&&deterministicBaseline(other.snapshot.revision).planId===deterministicBaseline(review.snapshot.revision).planId)fail('stale_review','A newer review supersedes this input.');
     if(other.snapshot.revision?.parentRevisionId===review.snapshot.revision?.id&&review.snapshot.revision)fail('stale_review','Review has a successor revision.');
   }

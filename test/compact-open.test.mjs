@@ -1,29 +1,47 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {memoryOpenPresentation,buildViewModel,renderText} from '../dist/presentation.js';
-import {memoryAreaLabel,memorySyncPresentation} from '../dist/memory-presentation.js';
 import {lifecycleUi} from './helpers/lifecycle-ui.mjs';
 const label='A very long knowledge title describing an implementation decision that should never become a dashboard heading';
 const areas=Array.from({length:20},(_,i)=>({id:`area_${String(i).padStart(20,'0')}`,label:label+i,recordCount:4,layers:{local:3,versioned:1},signals:['context_pressure','recent_evolution'],counts:{budgetOmissionSessions:3}}));
-const payload={product:'Prodero',action:'open',project:{root:'/tmp/compact',name:'compact',initialized:true,git:true,agentsFile:true,knowledgeCount:80,localKnowledgeCount:60,versionedKnowledgeCount:20,skillCount:2,memoryOverview:{available:true,sessions:3,areas,workflow:null}}};
-const primary=s=>s.replace(/<details\b[^>]*>[\s\S]*?<\/details>/g,'');
-test('Open shows a bounded neutral summary without any candidate titles or bodies; text discloses detail on request',async()=>{
- const ui=await lifecycleUi();ui.render(payload);const html=primary(ui.html);
- assert.match(html,/Memory can be improved/);assert.match(html,/20 areas identified/);assert.match(html,/60 Local memories available for sharing review/);assert.match(html,/Relevant knowledge has not fit into recent task context/);
- assert.doesNotMatch(html,/very long knowledge title|related memories|knowledge-warning|20 areas can be improved|Knowledge has evolved|Sessions save useful knowledge/);
- assert.match(html,/Memory saves automatically/);assert.match(html,/data-action="sync" class="primary"/);
- const vm=buildViewModel(payload);assert.equal(vm.sections.find(s=>s.title==='Memory').items.length,20);assert.doesNotMatch(renderText(vm),/very long knowledge title/);assert.match(renderText(vm,false,true),/very long knowledge title/);assert.ok(vm.diagnostics.length);
+const payload={product:'Prodero',action:'open',project:{root:'/tmp/compact',name:'compact',initialized:true,git:true,agentsFile:true,knowledgeCount:80,localKnowledgeCount:60,versionedKnowledgeCount:20,skillCount:2,activeSessionCount:1,memoryOverview:{available:true,sessions:3,areas,workflow:null}}};
+const primary=html=>html.replace(/<details\b[^>]*>[\s\S]*?<\/details>/g,'');
+const flat=text=>text.replace(/\n│ ?/g,' ');
+const moderator=/Review cleanup|Pause review|Review saved decisions|Continue curation|Re-analyze|areas identified|sharing review|data-action="sync"|data-memory-sync|deferred questions|unapplied change/i;
+
+test('ordinary visual and text Open have neutral knowledge access without moderation UI even in details',async()=>{
+ const ui=await lifecycleUi();ui.render(payload);const vm=buildViewModel(payload);
+ assert.match(primary(ui.html),/Memory saves automatically/);assert.match(primary(ui.html),/Knowledge/);assert.match(primary(ui.html),/Skills/);
+ for(const output of [ui.html,renderText(vm),renderText(vm,false,true)]) {
+  assert.doesNotMatch(output,moderator);assert.doesNotMatch(output,/very long knowledge title|related memories|Memory can be improved|Knowledge has evolved/);
+ }
+ assert.ok(vm.actions.every(action=>!['prodero_sync','prodero_memory_sync'].includes(action.tool)));
+ assert.ok(vm.actions.some(action=>action.tool==='prodero_curation'&&action.arguments.fresh));assert.equal(vm.sections.some(section=>section.title==='Memory'),false);
+ assert.equal(vm.conversation.prompt,undefined);assert.deepEqual(vm.conversation.attention,[]);
 });
-test('only genuine conflicts warn; resume and stale instructions remain visible in compact Open',()=>{
- let p=structuredClone(payload.project);assert.equal(memoryOpenPresentation(p).conflicts,0);p.memoryOverview.areas[0].signals=['potential_conflict'];assert.equal(memoryOpenPresentation(p).conflicts,1);
- p.memoryOverview.workflow={state:'semantic_work'};assert.match(memoryOpenPresentation(p).dashboard.workflowNotice,/in progress/);
- p.memoryOverview.workflow.state='stale';assert.match(memoryOpenPresentation(p).dashboard.workflowNotice,/Re-analyze/);
+
+test('planner conflicts and stale work remain technical evidence without changing original state',()=>{
+ const candidate=structuredClone(payload);candidate.project.conflictCount=1;candidate.project.memoryOverview.areas[0].signals=['potential_conflict'];candidate.project.memoryOverview.workflow={id:'preserved-workflow',state:'stale'};
+ const before=structuredClone(candidate),vm=buildViewModel(candidate),compact=renderText(vm),technical=renderText(vm,true);
+ assert.deepEqual(vm.conversation.attention,[]);assert.equal(vm.conversation.continuation,undefined);assert.doesNotMatch(compact,/ATTENTION|review cleanup|review these|stale/i);
+ assert.match(technical,/potential_conflict/);assert.match(technical,/preserved-workflow/);assert.match(technical,/very long knowledge title/);
+ assert.deepEqual(candidate,before);
 });
-test('graphical area labels use deterministic paths or IDs, never inferred knowledge-title topics',()=>{
- assert.equal(memoryAreaLabel({id:'area_abcdef123456',label}),'Area abcdef12');assert.equal(memoryAreaLabel({id:'area_xyz',label:'src/driving'}),'src/driving');
- const path='src/'+('long_component/').repeat(6)+'driving';assert.ok(memoryAreaLabel({label:path}).length<=48);
- const w={state:'semantic_work',jobs:[{...areas[0],status:'semantic_work'}],next:{candidateId:areas[0].id},summary:{}};const m=memorySyncPresentation(w);assert.equal(m.areas[0].title,areas[0].label);assert.doesNotMatch(m.graphicalHeadline,/knowledge title/);assert.equal(m.headline,'Analysis queued');
+
+test('actual unavailable diagnostics and uncertain application stay visible without a retry or approval control',async()=>{
+ const candidate=structuredClone(payload);candidate.project.memoryOverview={available:false,areas:[],diagnostic:{code:'PRODERO_STORAGE_FAILED',cause:'Preserved workflow could not be read.',recovery:'Inspect the saved journal before retrying.'},workflow:{id:'interrupted',state:'applying'}};
+ const ui=await lifecycleUi();ui.render(candidate);const text=flat(renderText(buildViewModel(candidate)));
+ for(const output of [ui.html,text]) {
+  assert.match(output,/PRODERO_STORAGE_FAILED/);assert.match(output,/Preserved workflow could not be read/);assert.match(output,/verification/);assert.doesNotMatch(output,moderator);
+ }
+ assert.match(primary(ui.html),/role="alert"/);assert.equal(buildViewModel(candidate).conversation.prompt,undefined);
 });
-test('no-history graphical summary remains uncertain without copying the whole text report',()=>{
- const p=structuredClone(payload.project);p.memoryOverview={available:true,sessions:0,areas:[]};const m=memoryOpenPresentation(p);assert.match(m.dashboard.signal,/Not enough usage history/);assert.doesNotMatch(m.dashboard.headline,/healthy/i);assert.ok(m.notes.length>1);
+
+test('missing history and unknown counts do not invent optimization claims or empty knowledge',async()=>{
+ const candidate=structuredClone(payload);candidate.project.memoryOverview={available:false,sessions:0,areas:[]};
+ const before=structuredClone(candidate.project),copy=memoryOpenPresentation(candidate.project),ui=await lifecycleUi();ui.render(candidate);
+ assert.match(copy.headline,/automatically/);assert.deepEqual(Object.keys(copy).sort(),['headline','notes']);assert.deepEqual(candidate.project,before);
+ assert.deepEqual(buildViewModel(candidate).conversation.attention,[]);assert.doesNotMatch(ui.html,/healthy|Not enough usage history|optimization|role="alert"/i);
+ delete candidate.project.knowledgeCount;assert.doesNotMatch(renderText(buildViewModel(candidate),false,true),/No current memories yet/);
+ candidate.project.knowledgeCount=0;assert.match(flat(renderText(buildViewModel(candidate),false,true)),/No current memories yet/);
 });

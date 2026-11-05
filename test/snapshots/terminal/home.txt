@@ -1,0 +1,28 @@
+```text
+╭─ >_ PRODERO ──────────────────── /01
+│ Curator · project memory
+│
+├─ CONTEXT ───────────────────────────
+│ ▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱ 24%
+│ 480 / 2,000 est. tokens
+│ Bootstrap · Prodero allocation only.
+│
+├─ MEMORY ────────────────────────────
+│ 128 records
+│ 86 local · 42 versioned
+│
+│ Ready
+╰─────────────────────────────────────
+```
+
+```text
+Available actions:
+
+  1 > Explore knowledge
+  2 > Curate Memory
+  3 > Move Local knowledge to
+      Versioned
+  4 > Show settings
+
+Reply with a number or the command name.
+```

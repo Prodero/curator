@@ -8,6 +8,7 @@ import {writeKnowledge,listKnowledge} from '../dist/core/memory.js';
 import {createMemoryBundleFixture,fixtureItem,observeFixture} from './helpers/memory-bundle-fixtures.mjs';
 import {buildViewModel} from '../dist/presentation.js';
 import {numberedActions} from '../dist/conversation-presentation.js';
+import {memorySyncOperation} from '../dist/memory-sync-operation.js';
 import {REVIEW_RETENTION,stageCurationDecisions} from '../dist/core/curation-review.js';
 const action=(f,w,action,extra={})=>run(f.root,{action,workflowId:w.id,revision:w.revision,...extra});
 const inspect=(f,w)=>run(f.root,{action:'inspect',workflowId:w.id});
@@ -21,7 +22,7 @@ const reopen=q=>{const {candidateId,title,prompt,expired,affectedQuestions,...bi
 test('completed Revisit is exact, explicit and preserves saved deferral on passive inspection',async t=>{
  const f=await fixture(t);let w=await defer(f,await questioned(f)),before=JSON.stringify(await listKnowledge(f.root));assert.equal(w.state,'completed');assert.equal(w.deferredQuestions.length,1);
  const saved=w.deferredQuestions[0];for(let i=0;i<2;i++){const next=await inspect(f,w);assert.equal(next.revision,w.revision);assert.equal(next.deferredQuestions[0].decisionRevision,saved.decisionRevision);w=next;}
- const vm=buildViewModel({ok:true,action:'memory-sync',result:w});for(const expanded of [false,true])assert.ok(numberedActions(vm,expanded).some(a=>a.arguments.questionId===saved.questionId&&a.arguments.action==='question_reopen'));
+ const vm=buildViewModel({ok:true,action:'memory-sync',result:w});for(const expanded of [false,true])assert.deepEqual(numberedActions(vm,expanded),[]);const technical=memorySyncOperation(w).actions.find(a=>a.arguments.questionId===saved.questionId&&a.arguments.action==='question_reopen');assert.ok(technical);assert.equal(technical.arguments.reviewRevisionId,saved.reviewRevisionId);
  for(const patch of [{questionId:'question_wrong'},{questionVersion:saved.questionVersion+1},{decisionRevision:saved.decisionRevision-1},{answerLogHash:'0'.repeat(64)},{reviewRevisionId:`revision_${'f'.repeat(64)}`}])await assert.rejects(graphicalReviewAction(f.root,{...reopen(saved),...patch}));
  const result=await graphicalReviewAction(f.root,reopen(saved));assert.equal(result.graphical.activeQuestionCount,1);
  w=await inspect(f,w);assert.equal(w.state,'awaiting_clarification');assert.equal(w.clarification.graphical.questions[0].question.id,saved.questionId);assert.equal(w.clarification.graphical.questions[0].question.version,saved.questionVersion);assert.equal(w.summary.questionsDeferred,0);assert.equal(JSON.stringify(await listKnowledge(f.root)),before);
@@ -50,7 +51,7 @@ test('Revisit retains an already saved answer and reuses its exact lineage',asyn
 
 test('expired deferred review has an executable explicit refresh that preserves deferral and lineage',async t=>{
  const f=await fixture(t);let w=await defer(f,await questioned(f));const old=w.deferredQuestions[0],lineage=(await inspectSyncCuration(f.root,old.reviewId)).review.snapshot.revision.lineageId,original=Date.now;Date.now=()=>original()+REVIEW_RETENTION.maxAgeMs+1000;t.after(()=>{Date.now=original;});
- w=await inspect(f,w);assert.equal(w.deferredQuestions[0].expired,true);const vm=buildViewModel({ok:true,action:'memory-sync',result:w}),refresh=numberedActions(vm).find(a=>a.arguments.request?.action==='refresh_questions');assert.ok(refresh);assert.equal(numberedActions(vm).some(a=>a.arguments.action==='question_reopen'),false);
+ w=await inspect(f,w);assert.equal(w.deferredQuestions[0].expired,true);const vm=buildViewModel({ok:true,action:'memory-sync',result:w}),refresh=memorySyncOperation(w).actions.find(a=>a.arguments.request?.action==='refresh_questions');assert.ok(refresh);assert.deepEqual(numberedActions(vm),[]);assert.deepEqual(numberedActions(vm,true),[]);assert.equal(memorySyncOperation(w).actions.some(a=>a.arguments.action==='question_reopen'),false);
  w=await run(f.root,refresh.arguments.request);assert.equal(w.state,'completed');const fresh=w.deferredQuestions[0];assert.equal(fresh.expired,false);assert.notEqual(fresh.reviewId,old.reviewId);assert.notEqual(fresh.reviewRevisionId,old.reviewRevisionId);assert.equal(fresh.questionId,old.questionId);assert.equal(fresh.questionVersion,old.questionVersion);
  assert.equal((await inspectSyncCuration(f.root,fresh.reviewId)).review.snapshot.revision.lineageId,lineage);await assert.rejects(graphicalReviewAction(f.root,reopen(old)));
  await graphicalReviewAction(f.root,reopen(fresh));w=await inspect(f,w);assert.equal(w.state,'awaiting_clarification');
@@ -66,7 +67,7 @@ test('multiple questions project one honest grouped Revisit and leave unrelated 
  p.issues.push({...structuredClone(first),kind:'conflict',missingFact:'Which queue owns retries?',question:{...structuredClone(first.question),title:'Queue retries',prompt:'Which queue owns retries?'}});
  assert.equal((await submitSemanticCuration(f.root,{jobId:j.jobId,inputHash:j.job.input.inputHash,proposal:p})).status,'validated');w=await inspect(f,w);assert.equal(w.clarification.graphical.questions.length,2);
  w=await defer(f,w);assert.equal(w.deferredQuestions.length,1);const grouped=w.deferredQuestions[0];assert.equal(grouped.affectedQuestions.length,2);
- const vm=buildViewModel({ok:true,action:'memory-sync',result:w}),actions=numberedActions(vm).filter(a=>a.arguments.action==='question_reopen');assert.equal(actions.length,1);assert.match(actions[0].label,/2 related questions/);assert.ok(vm.sections.some(s=>s.items.some(i=>i.body.includes('Queue migration')&&i.body.includes('Queue retries'))));
+ const vm=buildViewModel({ok:true,action:'memory-sync',result:w}),actions=memorySyncOperation(w).actions.filter(a=>a.arguments.action==='question_reopen');assert.equal(actions.length,1);assert.match(actions[0].label,/2 related questions/);assert.deepEqual(numberedActions(vm),[]);assert.deepEqual(vm.sections,[]);assert.deepEqual(grouped.affectedQuestions.map(q=>q.title).sort(),['Queue migration','Queue retries']);
  w=await action(f,w,'prepare',{candidateId:w.next.candidateId});const independent=w.curation.job;assert.equal((await submitSemanticCuration(f.root,{jobId:independent.jobId,inputHash:independent.job.input.inputHash,proposal:unresolved(independent)})).status,'validated');w=await defer(f,await inspect(f,w));assert.equal(w.deferredQuestions.length,2);
  const unrelated=w.deferredQuestions.find(q=>q.candidateId!==grouped.candidateId);await graphicalReviewAction(f.root,reopen(grouped));w=await inspect(f,w);assert.equal(w.clarification.graphical.activeQuestionCount,2);assert.equal(w.deferredQuestions.length,1);assert.equal(w.deferredQuestions[0].questionId,unrelated.questionId);
 });

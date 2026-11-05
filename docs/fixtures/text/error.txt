@@ -1,10 +1,3 @@
-```text
-╭─ >_ PRODERO ──────────────────── /00
-│ Prodero
-│
-├─ Error ─────────────────────────────
-│ The action outcome is unknown.
-│ Inspect saved progress before
-│ retrying; do not replay approval.
-╰─────────────────────────────────────
-```
+**Error**
+
+The action outcome is unknown. Inspect saved progress before retrying; do not replay approval.

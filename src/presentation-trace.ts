@@ -7,6 +7,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { getUiCapability, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { PRODERO_RESOURCE_URI, PRODERO_TOOLS } from "./contracts.js";
+import { supportsMcpAppHtml } from "./presentation-server.js";
 
 const publicKeys = new Set(["experimental", "extensions", "io.modelcontextprotocol/ui", "mimeTypes", "roots", "listChanged", "sampling", "context", "tools", "elicitation", "form", "url", "tasks", "requests", "call", "createMessage", "create", "list", "cancel", "subscribe", "name", "version", "title", "platform", "userAgent", "clientInfo", "hostInfo", "clientId", "sessionId", "progressToken", "io.modelcontextprotocol/related-task", "taskId", "openai/userAgent", "openai/userLocation", "openai/locale", "openai/widgetSessionId", "ui", "protocolVersion"]);
 const publicNames = new Set(["codex", "codex-mcp-client", "Codex", "claude-desktop", "Claude", "Cursor", "cursor", "claude-code"]);
@@ -24,7 +25,7 @@ export function installPresentationTrace(server: McpServer): void {
     if (value === undefined) return null;
     if (value === null || typeof value === "boolean") return value;
     if (typeof value === "string") {
-      if ((key === "mimeTypes" && value === RESOURCE_MIME_TYPE) || (key === "platform" && ["desktop", "mobile", "web"].includes(value)) || (key === "name" && publicNames.has(value)) || (key === "version" && /^\d+\.\d+\.\d+$/.test(value)) || (key === "protocolVersion" && versions.has(value))) return value;
+      if ((key === "mimeTypes" && (value === RESOURCE_MIME_TYPE || value === "text/html")) || (key === "platform" && ["desktop", "mobile", "web"].includes(value)) || (key === "name" && publicNames.has(value)) || (key === "version" && /^\d+\.\d+\.\d+$/.test(value)) || (key === "protocolVersion" && versions.has(value))) return value;
       return { type: "string", fingerprint: fingerprint(value) };
     }
     if (typeof value === "number") return { type: "number", fingerprint: fingerprint(value) };
@@ -63,7 +64,7 @@ export function installPresentationTrace(server: McpServer): void {
     const snapshot = () => {
       const capabilities = server.server.getClientCapabilities();
       const ui = getUiCapability(capabilities);
-      return { transportSession: safe(transport.sessionId), clientInfo: safe(server.server.getClientVersion()), capabilities: safe(capabilities), uiExtensionPresent: ui !== undefined, declaredMimeTypes: safe(ui?.mimeTypes, "mimeTypes"), supportsMcpAppHtml: Array.isArray(ui?.mimeTypes) && ui.mimeTypes.includes(RESOURCE_MIME_TYPE) };
+      return { transportSession: safe(transport.sessionId), clientInfo: safe(server.server.getClientVersion()), capabilities: safe(capabilities), uiExtensionPresent: ui !== undefined, declaredMimeTypes: safe(ui?.mimeTypes, "mimeTypes"), supportsMcpAppHtml: supportsMcpAppHtml(capabilities) };
     };
     const pending = new Map<string | number, { event: string; call: number }>();
     let call = 0;

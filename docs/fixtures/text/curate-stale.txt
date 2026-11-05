@@ -1,30 +1,7 @@
-```text
-╭─ >_ PRODERO ──────────────────── /04
-│ prodero-bundle-fixture-3KYkZN ·
-│ project memory
-│
-├─ CURATE MEMORY ─────────────────────
-│ Re-analyze memory
-│ Project memory changed since this
-│ curation started. Re-analyze before
-│ continuing.
-│ Your place and saved answers are
-│ retained. Leave and return with
-│ Continue curation.
-│ Re-analyze starts a fresh workflow
-│ from current project data. Changes
-│ already saved remain in place.
-│
-│ Re-analyze memory?
-╰─────────────────────────────────────
-```
+**Memory**
 
-```text
-Available actions:
+Memory maintenance is handled during work. Original records are retained.
 
-  1 > Re-analyze memory
-  2 > Check progress
-  3 > Show details
+SYNC_STEP_INCOMPLETE · Knowledge, telemetry or checkpoints changed. Start a fresh workflow; old approvals cannot be reused. · Inspect saved progress before retrying.
 
-Reply with a number or the command name.
-```
+Knowledge, telemetry or checkpoints changed. Start a fresh workflow; old approvals cannot be reused.

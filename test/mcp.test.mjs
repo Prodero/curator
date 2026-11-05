@@ -191,7 +191,7 @@ test("MCP registers Prodero tools, status, and the App resource", async () => {
     assert.match(resource.contents[0].text, /Retrieval was not rerun/);
     assert.match(resource.contents[0].text, /Session Learned/);
     assert.match(resource.contents[0].text, /Attention/);
-    assert.match(resource.contents[0].text, /Analyzing…/);
+    assert.match(resource.contents[0].text, /Memory maintenance is handled during work/);
     assert.doesNotMatch(resource.contents[0].text, /Preparing project intelligence/);
     assert.match(resource.contents[0].text, /NEW PROJECT DETECTED/);
     assert.match(resource.contents[0].text, /Prodero will create/);
@@ -199,7 +199,7 @@ test("MCP registers Prodero tools, status, and the App resource", async () => {
     assert.doesNotMatch(resource.contents[0].text, /Retry details/);
     assert.doesNotMatch(resource.contents[0].text, /hydrateAfterVisiblePaint/);
     assert.doesNotMatch(resource.contents[0].text, /queueMicrotask/, "microtasks cannot guarantee that the loading shell was painted");
-    assert.match(resource.contents[0].text, /Curate Memory/);
+    assert.doesNotMatch(resource.contents[0].text, /data-memory-sync|data-curation-action/);
     assert.match(resource.contents[0].text, /full context window or billing usage/);
     assert.doesNotMatch(resource.contents[0].text, /total model tokens|provider cost/i);
   } finally {

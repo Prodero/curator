@@ -3,10 +3,11 @@ import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { captureLocalStdioContext, type LocalStdioContext } from "./mcp-workspace.js";
 import { planProjectMigration, applyProjectMigration } from "./core/migrations.js";
-import { buildViewModel, renderText } from "./presentation.js";
+import { buildViewModel, renderTerminalText as renderText } from "./presentation.js";
 import { runMemorySync } from './core/memory-sync.js';
 import { machineIntegrations } from "./hosts/manager.js";
 import { installWizard } from "./hosts/wizard.js";
+import { installCommand } from "./hosts/install-command.js";
 import { runtimeCommand } from "./hosts/runtime-command.js";
 import { buildMemoryTransformationBundle } from "./core/memory-transformation-bundle.js";
 import { getMemoryIntelligencePlan } from "./core/memory-intelligence.js";
@@ -34,13 +35,15 @@ Usage: prodero <command> [--root /absolute/project]
   migrate [status]        Review or apply the project knowledge update with backup
   init                    Initialize the selected project
   install                 Open the interactive agent installation wizard
+  install --host HOST --dry-run [--json] Preview one host integration without writes
+  install --host HOST --yes [--json] Apply the reviewed integration for one host
   runtime <mode> --host HOST Switch one agent between package and dev (runtime --help)
   uninstall [host] [--all] Remove managed host integration; preserve projects
   status [--json]         Show readable machine integrations; --json for scripts
   status --root PATH [--json] Show existing project status without maintenance
   memory-bundle <id>       Inspect one read-only transformation bundle (JSON)
   memory-plan             Inspect deterministic memory candidates (read-only JSON)
-  sync                    Start/resume Curate Memory (JSON; continue through MCP)
+  sync                    Legacy technical memory-workflow API (JSON)
   sync-sessions           Low-level deterministic closed-session recovery
   recall <query>          Recall project knowledge without a session
   context [query]         Inspect retrieved context
@@ -88,6 +91,7 @@ function parse(argv: string[]) {
 }
 
 async function run(localStdio?: LocalStdioContext) {
+  if (process.argv[2] === 'install' && process.argv.length > 3) { process.exitCode=await installCommand(process.argv.slice(3)); return; }
   if (process.argv[2] === 'update') { process.exitCode=await updateCommand(process.argv.slice(3)); return; }
   if (process.argv[2] === 'runtime') { await runtimeCommand(process.argv.slice(3)); return; }
   const { command, root, query, host, dev, checkout, json } = parse(process.argv.slice(2));

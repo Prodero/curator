@@ -55,7 +55,7 @@ export async function executeCurationReview(root:string,input:CurationApplyReque
     const entries=curationReviewEntries(review.snapshot.plan,selected,revision);
     const current=await planKnowledgeCuration(root).catch(()=>{throw new CurationReviewError('stale_review','Knowledge can no longer be validated against this review. Review updated changes.');});
     if(current.planId!==(revision?deterministicBaseline(revision).planId:review.snapshot.planHash)||current.fingerprint!==review.snapshot.plan.fingerprint)throw new CurationReviewError('stale_review','Knowledge changed since this review.');
-    if(revision)await reserveSuccessorCapacity(root);
+    if(revision)await reserveSuccessorCapacity(root,revision.historyPolicy==='fresh-current');
     const receipt:CurationReceipt={...(revision?{reviewRevisionId:revision.id,selectionHash:input.selectionHash,reviewSnapshot:review.snapshot,reviewState:review.state,executionHash:revisionHash([review.snapshot.snapshotHash,review.state,selected])}:{}),projectIdentity:review.snapshot.projectIdentity,decisions:review.state.decisions,reviewId:input.reviewId,planHash:input.planHash,operationId,decisionRevision:input.decisionRevision,selectedIds:selected,applied:selected,unselected:review.snapshot.plan.proposals.filter(p=>!selected.includes(p.id)&&!p.attention.length).map(p=>p.id),unresolved:review.snapshot.plan.proposals.filter(p=>p.attention.length).map(p=>p.id)};
     const applied=await withTrustedKnowledgeBatch(root,entries,`app-review:${operationId}`,()=>applyKnowledgeCuration(root,review.snapshot.plan,selected,receipt)).catch(error=>{
       if(error instanceof StaleCurationPlanError)throw new CurationReviewError('stale_review','Knowledge changed since this review.');

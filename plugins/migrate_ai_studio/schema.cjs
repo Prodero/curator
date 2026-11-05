@@ -1,5 +1,4 @@
 const { z } = require('zod');
-const { zodToJsonSchema } = require('zod-to-json-schema');
 const line = z.string().trim().min(1).max(200).regex(/^[^\r\n]+$/);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const classification = z.enum(['project_instruction', 'durable_project_knowledge', 'skill_candidate', 'temporary_execution_history', 'duplicate', 'stale', 'contradicted', 'uncertain']);
@@ -17,4 +16,4 @@ const analysisTail = z.object({ classify, migrate, verify }).strict();
 const snapshot = z.object({ version: z.literal(2), algorithm: z.literal('sha256-tree-v2'), sha256: hash, files: z.number().int().min(0), directories: z.number().int().min(0), bytes: z.number().int().min(0) }).strict();
 const costEstimate = z.object({ method: z.literal('estimated-utf8-bytes-div-4-v1'), sourceFiles: z.number().int().min(0), sourceBytes: z.number().int().min(0), analyzedFiles: z.number().int().min(0), analyzedBytes: z.number().int().min(0), estimatedInputTokens: z.number().int().min(0), estimatedOutputTokens: z.number().int().min(0), estimatedTotalTokens: z.number().int().min(0), basis: z.enum(['preflight', 'measured-payloads']) }).strict();
 const plan = z.object({ version: z.literal(1), sourceSystem: z.literal('ai-studio'), pluginId: z.literal('migrate_ai_studio'), pluginVersion: z.literal('1.7.0'), extractionMode: z.enum(['deterministic-memory-v1', 'semantic-v1']), instructionHash: hash, projectBinding: hash, stateFingerprint: hash, sourceSnapshot: snapshot, repositorySnapshot: snapshot, costEstimate, items: z.array(item).max(60), coverage: z.object({ uninspected: z.number().int().min(0), excluded: z.array(z.object({ path: z.string(), reason: z.string() }).strict()).max(60), existingOmitted: z.number().int().min(0) }).strict(), audit, verification: verify, reviewed: z.boolean(), planId: hash }).strict();
-module.exports = { audit, classify, migrate, verify, analysis, analysisTail, plan, item, json: s => zodToJsonSchema(s, { $refStrategy: 'none' }) };
+module.exports = { audit, classify, migrate, verify, analysis, analysisTail, plan, item, json: s => z.toJSONSchema(s, { target: 'draft-7', io: 'input', reused: 'inline' }) };

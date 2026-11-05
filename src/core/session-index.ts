@@ -47,8 +47,8 @@ function sameStamp(left: FileStamp | undefined, right: FileStamp): boolean { ret
 const stampSchema = z.object({ size: z.number().nonnegative(), mtimeMs: z.number().finite(), ctimeMs: z.number().finite() });
 const cacheSchema = z.object({
   version: z.literal(3),
-  checkpoints: z.record(stampSchema.extend({id: z.string(), createdAt: z.string(), processedKeys: z.array(z.string()), observationHashes: z.array(z.string()).optional()})),
-  sessions: z.record(stampSchema.extend({id: z.string(), parentSessionId: z.string().regex(/^sess_[a-zA-Z0-9_]+$/).optional(), sha256: z.string().regex(/^[a-f0-9]{64}$/), status: z.enum(["active", "open", "closed"]), hasObservations: z.boolean()})),
+  checkpoints: z.record(z.string(), stampSchema.extend({id: z.string(), createdAt: z.string(), processedKeys: z.array(z.string()), observationHashes: z.array(z.string()).optional()})),
+  sessions: z.record(z.string(), stampSchema.extend({id: z.string(), parentSessionId: z.string().regex(/^sess_[a-zA-Z0-9_]+$/).optional(), sha256: z.string().regex(/^[a-f0-9]{64}$/), status: z.enum(["active", "open", "closed"]), hasObservations: z.boolean()})),
 });
 
 async function readCache(root: string, persistCache: boolean): Promise<{ cache: SessionIndexCache; state: DerivedCacheState }> {

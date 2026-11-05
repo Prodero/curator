@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 — release candidate (unpublished)
+
+- Updated MCP SDK to 1.32.2, refreshed compatible production dependency patches, and migrated validators to Zod 4.6.7. Bounded collections now reject oversized input before walking elements; provider/plugin JSON Schema and legacy input defaults/receipts retain their validation contracts.
+
+- Open navigation preserves filtered catalogue pages on detail return, reports Initialize failures truthfully, clears completed sharing selections and retains confirmed Apply receipts across refresh errors. Unavailable/cached catalogues are explicit and cannot masquerade as empty current data.
+
+- Compact text Open now shows branch lines with total/Local/Versioned memory and actual bootstrap instruction counts. Four stable numbered actions support natural-language requests and clearly distinguish legacy instruction refinement from sharing memory via Git.
+
+- Added an optional prompt-assisted installation guide, with current-stable wizard fallback and a landing Copy prompt publication handoff. Manual npm/CLI installation remains supported.
+- Added explicit one-host installation preview/apply for agents, reusing existing native configuration ownership, backups and recovery. Saved configuration and pending restart/connectivity remain distinct.
+- Added an approved prerequisite preparation path to the installation guide, preserving existing runtime versions/defaults and separating project initialization.
+- Retained explicit Curate Memory and selected Local → Versioned actions in both interfaces, with fresh current previews isolated from unavailable historical reviews and unchanged approval guards.
+- Close always returns a confirmed, visible final receipt, including zero observations, replay, deferred saving and diagnostic failures.
+- Removed the old routine memory moderation queues, cards and attention prompts from text/visual interfaces; CLI status keeps maintenance diagnostics in explicit JSON rather than nagging counters.
+- Bounded current-session agent reconciliation reuses semantic validation and transactional history for eligible Local knowledge. Protected, ambiguous and unsupported changes preserve originals; no new external provider is required.
+- MCP chat text now uses native Markdown: a small ›_ prodero launch mark, factual project overview, named actions and brief unbranded task/save updates. Terminal CLI/explicit ASCII fallback and visual App contracts remain separate.
+
+Package metadata is prepared for **0.3.0 Public Preview**. Project schema remains **8** and knowledge schema remains **3**; no canonical schema migration is added. Publication date, exact-commit CI and native-host acceptance remain release gates. This candidate is not yet available from npm.
+
 ## 0.2.1 — 2026-10-25 (Public Preview)
 
 - Corrected public documentation and release wording, including installation and compatibility guidance.

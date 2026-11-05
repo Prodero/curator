@@ -22,6 +22,14 @@ test('default machine/project status is readable even when piped; JSON keeps exi
 
 test('JSON selection is independent of TTY and supports option ordering',async t=>{const f=await fixture(t);for(const tty of [true,false]){const preload=path.join(f.base,`tty-${tty}.mjs`);await fs.writeFile(preload,`Object.defineProperty(process.stdout,'isTTY',{value:${tty}});`);const r=json(f.run(['--json','--root',f.root,'status'],{preload}));assert.equal(r.project.initialized,true);}});
 
+test('plain project status omits moderation counters while explicit JSON retains diagnostics',async t=>{
+ const f=await fixture(t),plain=f.run(['status','--root',f.root]);
+ assert.equal(plain.status,0,plain.stderr);
+ assert.doesNotMatch(plain.stdout,/Needs attention:|sharing suggestions|candidates| pending|Provenance:/);
+ const details=json(f.run(['status','--root',f.root,'--json']));
+ for(const key of ['conflictCount','pendingSessionCount','promotionRecommendedCount','memoryHealth','knowledgeGraph'])assert.ok(Object.hasOwn(details.project,key));
+});
+
 test('JSON invalid arguments and roots produce exactly one safe document with old failure exits',async t=>{const f=await fixture(t);await fs.mkdir(path.join(f.root,'nested'));const before=await snapshot(f.base);for(const args of [['status','--json','unexpected'],['status','--json','--typo'],['status','--json','--json'],['status','--root','--json'],['status','--json','--root'],['status','--json','--root','.'],['status','--json','--root',f.root+'/missing'],['status','--json','--root',f.root+'/nested'],['status','--json','--root',f.root,'--root',f.root],['--json','--root',f.root,'status','--all']]){const r=json(f.run(args),1);assert.equal(r.ok,false);assert.equal(r.version,PRODERO_VERSION);assert.ok(r.error.code);assert.ok(r.error.message);assert.ok(r.error.recovery);}for(const args of [['init','status','--json'],['typo','status','--json'],['--root','status','--json'],['context','status','--json']]){const r=f.run(args);assert.equal(r.status,1);assert.equal(r.stdout,'');assert.ok(r.stderr);}assert.deepEqual(await snapshot(f.base),before);});
 
 test('bare machine status never discovers or reads a malformed current project',async t=>{const f=await fixture(t);await fs.writeFile(path.join(f.root,'.prodero/config.json'),'password=synthetic_config_credential');const before=await snapshot(f.base);const r=json(f.run(['status','--json']));assert.equal(r.scope,'machine');assert.ok(r.ok);assert.doesNotMatch(JSON.stringify(r),/synthetic_config/);assert.deepEqual(await snapshot(f.base),before);});

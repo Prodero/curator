@@ -10,7 +10,7 @@ test('instruction text gives the terminal lifecycle and no executable install/ap
  assert.match(plain,/Update instructions/);assert.match(plain,/close your MCP hosts/);assert.match(plain,/terminal, run prodero update/);assert.match(plain,/review its plan before approving installation/);assert.match(plain,/restart and reconnect/);assert.match(plain,/migration separately/);
  assert.deepEqual(vm.actions,[]);assert.equal(vm.conversation.continuation,undefined);assert.doesNotMatch(plain,/npm install|staged successfully|Update request completed/);
  const action=buildViewModel(status()).actions.find(a=>a.tool==='prodero_update');assert.equal(action.label,'Show update instructions');assert.equal(action.approval,undefined);assert.deepEqual(action.arguments,{projectRoot:'/tmp/synthetic-update-instructions'});
- const home=renderText(buildViewModel(status())).replace(/\n│ ?/g,' ');assert.match(home,/prodero update in a terminal/);assert.match(home,/close hosts/);
+ const home=renderText(buildViewModel(status()));assert.match(home,/Update available: 0.1.0 → 0.2.0/);assert.match(home,/Ask me to show update instructions/);assert.doesNotMatch(home,/close hosts|prodero update in a terminal|1 >|```/);
 });
 
 test('dashboard update indicator only requests instructions, preserves update availability and never sends host execution',async()=>{

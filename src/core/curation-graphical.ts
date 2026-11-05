@@ -47,7 +47,7 @@ export async function graphicalReviewState(root:string,review:CurationReview,pro
 }
 export async function graphicalReviewPayload(root:string,review:CurationReview){
  const view=await curationReviewView(root,review.snapshot.plan,review);
- return {action:'curation' as const,root,plan:review.snapshot.plan,...view,graphical:await graphicalReviewState(root,view.review!,view.projection),appReviewAvailable:true};
+ return {action:'curation' as const,root,plan:review.snapshot.plan,...view,...(review.snapshot.revision?.historyPolicy==='fresh-current'?{userInitiatedManagement:true}:{}),graphical:await graphicalReviewState(root,view.review!,view.projection),appReviewAvailable:true};
 }
 export async function graphicalReviewAction(root:string,raw:GraphicalAction,answerOrigin:AnswerEvent['origin']='app'){
  const input=graphicalActionSchema.parse(raw);

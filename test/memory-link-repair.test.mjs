@@ -62,17 +62,15 @@ test('link repair recovers after commit without duplicate writes or checkpoints'
  assert.ok(interrupted);const inventory=await readKnowledgeInventory(f.root);
  w=await run(f.root,{action:'inspect',workflowId:w.id});assert.equal(w.state,'completed');assert.equal(w.summary.brokenLinksFixed,3);assert.equal((await listCheckpoints(f.root)).length,1);assert.deepEqual(await readKnowledgeInventory(f.root),inventory);
 });
-test('Open hides broken-link diagnostics; Sync App and text show a checked, functional repair choice',async t=>{
+test('retired repair interface retains links and saved approval state without exposing choices',async t=>{
  const f=await fixture(t),call=await mcp(t,f),opened=await call(T.open);
  assert.equal(opened.isError,undefined);assert.equal(opened.structuredContent.project.knowledgeGraph.brokenReferences,undefined);assert.doesNotMatch(JSON.stringify(opened),/brokenReferences/);
  const calls=[],ui=await knowledgeUi(req=>{calls.push(req);return call(req.name,req.arguments);});
- const start=await call(T.sync);ui.render(start);assert.equal(ui.host.querySelector('#sync-repair-links-choice').checked,true);assert.match(ui.html,/Fix 3 broken links/);
- assert.match(renderText(buildViewModel(start.structuredContent)),/Fix 3 broken links/);
- ui.check('#sync-improve-choice',false);ui.check('#sync-promotion-choice',false);assert.equal(ui.host.querySelector('[data-memory-sync="select"]').disabled,false);
- ui.check('#sync-repair-links-choice',false);assert.equal(ui.host.querySelector('[data-memory-sync="select"]').disabled,true);ui.check('#sync-repair-links-choice',true);
- await ui.sync('select');assert.equal(calls[0].arguments.request.repairLinks,true);assert.match(ui.html,/Broken links to remove/);assert.match(ui.html,/mem_missing_dependency/);
- await ui.sync('approve');assert.match(ui.html,/3 broken links fixed/);
- await ui.sync('restart');assert.equal(ui.host.querySelector('#sync-repair-links-choice'),null);
+ const start=await call(T.sync),before=await readKnowledgeInventory(f.root);ui.render(start);
+ assert.match(ui.html,/Memory maintenance is handled during work/);assert.equal(ui.host.querySelector('#sync-repair-links-choice'),null);
+ assert.doesNotMatch(ui.html,/data-memory-sync|Broken links to remove|Approve/);
+ const text=renderText(buildViewModel(start.structuredContent));assert.doesNotMatch(text,/Fix 3 broken links|Start curation/);
+ assert.deepEqual(calls,[]);assert.deepEqual(await readKnowledgeInventory(f.root),before);assert.equal((await listCheckpoints(f.root)).length,0);
 });
 test('interrupted knowledge transaction recovers the approved link repair exactly once',async t=>{
  const f=await fixture(t);let w=await run(f.root,{action:'start'});w=await act(f,w,'select',{improve:false,share:false});

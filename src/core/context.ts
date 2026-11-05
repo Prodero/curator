@@ -1,6 +1,6 @@
 import { ContextAllocation, marginalValue, REQUIRED_HARD_ITEMS, REQUIRED_HARD_TOKENS, RELEVANT_HARD_ITEMS } from './context-allocation.js';
 import {buildTaskContext,evaluateApplicability,applicabilityOf,type TaskContextInput} from "./applicability.js";
-import { RetrievalEvidenceCollector, type RetrievalEvidence } from "./memory-pressure.js";
+import { RetrievalEvidenceCollector, retrievalTaskContextHash, type RetrievalEvidence } from "./memory-pressure.js";
 import { readConfig } from "./storage.js";
 import { pathScopeRelevant, isPathScope } from "./path-scope.js";
 import { tokens } from "./matching.js";
@@ -334,6 +334,7 @@ export async function getContext(
   const pressure = contextPressure(requiredGlobalCandidateTokens, requiredContextBudgetTokens);
   const attention = [];
   const relevantDisputes = catalog.summaries.filter((item) => item.status === "disputed" && !shadowed.has(item.id) && relevantApplies(item) && (applies(item) || lexicalScore(queryTokens, item).score > 0));
+  for(const item of relevantDisputes.slice(0,8))evidence?.observe(item,'filtered','task-dispute');
   if (relevantDisputes.length) attention.push({ kind: "conflict" as const, severity: "critical" as const, title: `${relevantDisputes.length} disputed knowledge item(s) match this task`, detail: relevantDisputes.slice(0, 2).map((item) => item.title).join(" vs ") });
   const instructionConflicts = conflictWarnings(catalog.summaries.filter(item => !shadowed.has(item.id) && ["active", "disputed"].includes(item.status) && applies(item)));
   const applicableRequired = catalog.summaries.filter(item=>!shadowed.has(item.id) && ['active','disputed'].includes(item.status) && applies(item));
@@ -347,7 +348,7 @@ export async function getContext(
   if(requiredGlobalExcludedItems)attention.push({kind:"context-budget" as const,severity:"critical" as const,title:"Required context is incomplete",detail:`${requiredGlobalExcludedItems} applicable required records cannot be delivered within total capacity or safety ceilings. Do not proceed as if mandatory context were complete; inspect omissions and retry with a suitably scoped task or explicit capacity change.`});
 
 
-  if (evidence) options.onRetrievalEvidence?.(evidence.finish(query ?? "", options.purpose ?? "work", { contextBudgetTokens, requiredContextBudgetTokens, maxRequiredItems: MAX_CONTEXT_REQUIRED_ITEMS, maxContextItems }));
+  if (evidence) options.onRetrievalEvidence?.({...evidence.finish(query ?? "", options.purpose ?? "work", { contextBudgetTokens, requiredContextBudgetTokens, maxRequiredItems: MAX_CONTEXT_REQUIRED_ITEMS, maxContextItems }),taskContextHash:retrievalTaskContextHash(taskContext)});
 
   return {
     projectRoot: root,

@@ -1,19 +1,7 @@
-```text
-╭─ >_ PRODERO ──────────────────── /04
-│ Curator · project memory
-│
-├─ CURATE MEMORY ─────────────────────
-│ Approved changes · verify result
-│
-│ Check saved progress before
-│ retrying; do not repeat approval.
-╰─────────────────────────────────────
-```
+**Memory**
 
-```text
-Available actions:
+Original records retained
 
-  1 > Check progress
+Memory maintenance is handled during work. Original records are retained.
 
-Reply with a number or the command name.
-```
+Approved memory changes are pending verification. The outcome is unknown; inspect technical diagnostics before retrying.

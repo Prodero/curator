@@ -5,7 +5,6 @@ import type {ProjectMigrationPlan} from './core/migrations.js';
 import type {machineIntegrations} from './hosts/manager.js';
 import {publicDiagnostic} from './core/diagnostics.js';
 import {PRODERO_VERSION} from './core/constants.js';
-import {MEMORY_COPY} from './memory-presentation.js';
 export type StatusScope='machine'|'project';
 export interface ProjectStatusResult {version:string;scope:'project';project:ProjectStatus;update:UpdateCheck}
 export interface StatusFailure {ok:false;version:string;scope:StatusScope;error:{code:string;message:string;recovery:string};migration?:ProjectMigrationPlan}
@@ -23,5 +22,8 @@ export function renderMachineStatus(result:Awaited<ReturnType<typeof machineInte
 }
 export function renderProjectStatus(result:ProjectStatusResult):string {
  const p=result.project,u=result.update;
- return [`Prodero ${result.version}`,`Project: ${plain(p.name)} (${plain(p.root)})`,`Initialized: ${yes(p.initialized)} · Git repository: ${yes(p.git)} · Project instructions: ${yes(p.agentsFile)}`,...(p.initialized?[`Project schema: ${p.schemaVersion}`,`Knowledge: ${p.knowledgeCount} current · ${p.localKnowledgeCount} Local · ${p.versionedKnowledgeCount} Versioned`,`Sessions: ${p.sessionCount} total · ${p.activeSessionCount} active · ${p.pendingSessionCount} pending`,`Skills: ${p.skillCount} active · ${p.skillCandidateCount} candidates`,`Checkpoints: ${p.checkpointCount} · Last sync: ${p.lastSyncAt??'never'}`,`Needs attention: ${p.conflictCount} conflicts · ${p.knowledgeGraph.brokenReferences} broken references · ${p.promotionRecommendedCount} sharing suggestions`].concat(p.memoryHealth?.missingProvenanceItems ? [`Provenance: ${p.memoryHealth.missingProvenanceItems} current records with incomplete metadata. ${MEMORY_COPY.incompleteProvenance}`] : []):['Project is not initialized. Run prodero init with --root set to this directory.']),u.status==='current'?`Update: current (${u.current})`:u.status==='update-available'?`Update available: ${u.current} → ${u.latest}`:`Update check ${u.status}: ${plain(publicDiagnostic(u.error??'No release information is available.'))}`,...(u.status==='update-available'&&u.manualUpdateCommand?[u.manualUpdateCommand]:[])].join('\n');
+ return [`Prodero ${result.version}`,`Project: ${plain(p.name)} (${plain(p.root)})`,`Initialized: ${yes(p.initialized)} · Git repository: ${yes(p.git)} · Project instructions: ${yes(p.agentsFile)}`,
+  ...(p.initialized?[`Project schema: ${p.schemaVersion}`,`Knowledge: ${p.knowledgeCount} current · ${p.localKnowledgeCount} Local · ${p.versionedKnowledgeCount} Versioned`,`Sessions: ${p.sessionCount} total`,`Skills: ${p.skillCount} active`,`Last save: ${p.lastSyncAt??'no saved sessions yet'}`]:['Project is not initialized. Run prodero init with --root set to this directory.']),
+  u.status==='current'?`Update: current (${u.current})`:u.status==='update-available'?`Update available: ${u.current} → ${u.latest}`:`Update check ${u.status}: ${plain(publicDiagnostic(u.error??'No release information is available.'))}`,
+  ...(u.status==='update-available'&&u.manualUpdateCommand?[u.manualUpdateCommand]:[])].join('\n');
 }

@@ -143,7 +143,7 @@ const summarySchema = z.object({
     }
   } catch {ctx.addIssue({code:z.ZodIssueCode.custom,message:'Invalid v3 applicability cache entry'});}
 });
-const memoryCacheSchema = z.object({ version: z.literal(10), entries: z.record(summarySchema) });
+const memoryCacheSchema = z.object({ version: z.literal(10), entries: z.record(z.string(), summarySchema) });
 
 async function readCache(root: string, persistCache: boolean): Promise<{ cache: MemoryIndexCache; state: DerivedCacheState }> {
   if (persistCache) await ensureDerivedStateRoot(root);
