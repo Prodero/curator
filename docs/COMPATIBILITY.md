@@ -1,6 +1,6 @@
 # Compatibility and verification
 
-Curator **0.3.0 Public Preview is an unpublished release candidate**. Package metadata is prepared for 0.3.0; the public npm baseline remains 0.2.1. The runtime requirements and project/knowledge schemas remain unchanged. The historical native-client and CI results below describe 0.2.0 unless a different version is explicitly named. They do not certify this candidate. See the [changelog](../CHANGELOG.md) and [release procedure](RELEASING.md).
+Curator **0.3.0 Public Preview** retains the existing runtime requirements and project/knowledge schemas. Automated 0.3.0 candidate results and historical native-client results are listed separately below; the historical results do not certify the new candidate. See the [changelog](../CHANGELOG.md) and [release procedure](RELEASING.md).
 
 > Contract: Local/Versioned describe Git storage and sharing, not a security boundary against the connected agent. Review and approval are workflow safeguards, not authenticated human consent. The agent may create, promote and maintain Versioned files within current authorization. Curator tools do not execute Git commit or push; coding-agent Git actions follow current user scope and host approval controls. See [Privacy](PRIVACY.md).
 
@@ -9,7 +9,7 @@ Supported runtime target: **Node 22.14.0–22.x**, npm and Git. Node 22.14.0 is 
 | Environment | Status |
 | --- | --- |
 | macOS ARM64, Node 22.14.0 | Tested locally: full tests and isolated release gate |
-| macOS / Ubuntu, Node 22.14.0 and 22.23.3 | Full four-job release matrix passed on the 0.2.0 release commit; see the verification results below |
+| macOS / Ubuntu, Node 22.14.0 and 22.23.4 | Full four-job matrix passed on 0.3.0 candidate `e41edec`; final publication identity remains to be recorded |
 | Native Windows | Not supported; filesystem/Git fixtures and process behavior are not verified |
 | Node 20, 24 or other majors; WSL | Not verified / outside the initial runtime contract |
 
@@ -19,7 +19,7 @@ The built-in terminal updater additionally requires **npm 10.9.x** and an ordina
 
 | Host | Status / boundary |
 | --- | --- |
-| Codex CLI | Native 0.144.4 on macOS ARM64 passed installed 0.2.0 text lifecycle, persistent retrieval, Local maintenance and promotion preview. No Apps rendering claim from a CLI test. |
+| Codex CLI | Native 0.144.4 on macOS ARM64 passed the installed 0.3.0 candidate's interactive Open → Prepare → Record → Close text cycle. Historical 0.2.0 checks additionally covered persistent retrieval, Local maintenance and promotion preview. Neither CLI check certifies Apps rendering. |
 | Codex desktop | Successful manual check reported by the maintainer on 2026-10-23; detailed build and per-case Apps results were not recorded. |
 | Claude Code | Experimental adapter. Native 2.1.302 on macOS ARM64 passed installed 0.2.0 text lifecycle, persistent retrieval, Local maintenance and promotion preview. This does not certify Claude Desktop or Apps rendering. |
 | Claude Desktop | No installer adapter; not verified. |
@@ -39,7 +39,17 @@ Claude Code does not automatically read project `AGENTS.md`. Initialization rema
 
 The [release gate](RELEASING.md) checks a clean installed artifact, stdio lifecycle, Local storage, reviewed synthetic sharing, restart and synthetic patch upgrade preservation. Synthetic upgrades do not certify future releases or arbitrary schema downgrades.
 
-### Native text checks — 2026-10-23
+### Automated 0.3.0 candidate checks — 2026-11-05
+
+Candidate `e41edec2872dce8ebe78b488c60df08a8121bdb6` passed [fast CI](https://github.com/Prodero/curator/actions/runs/42092539614) with 1,555 tests and [full CI](https://github.com/Prodero/curator/actions/runs/42092598604) on all four macOS ARM64 / Ubuntu x64 × Node 22.14.0 / 22.23.4 jobs, each with 1,562 tests and 16 installed-artifact smoke groups. Counts overlap and are not additive. All four CI archives had SHA-256 `4f5374cc45cbc3a24a5de168bf483336ca8f36e76d7467d0ce2e1235a8cb6d18`. These results identify the candidate before final publication documentation changes.
+
+### Interactive 0.3.0 text check — 2026-11-06
+
+The maintainer ran ordinary interactive Codex CLI 0.144.4 on macOS ARM64 against the installed CI candidate above in an isolated synthetic Git project. Only its Prodero MCP was enabled, with normal per-call approval and a read-only shell sandbox; saved host settings were not intentionally edited. The maintainer confirmed a successful **Open → Prepare → Record → Close** cycle and the visible receipt **Session closed · Saved 1 observation**. Independent storage inspection found that exact closed session, one Local item containing the expected synthetic observation and zero Versioned items. This is a text lifecycle check; it does not certify Apps/GUI, native sampling, restart/retrieval, Local editing, sharing or Claude Code on 0.3.0. The earlier noninteractive attempts were cancelled by the host and are not passing checks.
+
+The accepted runtime is identified by candidate commit and archive hash above. Final publication documentation changes require a new archive, a payload comparison preserving that runtime and successful checks on the exact final commit; keep that evidence with the release. Claude Code was not authenticated for a new native run and remains experimental. Protocol/install fixtures do not establish native-host success.
+
+### Historical native 0.2.0 text checks — 2026-10-23
 
 The runtime candidate was commit `4f14a196b5325cf08c67ebeac40d21f5edb6e89f`. Its [fast CI](https://github.com/Prodero/curator/actions/runs/39653486240) passed 1,446 ordinary tests; its [full CI](https://github.com/Prodero/curator/actions/runs/39653523638) passed all four macOS/Ubuntu × Node 22.14.0/22.23.3 jobs, each with 1,453 tests and 16 installed-artifact smoke groups. These counts overlap and are not additive. The reviewed full-CI tarball SHA-256 was `c6bb29869c6fdcdff139799d01626a3f7ec57598005e5ab5d14437a76fbe9a12`.
 

@@ -2,7 +2,7 @@
 
 **Project memory for Codex and Claude Code.**
 
-**0.3.0 Public Preview release candidate — not yet published.** The public installation below still uses published 0.2.1. Review an unpublished candidate from its verified tarball; see [release verification](docs/RELEASING.md).
+**0.3.0 Public Preview.** See [compatibility and verification](docs/COMPATIBILITY.md) for the exact coverage and limitations.
 
 Keep project decisions, conventions, and lessons across sessions, right inside your coding assistant.
 
@@ -11,22 +11,21 @@ Keep project decisions, conventions, and lessons across sessions, right inside y
 Paste this into your coding agent:
 
 ```text
-Install Prodero Curator using this guide:
-https://prodero.io/curator/setup.md
+Install Prodero Curator using https://prodero.io/curator/setup.md
 ```
 
-The [published setup guide](https://prodero.io/curator/setup.md) targets **0.2.1** and its existing installation wizard. The repository's [candidate guide](setup.md) also covers unreleased CLI capabilities; do not install `@0.3.0` until it is published. See the [publication handoff](docs/INSTALL-WITH-AGENT.md). [Manual installation](#manual-installation) remains equally supported.
+The guide covers Codex and experimental Claude Code: it inspects your setup, proposes one concrete plan and verifies the selected client's connection. See the [publication handoff](docs/INSTALL-WITH-AGENT.md). [Manual installation](#manual-installation) remains available.
 
 ## Manual installation
 
 Install in two commands, reopen your coding client, then type **`prodero`**.
 
 ```sh
-npm install --global @prodero/curator@0.2.1
+npm install --global @prodero/curator@0.3.0
 prodero install
 ```
 
-Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.2.1 Public Preview.** Codex CLI is tested; Claude Code remains experimental. See the [compatibility matrix](docs/COMPATIBILITY.md).
+Requires **Node.js >=22.14.0 <23**, npm and Git. **v0.3.0 Public Preview.** Claude Code remains experimental; native-client coverage is recorded by version below. See the [compatibility matrix](docs/COMPATIBILITY.md).
 
 1. In the installation wizard, select **Codex** or **Claude Code**, confirm the setup and choose **Finish**.
 2. Reopen Codex or Claude Code in your repository and type **`prodero`** in chat.
@@ -103,7 +102,7 @@ Use **Knowledge** to search, inspect and edit saved items. Explicit Open also of
 
 The [maintenance contract](docs/V0.3.0-MAINTENANCE.md) describes automatic work, conservative retention and the remaining safety boundaries.
 
-Where the host supports MCP Apps, Curator provides a graphical interface. Otherwise, use text mode: **“Show Prodero as text.”** In this 0.3.0 candidate, chat uses compact native Markdown with a small `›_ prodero` launch mark and brief task/save updates. The terminal keeps its own renderer. See [text behavior and examples](docs/V0.3.0-CHAT-TEXT.md). You do not need to memorize CLI commands.
+Where the host supports MCP Apps, Curator provides a graphical interface. Otherwise, use text mode: **“Show Prodero as text.”** In 0.3.0, chat uses compact native Markdown with a small `›_ prodero` launch mark and brief task/save updates. The terminal keeps its own renderer. See [text behavior and examples](docs/V0.3.0-CHAT-TEXT.md). You do not need to memorize CLI commands.
 
 ## Main capabilities
 

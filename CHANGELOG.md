@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 — release candidate (unpublished)
+## 0.3.0 — 2026-11-06 (Public Preview)
 
 - Updated MCP SDK to 1.32.2, refreshed compatible production dependency patches, and migrated validators to Zod 4.6.7. Bounded collections now reject oversized input before walking elements; provider/plugin JSON Schema and legacy input defaults/receipts retain their validation contracts.
 
@@ -17,7 +17,7 @@
 - Bounded current-session agent reconciliation reuses semantic validation and transactional history for eligible Local knowledge. Protected, ambiguous and unsupported changes preserve originals; no new external provider is required.
 - MCP chat text now uses native Markdown: a small ›_ prodero launch mark, factual project overview, named actions and brief unbranded task/save updates. Terminal CLI/explicit ASCII fallback and visual App contracts remain separate.
 
-Package metadata is prepared for **0.3.0 Public Preview**. Project schema remains **8** and knowledge schema remains **3**; no canonical schema migration is added. Publication date, exact-commit CI and native-host acceptance remain release gates. This candidate is not yet available from npm.
+Project schema remains **8** and knowledge schema remains **3**; no canonical schema migration is added. See [compatibility and verification](docs/COMPATIBILITY.md) for the tested artifact and host coverage.
 
 ## 0.2.1 — 2026-10-25 (Public Preview)
 

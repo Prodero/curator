@@ -5,7 +5,7 @@ Install the public package (or a generated preview tarball), then run `prodero i
 ## Commands and status
 
 - `prodero install`: open the interactive installation wizard. It lists every agent and its saved configuration state, then offers numbered install/update actions only for agents that need them. Select an agent, confirm with `y`, and review the result. Repeat for another agent or choose Finish. Enter at the selection prompt finishes; Enter at confirmation cancels that action. Ctrl+C or EOF exits without starting another operation.
-- With no arguments, installation opens the wizard; a non-interactive wizard invocation prints readable status and terminal instructions, exits nonzero, and makes no changes. Positional host names and `--all` remain rejected. The unreleased targeted `--host` preview/apply route is described below.
+- With no arguments, installation opens the wizard; a non-interactive wizard invocation prints readable status and terminal instructions, exits nonzero, and makes no changes. Positional host names and `--all` remain rejected. The 0.3.0 targeted `--host` preview/apply route is described below.
 - `prodero uninstall [codex|claude]` / `prodero uninstall --all`: remove owned integration, including when the executable has since disappeared. The default visits all adapters.
 - `prodero status`: readable machine integration status, including the installed version and each host's detection, MCP, launcher and configuration state. It does not discover or access a project, even when run inside one.
 - `prodero status --root PATH`: readable status for that existing project: initialization, knowledge availability, sessions, skills and the bounded update check; full technical counters remain in explicit JSON. It does not initialize, migrate, synchronize or repair the project.
@@ -17,11 +17,11 @@ An unchanged install writes nothing, including receipts and backups. An intact o
 
 `HOME`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_STATE_HOME` must use absolute paths when set (empty optional overrides use their defaults). Relative overrides are rejected before any writes, so changing the current repository cannot redirect machine settings into it. Configuration and state must remain inside the user home. Codex installation also checks its inactive global instruction file: an existing Prodero block there is a conflict, rather than permission to install a second launcher. Uninstall can still remove the receipt-owned launcher while preserving an unrelated block in the other file.
 
-## Prompt-assisted installation (0.3.0 development)
+## Prompt-assisted installation (0.3.0)
 
 The optional [agent guide](../setup.md) adds a reviewed conversational route alongside the existing wizard. A CLI that advertises targeted installation supports `prodero install --host codex --dry-run --json` for a read-only selected-host preview, followed by `prodero install --host codex --yes --json` only after the plan is approved. Use `claude` for the experimental Claude Code adapter. Exactly one host and one action are required. No arguments still opens the existing wizard; positional host names and `--all` remain unsupported for install.
 
-This targeted route reuses the same native parsing, ownership receipts, private backups and recovery behavior. It does not install/update npm packages, initialize projects or verify a running connection. Restart/reconnect the selected client after applying. Published 0.2.1 lacks the new flags; use its wizard rather than sending it unreleased commands. See [the publication handoff](INSTALL-WITH-AGENT.md) for the landing Copy prompt and release boundary.
+This targeted route reuses the same native parsing, ownership receipts, private backups and recovery behavior. It does not install/update npm packages, initialize projects or verify a running connection. Restart/reconnect the selected client after applying. Published 0.2.1 lacks the new flags; use its wizard rather than sending it unsupported commands. See [the publication handoff](INSTALL-WITH-AGENT.md) for the landing Copy prompt and release boundary.
 
 ## Runtime switching
 
@@ -127,7 +127,7 @@ prodero status --json
 prodero status --root /absolute/path/to/project --json
 prodero check-update
 prodero update
-prodero update 0.2.1 --yes
+prodero update 0.3.0 --yes
 prodero install
 ```
 
@@ -159,7 +159,7 @@ For project-history questions without starting a session, use `prodero recall "w
 
 The npm package is now `@prodero/curator`; the command remains `prodero`. Existing project data and host receipts keep their paths and formats. Legacy `@prodero/cli` package/checkouts remain recognized when selecting an existing runtime. If the installed package path changes, explicitly select the new installation with `--package-root` as described above; no host setting or project data is silently migrated.
 
-## Chat text versus terminal output (0.3.0 development)
+## Chat text versus terminal output (0.3.0)
 
 The global launcher still selects the current project settings, then calls the text gateway or normal Open. The connected runtime guide supplies the matching reply contract; there is no second launcher or global style preference to install. MCP text and invisible-App fallbacks now use native Markdown with a small `›_ prodero` mark on explicit launch, named actions and short unbranded lifecycle receipts. They do not require a special Codex table tool. Clients that render only plain text retain readable Markdown source. Translation follows the current conversation language; exact source/approval evidence stays intact.
 

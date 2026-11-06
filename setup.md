@@ -1,13 +1,19 @@
 # Install Prodero Curator with your coding agent
 
-This is an optional assistant-guided route. Manual installation is equally supported:
+Use this guide for **Codex or experimental Claude Code**, following the client/platform boundaries below. The agent checks prerequisites, presents one plan and guides installation for the selected client. Do not promise a fully unattended install.
+
+**Platform verification:** release checks passed on macOS and Ubuntu; historical native client lifecycle checks were performed on macOS. On Linux, offer the manual wizard and report native-client connectivity as unverified until checked in that client. Native Windows is not supported; WSL is unverified and outside this workflow.
+
+**Claude Code uses the same setup route.** Its adapter remains experimental. Historical native text-lifecycle checks do not certify this prompt flow, desktop Apps rendering or every host/version. The [verification scope](docs/COMPATIBILITY.md#hosts) is an optional reference; guide the user through setup in chat.
+
+The manual fallback is:
 
 ```sh
-npm install --global @prodero/curator@0.2.1
+npm install --global @prodero/curator@0.3.0
 prodero install
 ```
 
-**Release boundary:** 0.2.1 is the published stable baseline for this guide. The targeted installation commands below are an unreleased 0.3.0 capability. Do not install `@0.3.0` until that version is published. A locally supplied candidate must be explicitly identified as a candidate, never fetched under a guessed version. This guide is installation guidance, not permission to bypass the user's or host's approval controls.
+**Release boundary:** this guide targets **0.3.0 Public Preview**. Before proposing installation, verify that exact version and its `engines.node` metadata in the public npm registry. Stop if it is unavailable; do not substitute a guessed version or an unpublished candidate. A locally supplied candidate must be explicitly identified and reviewed separately. This guide is installation guidance, not permission to bypass the user's or host's approval controls.
 
 ## 1. Inspect before changing anything
 
@@ -36,7 +42,7 @@ done
 
 Obtain OS/architecture from trusted host metadata or an identified concrete system utility. Check versions only with a known concrete **already-installed** executable, or an invocation-local no-install guard verified in the current documentation of the installed manager and covering its lazy-install/update/hooks behavior. This guide supplies no generic guard flag; do not guess one, change manager settings, activate a shell, or assume that disabling one auto-install option disables lazy tools. If no safe check is established, report the version as **unknown** and include that unresolved prerequisite in the reviewed plan/manual step instead of executing the shim. Keep **missing**, **found but unverified**, and **verified check failed** distinct.
 
-For npm scripts, use the identified matching already-installed Node binary and known bundled npm entry when necessary, rather than a PATH shim. Once that installation is verified, read its version, intended npm prefix and Curator status/help. All later command examples are shorthand for this verified concrete installation/scoped runner; do not fall back to unresolved PATH commands. Read `prodero status --json` only after the existing CLI and its runtime have passed this check. No pre-consent version/status/help probe may trigger downloads, installation, automatic updates or project hooks.
+For npm scripts, use the identified matching already-installed Node binary and known bundled npm entry when necessary, rather than a PATH shim. Once that installation is verified, read its version, intended npm prefix and Curator status/help. All later command examples are shorthand for this verified concrete installation/scoped runner; do not fall back to unresolved PATH commands. Inspect the verified existing CLI help first. Use `prodero status --json` only when that interface is advertised. If an older installation lacks it, report the manual inspection step rather than sending an unsupported flag or upgrading silently. No pre-consent version/status/help probe may trigger downloads, installation, automatic updates or project hooks.
 
 | Client / platform | Assisted setup boundary |
 | --- | --- |
@@ -107,7 +113,7 @@ On failure, stop the dependent step and show a sanitized diagnostic and recovery
 
 ## 4. Verify and report honestly
 
-Re-read `prodero status --json`. An installed state means **saved configuration**, not a running or authenticated connection. Do not automatically close the current client or interrupt active work. Tell the user to restart/reconnect the selected client when ready.
+Re-read status using the interface confirmed in step 1 (`prodero status --json` when advertised). An installed state means **saved configuration**, not a running or authenticated connection. Do not automatically close the current client or interrupt active work. Tell the user to restart/reconnect the selected client when ready.
 
 After reconnect, use the client's actual tool discovery and, where available, `prodero_instructions_read` to verify this server is connected. Do not launch a second standalone server and call that proof of the client's connection. If the client cannot yet expose tools, report **restart/reconnect pending; connectivity unverified**. Report client/tool errors separately from configuration success. Do not claim Apps rendering, authentication or full lifecycle success from a status command.
 
@@ -116,6 +122,8 @@ End with: prerequisite runtime reused/prepared/blocked (exact Node/npm paths and
 ## 5. Project setup is a separate choice
 
 Installation must not run `prodero init`, initialize `.prodero`, edit project `AGENTS.md`/`CLAUDE.md`, import memory or change Git. After the connection is verified, offer opening Prodero in the user's selected repository. A new project's initialization and generated files require their own explicit review/choice. Claude Code's project `CLAUDE.md` import of `@AGENTS.md` is likewise a separate project edit. Preserve existing project knowledge and instructions.
+
+For **Claude Code**, guide this last step in chat instead of sending the user away to the host reference. After the user chooses project initialization through Prodero, check whether the project's `CLAUDE.md` already imports `@AGENTS.md`. If it does not, present a small project edit adding that import on its own line (or creating `CLAUDE.md` containing that line). Apply it only within the user's approved project-setup scope. Preserve existing instructions and avoid duplicate imports. Claude Code does not automatically read `AGENTS.md`; a successful global install alone does not complete project lifecycle setup. If the project edit is not authorized or cannot be made, report it as the exact pending step. Do not move project lifecycle rules into the global launcher.
 
 ## Manual documentation
 
