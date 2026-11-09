@@ -14,9 +14,18 @@ Install Prodero Curator using https://prodero.io/curator/setup.md
 
 The existing landing site is a separate Next.js project. Its minimal static publication path is `prodero-site/public/curator/setup.md`, served at `/curator/setup.md` on the existing domain. This needs no new subdomain, DNS record, MCP server or installer API. The static guide already exists at that path; update the existing file without adding a duplicate route. Recheck rewrites and redirects against the selected production revision before shipping. Verify the production branch/deployment target before shipping; this Curator checkout does not deploy that site.
 
-For the 0.3.0 handoff, first publish and verify the exact npm package and reviewed repository documentation. Then update the existing hosted guide, verify its exact production response and links, and deploy the landing Copy prompt under the website publication authorization. Until 0.3.0 is publicly available, keep the live guide on 0.2.1 with its wizard/capability fallback. Changes to the guide are installation-policy changes and require review even when only a static file is deployed.
+The stable prompt and guide follow the public npm `latest` dist-tag. The agent resolves package metadata before review and installs that exact approved version, not a second mutable-tag lookup. This does not authorize upgrades of existing installations. Publish stable releases with `--tag latest`; publish prereleases under a separate tag. Verify the public tag and package before deploying installation-policy changes. Changes to the guide require review even when only a static file is deployed. A normal subsequent package release does not require a prompt or guide version edit.
 
-Serve UTF-8 Markdown/plain text over HTTPS without login or a JavaScript requirement. Rewrite the guide's relative `docs/` links to reviewed published repository documents, or host those documents too; otherwise they resolve to nonexistent paths on the branded domain. Use revalidation rather than an immutable cache for this stable URL. Before enabling Copy prompt, fetch the exact production URL, check the response type and contents against the reviewed artifact, verify the documentation links and test the published package's actual help/wizard path. Keep the README and landing prompt identical, and test that Copy preserves the exact guide URL.
+Keep the hosted copy synchronized from the repository source, preserving its content while converting relative documentation links to the published npm package on UNPKG:
+
+```sh
+node scripts/sync-setup-guide.mjs ../prodero-site/public/curator/setup.md
+node scripts/sync-setup-guide.mjs --check ../prodero-site/public/curator/setup.md
+```
+
+The sync command only writes the selected local Markdown file; it never publishes or deploys. The website's version-neutral preview badge and `@latest` compatibility link also avoid per-release edits. Published doc links may be cached by the CDN; during installation use the exact selected version's documents if the mutable tag has moved, and verify CDN responses before claiming they reflect a new release.
+
+Serve UTF-8 Markdown/plain text over HTTPS without login or a JavaScript requirement. Use the sync command to rewrite the guide's relative `docs/` links to the published package documents; otherwise they resolve to nonexistent paths on the branded domain. Use revalidation rather than an immutable cache for this stable URL. Before enabling Copy prompt, fetch the exact production URL, check the response type and contents against the reviewed artifact, verify the documentation links and test the published package's actual help/wizard path. Keep the README and landing prompt identical, and test that Copy preserves the exact guide URL.
 
 ## Historical 0.2.1 guide publication
 

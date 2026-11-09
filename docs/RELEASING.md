@@ -88,8 +88,8 @@ Use the isolated host environment described above for automated verification. Fo
 3. Confirm ownership of npm scope `@prodero`, package/repository identity `@prodero/curator` / `prodero/curator`, and permission to release. A registry 404 does not establish scope ownership.
 4. Create/configure the intended public repository only with explicit approval. Enable Issues and private vulnerability reporting; verify the links and update any identity/channel changes in docs and package metadata.
 5. Confirm the intended version, MIT license, final changelog date, preview limitations, README installation example and exact artifact contents. If any edit is still needed, return to step 1 and certify the new artifact. Obtain explicit approval for publication.
-6. Authenticate npm with the account's required 2FA/provenance policy. Publish the **reviewed tarball**, not an unreviewed rebuild: `npm publish /absolute/path/prodero-curator-X.Y.Z.tgz --access public`.
-7. Verify external `npm install --global @prodero/curator@X.Y.Z`, `prodero --version` and `prodero check-update`. Only with separate approval create/push the matching `vX.Y.Z` tag and release notes or announcements.
+6. Authenticate npm with the account's required 2FA/provenance policy. Publish the **reviewed tarball**, not an unreviewed rebuild: `npm publish /absolute/path/prodero-curator-X.Y.Z.tgz --access public --tag latest`. Reserve `latest` for stable releases; publish prereleases under a separate tag.
+7. Verify `npm view --registry=https://registry.npmjs.org/ @prodero/curator@latest version` equals the intended release, then verify external `npm install --global @prodero/curator@latest`, `prodero --version` and `prodero check-update`. Only with separate approval create/push the matching `vX.Y.Z` tag and release notes or announcements.
 
 The automated gate does not publish or push and does not change the source repository history. It creates an isolated disposable test commit in its temporary checkout. Package upgrades do not move project knowledge. Back up the full `.prodero` directory before preview upgrades; `.cache` is disposable, migration recovery backups are not.
 

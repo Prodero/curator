@@ -18,10 +18,10 @@ The guide covers Codex and experimental Claude Code: it inspects your setup, pro
 
 ## Manual installation
 
-Install in two commands, reopen your coding client, then type **`prodero`**.
+Install the latest published release in two commands, reopen your coding client, then type **`prodero`**. The prompt-assisted guide resolves `@latest` to an exact reviewed version before installing.
 
 ```sh
-npm install --global @prodero/curator@0.3.0
+npm install --global @prodero/curator@latest
 prodero install
 ```
 

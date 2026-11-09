@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 — 2026-11-06 (Public Preview)
+## 0.3.0 — 2026-11-09 (Public Preview)
 
 - Updated MCP SDK to 1.32.2, refreshed compatible production dependency patches, and migrated validators to Zod 4.6.7. Bounded collections now reject oversized input before walking elements; provider/plugin JSON Schema and legacy input defaults/receipts retain their validation contracts.
 
@@ -8,6 +8,7 @@
 
 - Compact text Open now shows branch lines with total/Local/Versioned memory and actual bootstrap instruction counts. Four stable numbered actions support natural-language requests and clearly distinguish legacy instruction refinement from sharing memory via Git.
 
+- Installation examples now follow npm `@latest`; the agent resolves and reviews one exact release before installing, so the stable prompt needs no version edit on future releases.
 - Added an optional prompt-assisted installation guide, with current-stable wizard fallback and a landing Copy prompt publication handoff. Manual npm/CLI installation remains supported.
 - Added explicit one-host installation preview/apply for agents, reusing existing native configuration ownership, backups and recovery. Saved configuration and pending restart/connectivity remain distinct.
 - Added an approved prerequisite preparation path to the installation guide, preserving existing runtime versions/defaults and separating project initialization.
