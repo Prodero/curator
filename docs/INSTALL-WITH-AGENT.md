@@ -27,6 +27,16 @@ The sync command only writes the selected local Markdown file; it never publishe
 
 Serve UTF-8 Markdown/plain text over HTTPS without login or a JavaScript requirement. Use the sync command to rewrite the guide's relative `docs/` links to the published package documents; otherwise they resolve to nonexistent paths on the branded domain. Use revalidation rather than an immutable cache for this stable URL. Before enabling Copy prompt, fetch the exact production URL, check the response type and contents against the reviewed artifact, verify the documentation links and test the published package's actual help/wizard path. Keep the README and landing prompt identical, and test that Copy preserves the exact guide URL.
 
+## Prompt route hardening — 2026-11-09
+
+The guide begins with the complete selected-host path. It explicitly rejects the invented `install claude`/`install codex` syntax, then defines invocation-local `curator_npm` and `curator_cli` functions from inspected absolute Node, bundled npm and installed package paths. Every assisted version/help/status/install/rollback operation uses those runners. A foreign `prodero` on PATH remains untouched; a conflicting binary in the installation prefix selects a separate user-owned prefix instead of force-overwriting it.
+
+Each executable stage has a stable `curator:` marker so regression tests can execute the actual documentation blocks rather than a separately maintained example. New installs resolve npm latest once and install the reviewed exact version. Existing configured releases retain their actual version without being compared against latest. Targeted install and machine JSON status have separate capability checks for older releases. Dependent commands preserve failure exit codes.
+
+The normal route stays ahead of prerequisite exceptions and the manual alternative. Approval follows the user's request and host controls, without repeated confirmation for an unchanged plan. Successful installation leads to actual client tool discovery, or a single reconnect handoff: reopen the client in the project, start a new chat and type `prodero`. Project initialization remains an explicit choice. Claude Code's project `@AGENTS.md` import is part of that reviewed continuation, not a hidden global edit.
+
+The one-line prompt is unchanged. This documentation change needs no package release. Fixture tests and published-artifact checks do not prove that every model follows the guide or that native client connectivity is established; report those separately.
+
 ## Historical 0.2.1 guide publication
 
 The separately approved website publication added only `public/curator/setup.md` to `0leg-K/prodero-site:main` in commit `51daca10c12a5f83d5c23d0d92bfb5e89878c610`. Vercel reported a successful production deployment. The permanent URL returned HTTP 200 with `text/markdown; charset=utf-8`, no authentication or JavaScript requirement, and all 18,056 bytes matched the reviewed 0.2.1 guide (SHA256 `0242c1975b727087bba10cf687f897ce422ab0fd1826ee09d71b5a146cd3c75c`). The three linked v0.2.1 repository documents returned HTTP 200. No 0.3.0 npm package was released, and the landing page's Copy action was not changed.

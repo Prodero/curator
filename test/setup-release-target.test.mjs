@@ -35,9 +35,11 @@ test('new-install examples follow latest without a release-number edit', () => {
 
 test('metadata lookup uses the public latest tag; installation uses only the reviewed exact version', async t => {
   const root = await fixture(t);
-  await fs.writeFile(path.join(root, 'npm'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o700 });
-  const env = { PATH: root, HOME: root, CURATOR_VERSION: '42.17.9' };
-  const run = (name, environment = env) => spawnSync('/bin/sh', ['-c', snippet(name)], { env: environment, encoding: 'utf8' });
+  const npmCli = path.join(root, 'npm cli.cjs');
+  await fs.writeFile(npmCli, `if (process.argv[2] === 'root') console.log(process.env.CURATOR_PREFIX + '/lib/node_modules'); else console.log(process.argv.slice(2).join('\\n'));`);
+  const env = { PATH: root, HOME: root, NODE_BIN: process.execPath, NPM_CLI: npmCli,
+    CURATOR_PREFIX: path.join(root, 'npm prefix'), CURATOR_HOST: 'codex', CURATOR_VERSION: '42.17.9' };
+  const run = (name, environment = env) => spawnSync('/bin/sh', ['-ec', snippet('runners') + '\n' + snippet(name)], { env: environment, encoding: 'utf8' });
   const metadata = run('release-metadata');
   assert.equal(metadata.status, 0, metadata.stderr);
   const fields = metadata.stdout.trim().split('\n');
@@ -48,8 +50,12 @@ test('metadata lookup uses the public latest tag; installation uses only the rev
   const args = install.stdout.trim().split('\n');
   assert.equal(args[0], 'install');
   for (const arg of ['--global', '--registry=https://registry.npmjs.org/', '--engine-strict', '--omit=dev', '--ignore-scripts', '@prodero/curator@42.17.9']) assert.ok(args.includes(arg));
-  assert.doesNotMatch(install.stdout, /latest/);
-  const unset = run('pinned-install', { PATH: root, HOME: root });
+  assert.doesNotMatch(install.stdout, /@latest/);
+  assert.equal(args[args.indexOf('--prefix') + 1], env.CURATOR_PREFIX);
+  assert.equal((snippet('release-metadata').match(/@latest/g) || []).length, 1);
+  assert.doesNotMatch(snippet('pinned-install'), /@latest/);
+  const { CURATOR_VERSION, ...withoutVersion } = env;
+  const unset = run('pinned-install', withoutVersion);
   assert.notEqual(unset.status, 0);
   assert.equal(unset.stdout, '', 'Missing approval target must not invoke npm');
 });
