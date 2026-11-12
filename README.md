@@ -1,10 +1,20 @@
 # Prodero Curator
 
-**Project memory for Codex and Claude Code.**
+**Project memory that grows with your work and brings the right context to each task.**
 
-**0.3.0 Public Preview.** See [compatibility and verification](docs/COMPATIBILITY.md) for the exact coverage and limitations.
+Prodero Curator is an open-source MCP tool for Codex and Claude Code. It helps your agent remember project decisions, instructions, and lessons across sessions, keep that knowledge up to date, and select what matters for the task at hand. You work in chat instead of maintaining one growing rules file by hand.
 
-Keep project decisions, conventions, and lessons across sessions, right inside your coding assistant.
+## What you can do with Curator
+
+- **Carry lessons forward.** After fixing a tricky bug or discovering how a subsystem works, your agent can record the useful outcome. Curator saves recorded outcomes as Local Knowledge when the agent closes the session, ready for future tasks.
+- **Ask your agent to remember something.** “Remember that API tests must use our shared fixtures.” You can also specify where a rule applies, such as the `tests/` directory.
+- **Update knowledge as the project changes.** “Update the saved testing convention to use the new fixture directory.” Routine maintenance handles supported deduplication and consolidation; uncertain changes preserve the original knowledge rather than silently rewriting your rules.
+- **Start each task with the right context.** Describe the work normally. Curator selects applicable Required instructions, relevant knowledge, and reusable skills within a context budget, instead of loading the entire memory store.
+- **Keep personal lessons local, share project knowledge deliberately.** Local Knowledge stays Git-ignored. Reviewed Versioned Knowledge can travel with the repository so teammates and their agents can reuse it.
+
+Learning and context preparation run through the agent's Curator workflow. Curator does not monitor every conversation or remember details the agent never records. You can inspect and edit saved knowledge at any time.
+
+**0.3.0 Public Preview.** Claude Code support is experimental. See [compatibility and verification](docs/COMPATIBILITY.md) for the exact coverage and limitations.
 
 ## Install with a prompt
 
